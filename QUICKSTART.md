@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get your Practice Journal running in 3 simple steps!
+(Check out the full [README.md](README.md) for more details)
 
 ## Prerequisites
 - Docker and Docker Compose installed
@@ -35,16 +35,12 @@ docker compose exec backend python seed_data.py
 
 You should see confirmation that the database has been seeded successfully.
 
-## 3. Start Practicing!
+## 3. Access the Application
 
-Open your browser and go to:
+Open your browser and navigate to:
 
 **http://localhost:3000**
 
-You'll see the instrument selector. Click on "Violin" to:
-- 📅 View your 14-day practice rotation
-- ✏️ Log today's practice session
-- 📊 Review your practice history and statistics
 
 ## Useful Commands
 
@@ -89,13 +85,9 @@ docker compose up --build
 - Check logs: `docker compose logs backend`
 - Ensure PostgreSQL is healthy: `docker compose ps`
 
-## Next Steps
+## API docs
 
-- Try logging a practice session
-- View your practice history
-- Check out the full [README.md](README.md) for more details
 - Explore the API at http://localhost:8000/docs
 
-Happy practicing! 🎻
 
 

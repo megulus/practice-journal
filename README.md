@@ -1,37 +1,36 @@
 # Practice Journal
 
-A full-stack web application for tracking music practice sessions across multiple instruments. Built with FastAPI, PostgreSQL, and Next.js.
+An application for tracking music practice sessions across multiple instruments. Built with FastAPI, PostgreSQL, and Next.js.
 
 ## Features
 
 - 📅 **Structured Practice Plans**: Follow customizable rotation schedules designed for systematic skill development
 - ✏️ **Session Logging**: Record detailed practice sessions including warm-ups, scales, technical exercises, and repertoire work
 - 📊 **Progress Analytics**: Track total sessions, practice minutes, and average session duration
-- 🎻 **Multi-Instrument Support**: Manage practice routines for different instruments (currently includes Violin, expandable to others)
-- 🎯 **Technical Focus Areas**: Organized practice blocks covering tone, shifting, articulation, double stops, and more
+- 🎻 **Multi-Instrument Support**: Manage practice routines for different instruments (currently includes violin, expandable to others)
+- 🎯 **Technical Focus Areas**: Organized practice blocks covering instrument-specific technical challenges
 
 ## Technology Stack
 
 ### Backend
-- **FastAPI** - Modern, fast Python web framework
-- **PostgreSQL** - Robust relational database
-- **SQLAlchemy** - SQL toolkit and ORM
-- **Alembic** - Database migration tool
-- **Pydantic** - Data validation
+- **FastAPI** 
+- **PostgreSQL** 
+- **SQLAlchemy**
+- **Alembic** 
+- **Pydantic** 
 
 ### Frontend
-- **Next.js 14** - React framework with App Router
-- **React 18** - UI library
-- **TypeScript** - Type-safe JavaScript
-- **Tailwind CSS** - Utility-first CSS framework
+- **Next.js**
+- **React**
+- **TypeScript** 
+- **Tailwind CSS** 
 
 ### Development
-- **Docker Compose** - Containerized development environment
+- **Docker Compose**
 
 ## Prerequisites
 
 - Docker and Docker Compose
-- Git
 
 ## Getting Started
 
@@ -261,12 +260,5 @@ The application is designed with future expansion in mind:
 - Check if backend is accessible: http://localhost:8000/health
 - Verify API calls in browser console
 
-## License
-
-MIT License - feel free to use this project for your own music practice tracking!
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 
