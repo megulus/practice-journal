@@ -223,8 +223,7 @@ ROTATION_DATA = {
 
 def seed_database():
     """Populate database with violin practice rotation data"""
-    print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
+    print("Seeding database with violin practice data...")
     
     db: Session = SessionLocal()
     

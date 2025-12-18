@@ -65,3 +65,6 @@ postgres_data/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Architecture
+.architecture/
