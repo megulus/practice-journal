@@ -1,10 +1,11 @@
 """
 Seed script to populate the database with initial violin practice rotation data
 """
-from sqlalchemy.orm import Session
-from app.database import SessionLocal, engine, Base
-from app.models.instrument import Instrument
-from app.models.practice_template import PracticeTemplate, PracticeDay, ExerciseBlock, Exercise
+import asyncio
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+from app.database import async_session
+from app.models import Instrument, PracticeTemplate, PracticeDay, ExerciseBlock, Exercise
 
 # Violin rotation data extracted from HTML prototype
 ROTATION_DATA = {
@@ -221,107 +222,106 @@ ROTATION_DATA = {
 }
 
 
-def seed_database():
+async def seed_database():
     """Populate database with violin practice rotation data"""
     print("Seeding database with violin practice data...")
     
-    db: Session = SessionLocal()
-    
-    try:
-        # Check if data already exists
-        existing_instrument = db.query(Instrument).filter(Instrument.name == "Violin").first()
-        if existing_instrument:
-            print("Database already seeded. Skipping...")
-            return
-        
-        print("Creating Violin instrument...")
-        violin = Instrument(
-            name="Violin",
-            description="String instrument typically played with a bow"
-        )
-        db.add(violin)
-        db.flush()  # Get the ID
-        
-        print("Creating 14-day practice template...")
-        template = PracticeTemplate(
-            instrument_id=violin.id,
-            name="Intermediate Violin - 14-Day Rotation",
-            days_count=14,
-            description="A comprehensive 14-day rotation covering tone, shifting, articulation, double stops, and bow techniques",
-            is_active=True
-        )
-        db.add(template)
-        db.flush()
-        
-        print("Populating practice days and exercises...")
-        for day_num in range(1, 15):
-            day_data = ROTATION_DATA[day_num]
+    async with async_session() as session:
+        try:
+            # Check if data already exists
+            result = await session.execute(select(Instrument).where(Instrument.name == "Violin"))
+            existing_instrument = result.scalar_one_or_none()
             
-            # Create practice day
-            practice_day = PracticeDay(
-                template_id=template.id,
-                day_number=day_num,
-                title=day_data["title"],
-                warmup=day_data["warmup"],
-                scales=day_data["scales"],
-                repertoire=day_data["repertoire"]
+            if existing_instrument:
+                print("Database already seeded. Skipping...")
+                return
+            
+            print("Creating Violin instrument...")
+            violin = Instrument(
+                name="Violin",
+                description="String instrument typically played with a bow"
             )
-            db.add(practice_day)
-            db.flush()
+            session.add(violin)
+            await session.flush()  # Get the ID
             
-            # Create exercise block A
-            block_a = ExerciseBlock(
-                practice_day_id=practice_day.id,
-                block_type="blockA",
-                display_order=1
+            print("Creating 14-day practice template...")
+            template = PracticeTemplate(
+                instrument_id=violin.id,
+                name="Intermediate Violin - 14-Day Rotation",
+                days_count=14,
+                description="A comprehensive 14-day rotation covering tone, shifting, articulation, double stops, and bow techniques",
+                is_active=True
             )
-            db.add(block_a)
-            db.flush()
-            
-            # Add exercises to block A
-            for idx, exercise_text in enumerate(day_data["blockA"], start=1):
-                exercise = Exercise(
-                    block_id=block_a.id,
-                    exercise_text=exercise_text,
-                    display_order=idx
+            session.add(template)
+            await session.flush()
+        
+            print("Populating practice days and exercises...")
+            for day_num in range(1, 15):
+                day_data = ROTATION_DATA[day_num]
+                
+                # Create practice day
+                practice_day = PracticeDay(
+                    template_id=template.id,
+                    day_number=day_num,
+                    title=day_data["title"],
+                    warmup=day_data["warmup"],
+                    scales=day_data["scales"],
+                    repertoire=day_data["repertoire"]
                 )
-                db.add(exercise)
-            
-            # Create exercise block B
-            block_b = ExerciseBlock(
-                practice_day_id=practice_day.id,
-                block_type="blockB",
-                display_order=2
-            )
-            db.add(block_b)
-            db.flush()
-            
-            # Add exercises to block B
-            for idx, exercise_text in enumerate(day_data["blockB"], start=1):
-                exercise = Exercise(
-                    block_id=block_b.id,
-                    exercise_text=exercise_text,
-                    display_order=idx
+                session.add(practice_day)
+                await session.flush()
+                
+                # Create exercise block A
+                block_a = ExerciseBlock(
+                    practice_day_id=practice_day.id,
+                    block_type="blockA",
+                    display_order=1
                 )
-                db.add(exercise)
+                session.add(block_a)
+                await session.flush()
+                
+                # Add exercises to block A
+                for idx, exercise_text in enumerate(day_data["blockA"], start=1):
+                    exercise = Exercise(
+                        block_id=block_a.id,
+                        exercise_text=exercise_text,
+                        display_order=idx
+                    )
+                    session.add(exercise)
+                
+                # Create exercise block B
+                block_b = ExerciseBlock(
+                    practice_day_id=practice_day.id,
+                    block_type="blockB",
+                    display_order=2
+                )
+                session.add(block_b)
+                await session.flush()
+                
+                # Add exercises to block B
+                for idx, exercise_text in enumerate(day_data["blockB"], start=1):
+                    exercise = Exercise(
+                        block_id=block_b.id,
+                        exercise_text=exercise_text,
+                        display_order=idx
+                    )
+                    session.add(exercise)
+                
+                print(f"  Added Day {day_num}: {day_data['title']}")
             
-            print(f"  Added Day {day_num}: {day_data['title']}")
-        
-        db.commit()
-        print("\n✅ Database seeded successfully!")
-        print(f"   - Created instrument: Violin")
-        print(f"   - Created template: 14-day rotation")
-        print(f"   - Created 14 practice days with exercises")
-        
-    except Exception as e:
-        print(f"\n❌ Error seeding database: {e}")
-        db.rollback()
-        raise
-    finally:
-        db.close()
+            await session.commit()
+            print("\n✅ Database seeded successfully!")
+            print(f"   - Created instrument: Violin")
+            print(f"   - Created template: 14-day rotation")
+            print(f"   - Created 14 practice days with exercises")
+            
+        except Exception as e:
+            print(f"\n❌ Error seeding database: {e}")
+            await session.rollback()
+            raise
 
 
 if __name__ == "__main__":
-    seed_database()
+    asyncio.run(seed_database())
 
 

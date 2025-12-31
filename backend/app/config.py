@@ -3,7 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://practice_user:practice_pass@localhost:5432/practice_journal"
+    database_url: str = "postgresql+asyncpg://practice_user:practice_pass@localhost:5432/practice_journal"
     environment: str = "development"
     api_prefix: str = "/api"
     
