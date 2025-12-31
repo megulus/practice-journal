@@ -2,6 +2,13 @@
 Seed script to populate the database with initial violin practice rotation data
 """
 import asyncio
+import sys
+from pathlib import Path
+
+# Add the backend directory to Python path to resolve app imports
+backend_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(backend_dir))
+
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.database import async_session
@@ -243,6 +250,7 @@ async def seed_database():
             )
             session.add(violin)
             await session.flush()  # Get the ID
+            assert violin.id is not None  # Type narrowing for type checker
             
             print("Creating 14-day practice template...")
             template = PracticeTemplate(
@@ -254,6 +262,7 @@ async def seed_database():
             )
             session.add(template)
             await session.flush()
+            assert template.id is not None  # Type narrowing for type checker
         
             print("Populating practice days and exercises...")
             for day_num in range(1, 15):
@@ -270,6 +279,7 @@ async def seed_database():
                 )
                 session.add(practice_day)
                 await session.flush()
+                assert practice_day.id is not None  # Type narrowing for type checker
                 
                 # Create exercise block A
                 block_a = ExerciseBlock(
@@ -279,6 +289,7 @@ async def seed_database():
                 )
                 session.add(block_a)
                 await session.flush()
+                assert block_a.id is not None  # Type narrowing for type checker
                 
                 # Add exercises to block A
                 for idx, exercise_text in enumerate(day_data["blockA"], start=1):
@@ -297,6 +308,7 @@ async def seed_database():
                 )
                 session.add(block_b)
                 await session.flush()
+                assert block_b.id is not None  # Type narrowing for type checker
                 
                 # Add exercises to block B
                 for idx, exercise_text in enumerate(day_data["blockB"], start=1):

@@ -9,7 +9,7 @@ from sqlmodel import Field, SQLModel, Relationship
 
 class Instrument(SQLModel, table=True):
     """Musical instrument"""
-    __tablename__ = "instruments"
+    __tablename__ = "instruments"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=100, unique=True, index=True)
@@ -22,7 +22,7 @@ class Instrument(SQLModel, table=True):
 
 class PracticeTemplate(SQLModel, table=True):
     """Practice rotation template"""
-    __tablename__ = "practice_templates"
+    __tablename__ = "practice_templates"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     instrument_id: int = Field(foreign_key="instruments.id")
@@ -39,7 +39,7 @@ class PracticeTemplate(SQLModel, table=True):
 
 class PracticeDay(SQLModel, table=True):
     """Individual day in a practice template"""
-    __tablename__ = "practice_days"
+    __tablename__ = "practice_days"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     template_id: int = Field(foreign_key="practice_templates.id")
@@ -56,7 +56,7 @@ class PracticeDay(SQLModel, table=True):
 
 class ExerciseBlock(SQLModel, table=True):
     """Block of exercises (e.g., Block A, Block B)"""
-    __tablename__ = "exercise_blocks"
+    __tablename__ = "exercise_blocks"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     practice_day_id: int = Field(foreign_key="practice_days.id")
@@ -70,7 +70,7 @@ class ExerciseBlock(SQLModel, table=True):
 
 class Exercise(SQLModel, table=True):
     """Individual exercise within a block"""
-    __tablename__ = "exercises"
+    __tablename__ = "exercises"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     block_id: int = Field(foreign_key="exercise_blocks.id")
@@ -83,7 +83,7 @@ class Exercise(SQLModel, table=True):
 
 class PracticeLog(SQLModel, table=True):
     """Log entry for a practice session"""
-    __tablename__ = "practice_logs"
+    __tablename__ = "practice_logs"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     template_id: int = Field(foreign_key="practice_templates.id")
@@ -100,7 +100,7 @@ class PracticeLog(SQLModel, table=True):
 
 class PracticeLogDetail(SQLModel, table=True):
     """Detailed notes for sections of a practice log"""
-    __tablename__ = "practice_log_details"
+    __tablename__ = "practice_log_details"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
     log_id: int = Field(foreign_key="practice_logs.id")
