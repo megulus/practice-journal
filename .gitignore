@@ -42,9 +42,12 @@ dist
 .env.production.local
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
-.cursor/
+.cursor/*
+!.cursor/settings.json
 *.swp
 *.swo
 *~
