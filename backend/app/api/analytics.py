@@ -1,49 +1,56 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlmodel import select, func
+from sqlmodel.ext.asyncio.session import AsyncSession
+from typing import Optional
 
-from app.database import get_db
-from app.models.practice_log import PracticeLog as PracticeLogModel
-from app.schemas.log import AnalyticsSummary
+from app.database import get_session
+from app.models import PracticeLog, AnalyticsSummary
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 @router.get("/", response_model=AnalyticsSummary)
-def get_analytics(
-    template_id: int = None,
-    db: Session = Depends(get_db)
+async def get_analytics(
+    template_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session)
 ):
     """Get practice statistics and analytics."""
-    query = db.query(PracticeLogModel)
-    
+    # Base query
+    statement = select(PracticeLog)
     if template_id:
-        query = query.filter(PracticeLogModel.template_id == template_id)
+        statement = statement.where(PracticeLog.template_id == template_id)
     
     # Get total sessions
-    total_sessions = query.count()
+    count_statement = select(func.count(PracticeLog.id))
+    if template_id:
+        count_statement = count_statement.where(PracticeLog.template_id == template_id)
+    
+    result = await session.execute(count_statement)
+    total_sessions = result.scalar() or 0
     
     # Get total minutes
-    total_minutes = db.query(
-        func.sum(PracticeLogModel.duration_minutes)
-    ).filter(
-        PracticeLogModel.template_id == template_id if template_id else True
-    ).scalar() or 0
+    sum_statement = select(func.sum(PracticeLog.duration_minutes))
+    if template_id:
+        sum_statement = sum_statement.where(PracticeLog.template_id == template_id)
+    
+    result = await session.execute(sum_statement)
+    total_minutes = result.scalar() or 0
     
     # Calculate average duration
     average_duration = total_minutes / total_sessions if total_sessions > 0 else 0
     
     # Get sessions by day number
     sessions_by_day = {}
-    day_stats = db.query(
-        PracticeLogModel.day_number,
-        func.count(PracticeLogModel.id).label('count')
-    ).filter(
-        PracticeLogModel.template_id == template_id if template_id else True
-    ).group_by(PracticeLogModel.day_number).all()
+    day_statement = (
+        select(PracticeLog.day_number, func.count(PracticeLog.id).label('count'))
+        .group_by(PracticeLog.day_number)
+    )
+    if template_id:
+        day_statement = day_statement.where(PracticeLog.template_id == template_id)
     
-    for day_num, count in day_stats:
-        sessions_by_day[str(day_num)] = count
+    result = await session.execute(day_statement)
+    for row in result:
+        sessions_by_day[str(row.day_number)] = row.count
     
     return AnalyticsSummary(
         total_sessions=total_sessions,
@@ -51,5 +58,3 @@ def get_analytics(
         average_duration=round(average_duration, 1),
         sessions_by_day=sessions_by_day
     )
-
-

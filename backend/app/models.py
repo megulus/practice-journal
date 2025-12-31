@@ -2,7 +2,7 @@
 SQLModel models for Practice Journal
 These models serve as both database tables AND API schemas
 """
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 from datetime import datetime, date
 from sqlmodel import Field, SQLModel, Relationship
 
