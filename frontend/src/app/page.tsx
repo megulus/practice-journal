@@ -76,7 +76,7 @@ export default function Home() {
             Select Your Instrument
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {instruments.map((instrument) => (
+            {instruments.map((instrument: Instrument) => (
               <button
                 key={instrument.id}
                 onClick={() => router.push(`/${instrument.name.toLowerCase()}`)}

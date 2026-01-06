@@ -52,7 +52,7 @@ export default function PracticePlanPage() {
 
   useEffect(() => {
     if (template?.practice_days) {
-      const dayData = template.practice_days.find((d) => d.day_number === selectedDay)
+      const dayData = template.practice_days.find((d: PracticeDay) => d.day_number === selectedDay)
       if (dayData) {
         setCurrentDayData(dayData)
       }

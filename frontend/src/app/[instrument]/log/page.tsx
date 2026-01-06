@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import type { Instrument, PracticeTemplate, ExerciseBlock } from '@/lib/types'
+import type { Instrument, PracticeTemplate, ExerciseBlock, PracticeDay, Exercise } from '@/lib/types'
 
 export default function LogPracticePage() {
   const params = useParams()
@@ -158,7 +158,7 @@ export default function LogPracticePage() {
               <input
                 type="date"
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
                 required
               />
@@ -175,7 +175,7 @@ export default function LogPracticePage() {
                 required
               >
                 {Array.from({ length: template.days_count }, (_, i) => i + 1).map((day) => {
-                  const dayData = template.practice_days?.find((d) => d.day_number === day)
+                  const dayData = template.practice_days?.find((d: PracticeDay) => d.day_number === day)
                   return (
                     <option key={day} value={day}>
                       Day {day}{dayData ? `: ${dayData.title}` : ''}
@@ -192,7 +192,7 @@ export default function LogPracticePage() {
               <input
                 type="number"
                 value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, duration: e.target.value })}
                 placeholder="e.g., 45"
                 min="1"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
@@ -204,7 +204,7 @@ export default function LogPracticePage() {
               <label className="block font-semibold text-gray-700 mb-2">Warm-up</label>
               <textarea
                 value={formData.warmup}
-                onChange={(e) => setFormData({ ...formData, warmup: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, warmup: e.target.value })}
                 placeholder="What did you work on in warm-up?"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none resize-y min-h-[100px]"
               />
@@ -214,7 +214,7 @@ export default function LogPracticePage() {
               <label className="block font-semibold text-gray-700 mb-2">Scales & Arpeggios</label>
               <textarea
                 value={formData.scales}
-                onChange={(e) => setFormData({ ...formData, scales: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, scales: e.target.value })}
                 placeholder="Which keys? What patterns?"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none resize-y min-h-[100px]"
               />
@@ -224,13 +224,13 @@ export default function LogPracticePage() {
               <label className="block font-semibold text-gray-700 mb-2">Technical Focus A</label>
               <select
                 value={formData.techA}
-                onChange={(e) => setFormData({ ...formData, techA: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, techA: e.target.value })}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
               >
                 <option value="">Select exercise...</option>
                 {dayExercises.blockA?.exercises
-                  .sort((a, b) => a.display_order - b.display_order)
-                  .map((ex) => (
+                  .sort((a: Exercise, b: Exercise) => a.display_order - b.display_order)
+                  .map((ex: Exercise) => (
                     <option key={ex.id} value={ex.exercise_text}>
                       {ex.exercise_text}
                     </option>
@@ -244,13 +244,13 @@ export default function LogPracticePage() {
               </label>
               <select
                 value={formData.techB}
-                onChange={(e) => setFormData({ ...formData, techB: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, techB: e.target.value })}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
               >
                 <option value="">Select exercise (if applicable)...</option>
                 {dayExercises.blockB?.exercises
-                  .sort((a, b) => a.display_order - b.display_order)
-                  .map((ex) => (
+                  .sort((a: Exercise, b: Exercise) => a.display_order - b.display_order)
+                  .map((ex: Exercise) => (
                     <option key={ex.id} value={ex.exercise_text}>
                       {ex.exercise_text}
                     </option>
@@ -262,7 +262,7 @@ export default function LogPracticePage() {
               <label className="block font-semibold text-gray-700 mb-2">Repertoire Work</label>
               <textarea
                 value={formData.repertoire}
-                onChange={(e) => setFormData({ ...formData, repertoire: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, repertoire: e.target.value })}
                 placeholder="What sections did you practice? What was the focus?"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none resize-y min-h-[100px]"
               />
@@ -274,7 +274,7 @@ export default function LogPracticePage() {
               </label>
               <textarea
                 value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Breakthroughs, challenges, things to remember for next time..."
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none resize-y min-h-[100px]"
               />
