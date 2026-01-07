@@ -7,16 +7,34 @@ from datetime import datetime, date
 from sqlmodel import Field, SQLModel, Relationship
 
 
+class User(SQLModel, table=True):
+    """User account (authenticated via Clerk)"""
+    __tablename__ = "users"  # type: ignore[assignment]
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    clerk_user_id: str = Field(unique=True, index=True, max_length=255)
+    email: str = Field(max_length=255)
+    name: Optional[str] = Field(default=None, max_length=255)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
+    instruments: List["Instrument"] = Relationship(back_populates="user")
+    practice_templates: List["PracticeTemplate"] = Relationship(back_populates="user")
+
+
 class Instrument(SQLModel, table=True):
     """Musical instrument"""
     __tablename__ = "instruments"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(max_length=100, unique=True, index=True)
+    name: str = Field(max_length=100, index=True)
     description: Optional[str] = None
+    is_system: bool = Field(default=False)  # True for system-provided instruments
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # Nullable for backward compatibility
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Relationships
+    user: Optional["User"] = Relationship(back_populates="instruments")
     practice_templates: List["PracticeTemplate"] = Relationship(back_populates="instrument")
 
 
@@ -30,8 +48,11 @@ class PracticeTemplate(SQLModel, table=True):
     days_count: int
     description: Optional[str] = None
     is_active: bool = True
+    is_system: bool = Field(default=False)  # True for system-provided templates
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # Nullable for backward compatibility
     
     # Relationships
+    user: Optional["User"] = Relationship(back_populates="practice_templates")
     instrument: Optional[Instrument] = Relationship(back_populates="practice_templates")
     practice_days: List["PracticeDay"] = Relationship(back_populates="template", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     practice_logs: List["PracticeLog"] = Relationship(back_populates="template")
