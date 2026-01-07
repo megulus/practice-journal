@@ -246,7 +246,9 @@ async def seed_database():
             print("Creating Violin instrument...")
             violin = Instrument(
                 name="Violin",
-                description="String instrument typically played with a bow"
+                description="Western classical violin",
+                is_system=True,  # Mark as system instrument
+                user_id=None  # System instruments have no owner
             )
             session.add(violin)
             await session.flush()  # Get the ID
@@ -258,7 +260,9 @@ async def seed_database():
                 name="Intermediate Violin - 14-Day Rotation",
                 days_count=14,
                 description="A comprehensive 14-day rotation covering tone, shifting, articulation, double stops, and bow techniques",
-                is_active=True
+                is_active=True,
+                is_system=True,  # Mark as system template
+                user_id=None  # System templates have no owner
             )
             session.add(template)
             await session.flush()
