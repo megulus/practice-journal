@@ -2,20 +2,20 @@
 
 This guide explains how to set up Clerk authentication for the Practice Journal backend.
 
-## Backend Auth Infrastructure
+## Authentication Status
 
-The authentication is **optional** currently. The app works without Clerk configured - the new `/api/user/me` endpoint will simply return `authenticated: false` if no token is provided.
+⚠️ **Authentication is now REQUIRED** for all API endpoints (except `/health` and `/`).
 
-### Optional: Test with Clerk
-
-If you want to test JWT validation:
+## Setup Instructions
 
 1. **Create a Clerk account** at https://clerk.com
+
 2. **Create a new application** in Clerk Dashboard
+
 3. **Get your API keys**:
    - Go to "API Keys" in the sidebar
-   - Copy the "Secret Key" (starts with `sk_test_...`)
-   - Copy the "Publishable Key" (starts with `pk_test_...`)
+   - Copy the "Secret Key" (starts with `sk_test_...` or `sk_live_...`)
+   - Copy the "Publishable Key" (starts with `pk_test_...` or `pk_live_...`)
 
 4. **Add to backend/.env**:
    ```bash
@@ -23,18 +23,31 @@ If you want to test JWT validation:
    CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
    ```
 
-5. **Test the endpoint**:
-   ```bash
-   # Without authentication (should work)
-   curl http://localhost:8000/api/user/me
-   
-   # Response:
-   # {"authenticated": false, "message": "No authentication provided"}
-   ```
+5. **Restart the backend server** for the changes to take effect
 
-## Next Steps
+## Testing Authentication
 
-In upcoming changes, authentication will become **required** for all endpoints except `/health` and `/`.
+All endpoints now require a valid Clerk JWT token in the `Authorization` header:
+
+```bash
+# This will return 401 Unauthorized
+curl http://localhost:8000/api/instruments/
+
+# With a valid token (get from frontend after login)
+curl -H "Authorization: Bearer <your_jwt_token>" http://localhost:8000/api/instruments/
+```
+
+## New Features
+
+### User Data Isolation
+- Users can only see their own instruments, templates, and logs
+- System templates (marked with `is_system=true`) are visible to all users
+- Attempting to access another user's data returns 404 (not 403, for security)
+
+### Template Copying
+- `POST /api/templates/{id}/copy` - Copy a system template to your account
+- `POST /api/instruments/{id}/copy` - Copy a system instrument to your account
+- Copies include all practice days, exercise blocks, and exercises
 
 ## Notes
 

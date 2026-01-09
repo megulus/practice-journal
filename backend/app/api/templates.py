@@ -5,7 +5,8 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.database import get_session
-from app.models import PracticeTemplate, PracticeDay, ExerciseBlock, Exercise
+from app.models import PracticeTemplate, PracticeDay, ExerciseBlock, Exercise, User
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -13,35 +14,47 @@ router = APIRouter(prefix="/templates", tags=["templates"])
 @router.get("/", response_model=List[PracticeTemplate])
 async def list_templates(
     instrument_id: Optional[int] = None,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get all practice templates, optionally filtered by instrument."""
-    statement = select(PracticeTemplate).where(PracticeTemplate.is_active == True)
+    """Get all practice templates (user's own + system templates), optionally filtered by instrument."""
+    statement = select(PracticeTemplate).where(
+        PracticeTemplate.is_active == True,
+        (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
+    )
     
     if instrument_id:
         statement = statement.where(PracticeTemplate.instrument_id == instrument_id)
     
-    result = await session.execute(statement)
-    templates = result.scalars().all()
+    result = await session.exec(statement)
+    templates = result.all()
     return templates
 
 
 @router.get("/{template_id}")
-async def get_template(template_id: int, session: AsyncSession = Depends(get_session)):
+async def get_template(
+    template_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """Get a complete practice template with all days and exercises."""
     # Load template with all nested relationships
+    # Only allow access to user's own templates or system templates
     statement = (
         select(PracticeTemplate)
-        .where(PracticeTemplate.id == template_id)
+        .where(
+            PracticeTemplate.id == template_id,
+            (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
+        )
         .options(
-            selectinload(PracticeTemplate.practice_days)
-            .selectinload(PracticeDay.exercise_blocks)
-            .selectinload(ExerciseBlock.exercises)
+            selectinload(PracticeTemplate.practice_days)  # type: ignore[arg-type]
+            .selectinload(PracticeDay.exercise_blocks)  # type: ignore[arg-type]
+            .selectinload(ExerciseBlock.exercises)  # type: ignore[arg-type]
         )
     )
     
-    result = await session.execute(statement)
-    template = result.scalar_one_or_none()
+    result = await session.exec(statement)
+    template = result.one_or_none()
     
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -101,9 +114,21 @@ async def get_template(template_id: int, session: AsyncSession = Depends(get_ses
 async def get_practice_day(
     template_id: int,
     day_number: int,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Get a specific day from a practice template."""
+    # First verify user has access to the template
+    template_statement = select(PracticeTemplate).where(
+        PracticeTemplate.id == template_id,
+        (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
+    )
+    template_result = await session.exec(template_statement)
+    template = template_result.one_or_none()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
     statement = (
         select(PracticeDay)
         .where(
@@ -111,13 +136,13 @@ async def get_practice_day(
             PracticeDay.day_number == day_number
         )
         .options(
-            selectinload(PracticeDay.exercise_blocks)
-            .selectinload(ExerciseBlock.exercises)
+            selectinload(PracticeDay.exercise_blocks)  # type: ignore[arg-type]
+            .selectinload(ExerciseBlock.exercises)  # type: ignore[arg-type]
         )
     )
     
-    result = await session.execute(statement)
-    practice_day = result.scalar_one_or_none()
+    result = await session.exec(statement)
+    practice_day = result.one_or_none()
     
     if not practice_day:
         raise HTTPException(status_code=404, detail="Practice day not found")
@@ -157,3 +182,88 @@ async def get_practice_day(
         response["exercise_blocks"].append(block_data)
     
     return response
+
+
+@router.post("/{template_id}/copy", status_code=201)
+async def copy_template(
+    template_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Copy a system template to user's account with all days and exercises."""
+    # Get the system template with all nested data
+    statement = (
+        select(PracticeTemplate)
+        .where(
+            PracticeTemplate.id == template_id,
+            PracticeTemplate.is_system == True
+        )
+        .options(
+            selectinload(PracticeTemplate.practice_days)  # type: ignore[arg-type]
+            .selectinload(PracticeDay.exercise_blocks)  # type: ignore[arg-type]
+            .selectinload(ExerciseBlock.exercises)  # type: ignore[arg-type]
+        )
+    )
+    
+    result = await session.exec(statement)
+    system_template = result.one_or_none()
+    
+    if not system_template:
+        raise HTTPException(status_code=404, detail="System template not found")
+    
+    # Create a copy for the user
+    user_template = PracticeTemplate(
+        instrument_id=system_template.instrument_id,
+        name=system_template.name,
+        days_count=system_template.days_count,
+        description=system_template.description,
+        is_active=True,
+        is_system=False,
+        user_id=current_user.id
+    )
+    session.add(user_template)
+    await session.flush()  # Get the template ID
+    assert user_template.id is not None  # Type narrowing for type checker
+    
+    # Copy all practice days and exercises
+    for day in system_template.practice_days:
+        user_day = PracticeDay(
+            template_id=user_template.id,
+            day_number=day.day_number,
+            title=day.title,
+            warmup=day.warmup,
+            scales=day.scales,
+            repertoire=day.repertoire
+        )
+        session.add(user_day)
+        await session.flush()  # Get the day ID
+        assert user_day.id is not None  # Type narrowing for type checker
+        
+        # Copy exercise blocks
+        for block in day.exercise_blocks:
+            user_block = ExerciseBlock(
+                practice_day_id=user_day.id,
+                block_type=block.block_type,
+                display_order=block.display_order
+            )
+            session.add(user_block)
+            await session.flush()  # Get the block ID
+            assert user_block.id is not None  # Type narrowing for type checker
+            
+            # Copy exercises
+            for exercise in block.exercises:
+                user_exercise = Exercise(
+                    block_id=user_block.id,
+                    exercise_text=exercise.exercise_text,
+                    display_order=exercise.display_order
+                )
+                session.add(user_exercise)
+    
+    await session.commit()
+    await session.refresh(user_template)
+    
+    return {
+        "id": user_template.id,
+        "message": "Template copied successfully",
+        "template": user_template
+    }
