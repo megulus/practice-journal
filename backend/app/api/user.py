@@ -1,0 +1,38 @@
+"""
+User API endpoints
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.auth import get_current_user_optional
+from app.models import User
+
+router = APIRouter(prefix="/user", tags=["user"])
+
+
+@router.get("/me")
+async def get_current_user_info(
+    current_user: User | None = Depends(get_current_user_optional)
+) -> dict:
+    """
+    Get information about the currently authenticated user.
+    Returns user info if authenticated, otherwise returns a message.
+    
+    This endpoint demonstrates optional authentication - it works
+    with or without a valid JWT token.
+    """
+    if not current_user:
+        return {
+            "authenticated": False,
+            "message": "No authentication provided"
+        }
+    
+    return {
+        "authenticated": True,
+        "user": {
+            "id": current_user.id,
+            "clerk_user_id": current_user.clerk_user_id,
+            "email": current_user.email,
+            "name": current_user.name,
+            "created_at": current_user.created_at.isoformat()
+        }
+    }
+
