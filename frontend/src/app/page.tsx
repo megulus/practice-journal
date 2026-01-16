@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import type { Instrument } from '@/lib/types'
+import Header from '@/components/Header'
 
 export default function Home() {
   const [instruments, setInstruments] = useState<Instrument[]>([])
@@ -26,8 +27,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
-        <div className="max-w-4xl mx-auto">
+      <>
+        <Header />
+        <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
+          <div className="max-w-4xl mx-auto">
           <h1 className="text-5xl font-bold mb-4 text-center text-primary-700">
             🎼 Practice Journal
           </h1>
@@ -37,15 +40,18 @@ export default function Home() {
           <div className="bg-white rounded-xl shadow-xl p-8">
             <p className="text-center text-gray-500">Loading instruments...</p>
           </div>
-        </div>
-      </main>
+          </div>
+        </main>
+      </>
     )
   }
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
-        <div className="max-w-4xl mx-auto">
+      <>
+        <Header />
+        <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
+          <div className="max-w-4xl mx-auto">
           <h1 className="text-5xl font-bold mb-4 text-center text-primary-700">
             🎼 Practice Journal
           </h1>
@@ -57,14 +63,17 @@ export default function Home() {
               Make sure the backend server is running.
             </p>
           </div>
-        </div>
-      </main>
+          </div>
+        </main>
+      </>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
-      <div className="max-w-4xl mx-auto">
+    <>
+      <Header />
+      <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
+        <div className="max-w-4xl mx-auto">
         <h1 className="text-5xl font-bold mb-4 text-center text-primary-700">
           🎼 Practice Journal
         </h1>
@@ -89,9 +98,10 @@ export default function Home() {
               </button>
             ))}
           </div>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   )
 }
 
