@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { useApi } from '@/lib/useApi'
 import type { Instrument, PracticeTemplate, PracticeDay } from '@/lib/types'
 import DaySelector from '@/components/DaySelector'
 import PracticeBlock from '@/components/PracticeBlock'
@@ -10,6 +10,7 @@ import PracticeBlock from '@/components/PracticeBlock'
 export default function PracticePlanPage() {
   const params = useParams()
   const router = useRouter()
+  const api = useApi()
   const instrumentName = params.instrument as string
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
@@ -48,7 +49,7 @@ export default function PracticePlanPage() {
         console.error(err)
         setLoading(false)
       })
-  }, [instrumentName])
+  }, [instrumentName, api])
 
   useEffect(() => {
     if (template?.practice_days) {

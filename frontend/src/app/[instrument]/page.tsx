@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { useApi } from '@/lib/useApi'
 import type { Instrument, PracticeTemplate } from '@/lib/types'
 
 export default function InstrumentPage() {
   const params = useParams()
   const router = useRouter()
+  const api = useApi()
   const instrumentName = params.instrument as string
   const [instrument, setInstrument] = useState<Instrument | null>(null)
   const [templates, setTemplates] = useState<PracticeTemplate[]>([])
@@ -29,7 +30,7 @@ export default function InstrumentPage() {
         console.error(err)
         setLoading(false)
       })
-  }, [instrumentName])
+  }, [instrumentName, api])
 
   if (loading) {
     return (

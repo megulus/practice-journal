@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { useApi } from '@/lib/useApi'
 import type { Instrument, PracticeTemplate, ExerciseBlock, PracticeDay, Exercise } from '@/lib/types'
 
 export default function LogPracticePage() {
   const params = useParams()
   const router = useRouter()
+  const api = useApi()
   const instrumentName = params.instrument as string
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [loading, setLoading] = useState(true)
@@ -57,7 +58,7 @@ export default function LogPracticePage() {
         console.error(err)
         setLoading(false)
       })
-  }, [instrumentName])
+  }, [instrumentName, api])
 
   const loadDayExercises = (tmpl: PracticeTemplate, dayNum: number) => {
     if (tmpl.practice_days) {

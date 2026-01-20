@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { useApi } from '@/lib/useApi'
 import type { Instrument, PracticeTemplate, PracticeLog, AnalyticsSummary as AnalyticsType } from '@/lib/types'
 import AnalyticsSummary from '@/components/AnalyticsSummary'
 import HistoryCard from '@/components/HistoryCard'
@@ -10,6 +10,7 @@ import HistoryCard from '@/components/HistoryCard'
 export default function HistoryPage() {
   const params = useParams()
   const router = useRouter()
+  const api = useApi()
   const instrumentName = params.instrument as string
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [logs, setLogs] = useState<PracticeLog[]>([])
@@ -17,38 +18,43 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([api.getInstruments(), api.getTemplates()])
-      .then(([instruments, allTemplates]) => {
+    const fetchData = async () => {
+      try {
+        const [instruments, allTemplates] = await Promise.all([
+          api.getInstruments(),
+          api.getTemplates(),
+        ])
+
         const inst = instruments.find(
           (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
         )
+
         if (inst) {
           const tmpl = allTemplates.find(
             (t) => t.instrument_id === inst.id && t.is_active
           )
+
           if (tmpl) {
-            return Promise.all([
+            const [templateData, logsData, analyticsData] = await Promise.all([
               api.getTemplate(tmpl.id),
               api.getLogs(tmpl.id),
               api.getAnalytics(tmpl.id),
             ])
+
+            setTemplate(templateData)
+            setLogs(logsData)
+            setAnalytics(analyticsData)
           }
         }
-        return [null, [], null]
-      })
-      .then(([tmpl, logsData, analyticsData]) => {
-        if (tmpl) {
-          setTemplate(tmpl)
-          setLogs(logsData)
-          setAnalytics(analyticsData)
-        }
-        setLoading(false)
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error(err)
+      } finally {
         setLoading(false)
-      })
-  }, [instrumentName])
+      }
+    }
+
+    fetchData()
+  }, [instrumentName, api])
 
   if (loading) {
     return (

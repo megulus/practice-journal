@@ -40,6 +40,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       # Get these from your Clerk dashboard: https://dashboard.clerk.com
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
