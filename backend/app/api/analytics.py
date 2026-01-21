@@ -17,8 +17,9 @@ async def get_analytics(
     current_user: User = Depends(get_current_user)
 ):
     """Get practice statistics and analytics for user's templates."""
-    # Get user's template IDs
+    # Get user's template IDs (excluding soft-deleted templates)
     template_statement = select(PracticeTemplate.id).where(
+        PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
     template_result = await session.exec(template_statement)
@@ -42,17 +43,19 @@ async def get_analytics(
     else:
         filter_template_ids = user_template_ids
     
-    # Get total sessions
+    # Get total sessions (excluding soft-deleted logs)
     count_statement = select(func.count(PracticeLog.id)).where(  # type: ignore[arg-type]
-        PracticeLog.template_id.in_(filter_template_ids)  # type: ignore[attr-defined]
+        PracticeLog.template_id.in_(filter_template_ids),  # type: ignore[attr-defined]
+        PracticeLog.deleted_at == None
     )
     
     result = await session.exec(count_statement)
     total_sessions = result.one() or 0
     
-    # Get total minutes
+    # Get total minutes (excluding soft-deleted logs)
     sum_statement = select(func.sum(PracticeLog.duration_minutes)).where(  # type: ignore[arg-type]
-        PracticeLog.template_id.in_(filter_template_ids)  # type: ignore[attr-defined]
+        PracticeLog.template_id.in_(filter_template_ids),  # type: ignore[attr-defined]
+        PracticeLog.deleted_at == None
     )
     
     result = await session.exec(sum_statement)
@@ -61,11 +64,14 @@ async def get_analytics(
     # Calculate average duration
     average_duration = total_minutes / total_sessions if total_sessions > 0 else 0
     
-    # Get sessions by day number
+    # Get sessions by day number (excluding soft-deleted logs)
     sessions_by_day = {}
     day_statement = (
         select(PracticeLog.day_number, func.count(PracticeLog.id).label('count'))  # type: ignore[arg-type]
-        .where(PracticeLog.template_id.in_(filter_template_ids))  # type: ignore[attr-defined]
+        .where(
+            PracticeLog.template_id.in_(filter_template_ids),  # type: ignore[attr-defined]
+            PracticeLog.deleted_at == None
+        )
         .group_by(PracticeLog.day_number)  # type: ignore[arg-type]
     )
     

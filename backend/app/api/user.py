@@ -25,6 +25,13 @@ async def get_current_user_info(
             "message": "No authentication provided"
         }
     
+    # Check if user account is soft-deleted
+    if current_user.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been deactivated"
+        )
+    
     return {
         "authenticated": True,
         "user": {
