@@ -20,6 +20,7 @@ async def list_templates(
     """Get all practice templates (user's own + system templates), optionally filtered by instrument."""
     statement = select(PracticeTemplate).where(
         PracticeTemplate.is_active == True,
+        PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
     
@@ -44,6 +45,7 @@ async def get_template(
         select(PracticeTemplate)
         .where(
             PracticeTemplate.id == template_id,
+            PracticeTemplate.deleted_at == None,
             (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
         )
         .options(
@@ -121,6 +123,7 @@ async def get_practice_day(
     # First verify user has access to the template
     template_statement = select(PracticeTemplate).where(
         PracticeTemplate.id == template_id,
+        PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
     template_result = await session.exec(template_statement)

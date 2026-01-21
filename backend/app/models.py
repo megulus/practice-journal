@@ -16,6 +16,8 @@ class User(SQLModel, table=True):
     email: str = Field(max_length=255)
     name: Optional[str] = Field(default=None, max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    deleted_at: Optional[datetime] = Field(default=None)
     
     # Relationships
     instruments: List["Instrument"] = Relationship(back_populates="user")
@@ -50,6 +52,9 @@ class PracticeTemplate(SQLModel, table=True):
     is_active: bool = True
     is_system: bool = Field(default=False)  # True for system-provided templates
     user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # Nullable for backward compatibility
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    deleted_at: Optional[datetime] = Field(default=None)
     
     # Relationships
     user: Optional["User"] = Relationship(back_populates="practice_templates")
@@ -69,6 +74,7 @@ class PracticeDay(SQLModel, table=True):
     warmup: Optional[str] = None
     scales: Optional[str] = None
     repertoire: Optional[str] = None
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     
     # Relationships
     template: Optional[PracticeTemplate] = Relationship(back_populates="practice_days")
@@ -83,6 +89,7 @@ class ExerciseBlock(SQLModel, table=True):
     practice_day_id: int = Field(foreign_key="practice_days.id")
     block_type: str = Field(max_length=50)  # e.g., "blockA", "blockB"
     display_order: int
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     
     # Relationships
     practice_day: Optional[PracticeDay] = Relationship(back_populates="exercise_blocks")
@@ -97,6 +104,7 @@ class Exercise(SQLModel, table=True):
     block_id: int = Field(foreign_key="exercise_blocks.id")
     exercise_text: str
     display_order: int
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     
     # Relationships
     block: Optional[ExerciseBlock] = Relationship(back_populates="exercises")
@@ -113,6 +121,8 @@ class PracticeLog(SQLModel, table=True):
     duration_minutes: int
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    deleted_at: Optional[datetime] = Field(default=None)
     
     # Relationships
     template: Optional[PracticeTemplate] = Relationship(back_populates="practice_logs")
@@ -127,6 +137,7 @@ class PracticeLogDetail(SQLModel, table=True):
     log_id: int = Field(foreign_key="practice_logs.id")
     section_type: str = Field(max_length=50)  # e.g., "warmup", "scales", "techA"
     content: Optional[str] = None
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     
     # Relationships
     log: Optional[PracticeLog] = Relationship(back_populates="log_details")

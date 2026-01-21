@@ -22,6 +22,7 @@ async def create_practice_log(
     # Verify user has access to the template
     template_statement = select(PracticeTemplate).where(
         PracticeTemplate.id == log_data.template_id,
+        PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
     template_result = await session.exec(template_statement)
@@ -72,17 +73,21 @@ async def list_practice_logs(
     current_user: User = Depends(get_current_user)
 ):
     """Get practice logs for user's templates, optionally filtered by template."""
-    # Get user's template IDs
+    # Get user's template IDs (excluding soft-deleted templates)
     template_statement = select(PracticeTemplate.id).where(
+        PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
     template_result = await session.exec(template_statement)
     user_template_ids = list(template_result.all())
     
-    # Filter logs by user's templates
+    # Filter logs by user's templates (excluding soft-deleted logs)
     statement = (
         select(PracticeLog)
-        .where(PracticeLog.template_id.in_(user_template_ids))  # type: ignore[attr-defined]
+        .where(
+            PracticeLog.template_id.in_(user_template_ids),  # type: ignore[attr-defined]
+            PracticeLog.deleted_at == None
+        )
         .order_by(desc(PracticeLog.practice_date))  # type: ignore[arg-type]
         .options(selectinload(PracticeLog.log_details))  # type: ignore[arg-type]
         .limit(limit)
@@ -108,7 +113,10 @@ async def get_practice_log(
     """Get a specific practice log."""
     statement = (
         select(PracticeLog)
-        .where(PracticeLog.id == log_id)
+        .where(
+            PracticeLog.id == log_id,
+            PracticeLog.deleted_at == None
+        )
         .options(selectinload(PracticeLog.log_details))  # type: ignore[arg-type]
     )
     
@@ -121,6 +129,7 @@ async def get_practice_log(
     # Verify user has access to the template this log belongs to
     template_statement = select(PracticeTemplate).where(
         PracticeTemplate.id == log.template_id,
+        PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
     template_result = await session.exec(template_statement)
