@@ -111,15 +111,6 @@ export default function HistoryPage() {
                 })}
               </div>
             )}
-
-            <div className="mt-8 text-center">
-              <button
-                onClick={() => router.push(`/${instrumentName}`)}
-                className="text-primary-600 hover:text-primary-700 font-semibold"
-              >
-                ← Back to Dashboard
-              </button>
-            </div>
           </div>
         </div>
       </div>

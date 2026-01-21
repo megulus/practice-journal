@@ -288,16 +288,6 @@ export default function LogPracticePage() {
             >
               {submitting ? 'Saving...' : 'Save Practice Log'}
             </button>
-
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={() => router.push(`/${instrumentName}`)}
-                className="text-primary-600 hover:text-primary-700 font-semibold"
-              >
-                ← Back to Dashboard
-              </button>
-            </div>
           </form>
         </div>
       </div>

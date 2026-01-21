@@ -91,15 +91,6 @@ export default function InstrumentPage() {
                 <p className="text-purple-100">View past sessions & stats</p>
               </button>
             </div>
-
-            <div className="mt-8 text-center">
-              <button
-                onClick={() => router.push('/')}
-                className="text-primary-600 hover:text-primary-700 font-semibold"
-              >
-                ← Back to Instruments
-              </button>
-            </div>
           </div>
         </div>
       </div>
