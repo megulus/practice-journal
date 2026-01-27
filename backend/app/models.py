@@ -137,15 +137,15 @@ class PracticeLog(SQLModel, table=True):
     __tablename__ = "practice_logs"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
-    template_id: int = Field(foreign_key="practice_templates.id")
-    day_number: int
+    template_id: Optional[int] = Field(default=None, foreign_key="practice_templates.id")
+    day_number: Optional[int] = Field(default=None)
     practice_date: date
     duration_minutes: int
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     deleted_at: Optional[datetime] = Field(default=None)
-    
+
     # Relationships
     template: Optional[PracticeTemplate] = Relationship(back_populates="practice_logs")
     log_details: List["PracticeLogDetail"] = Relationship(back_populates="log", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
@@ -175,8 +175,8 @@ class PracticeLogDetailCreate(SQLModel):
 
 class PracticeLogCreate(SQLModel):
     """Schema for creating a practice log"""
-    template_id: int
-    day_number: int
+    template_id: Optional[int] = None
+    day_number: Optional[int] = None
     practice_date: date
     duration_minutes: int
     notes: Optional[str] = None

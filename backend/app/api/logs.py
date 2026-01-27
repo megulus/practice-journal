@@ -19,18 +19,19 @@ async def create_practice_log(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new practice log entry."""
-    # Verify user has access to the template
-    template_statement = select(PracticeTemplate).where(
-        PracticeTemplate.id == log_data.template_id,
-        PracticeTemplate.deleted_at == None,
-        (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
-    )
-    template_result = await session.exec(template_statement)
-    template = template_result.one_or_none()
-    
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    
+    # Verify user has access to the template (if provided)
+    if log_data.template_id is not None:
+        template_statement = select(PracticeTemplate).where(
+            PracticeTemplate.id == log_data.template_id,
+            PracticeTemplate.deleted_at == None,
+            (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
+        )
+        template_result = await session.exec(template_statement)
+        template = template_result.one_or_none()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
     # Create the main log entry
     practice_log = PracticeLog(
         template_id=log_data.template_id,
@@ -81,11 +82,11 @@ async def list_practice_logs(
     template_result = await session.exec(template_statement)
     user_template_ids = list(template_result.all())
     
-    # Filter logs by user's templates (excluding soft-deleted logs)
+    # Filter logs by user's templates or freeform logs (excluding soft-deleted logs)
     statement = (
         select(PracticeLog)
         .where(
-            PracticeLog.template_id.in_(user_template_ids),  # type: ignore[attr-defined]
+            (PracticeLog.template_id.in_(user_template_ids) | (PracticeLog.template_id == None)),  # type: ignore[attr-defined]
             PracticeLog.deleted_at == None
         )
         .order_by(desc(PracticeLog.practice_date))  # type: ignore[arg-type]
@@ -126,16 +127,18 @@ async def get_practice_log(
     if not log:
         raise HTTPException(status_code=404, detail="Practice log not found")
     
-    # Verify user has access to the template this log belongs to
-    template_statement = select(PracticeTemplate).where(
-        PracticeTemplate.id == log.template_id,
-        PracticeTemplate.deleted_at == None,
-        (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
-    )
-    template_result = await session.exec(template_statement)
-    template = template_result.one_or_none()
-    
-    if not template:
-        raise HTTPException(status_code=404, detail="Practice log not found")
-    
+    # Verify user has access — freeform logs (no template) are accessible,
+    # template-linked logs require the user to own or have access to the template
+    if log.template_id is not None:
+        template_statement = select(PracticeTemplate).where(
+            PracticeTemplate.id == log.template_id,
+            PracticeTemplate.deleted_at == None,
+            (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
+        )
+        template_result = await session.exec(template_statement)
+        template = template_result.one_or_none()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Practice log not found")
+
     return log
