@@ -93,10 +93,12 @@ async def get_template(
                 "id": block.id,
                 "practice_day_id": block.practice_day_id,
                 "block_type": block.block_type,
+                "block_type_id": block.block_type_id,
+                "duration_minutes": block.duration_minutes,
                 "display_order": block.display_order,
                 "exercises": []
             }
-            
+
             for ex in sorted(block.exercises, key=lambda x: x.display_order):
                 block_data["exercises"].append({
                     "id": ex.id,
@@ -104,11 +106,11 @@ async def get_template(
                     "exercise_text": ex.exercise_text,
                     "display_order": ex.display_order
                 })
-            
+
             day_data["exercise_blocks"].append(block_data)
-        
+
         response["practice_days"].append(day_data)
-    
+
     return response
 
 
@@ -170,10 +172,12 @@ async def get_practice_day(
             "id": block.id,
             "practice_day_id": block.practice_day_id,
             "block_type": block.block_type,
+            "block_type_id": block.block_type_id,
+            "duration_minutes": block.duration_minutes,
             "display_order": block.display_order,
             "exercises": []
         }
-        
+
         for ex in sorted(block.exercises, key=lambda x: x.display_order):
             block_data["exercises"].append({
                 "id": ex.id,
@@ -181,9 +185,9 @@ async def get_practice_day(
                 "exercise_text": ex.exercise_text,
                 "display_order": ex.display_order
             })
-        
+
         response["exercise_blocks"].append(block_data)
-    
+
     return response
 
 
@@ -247,6 +251,8 @@ async def copy_template(
             user_block = ExerciseBlock(
                 practice_day_id=user_day.id,
                 block_type=block.block_type,
+                block_type_id=block.block_type_id,
+                duration_minutes=block.duration_minutes,
                 display_order=block.display_order
             )
             session.add(user_block)

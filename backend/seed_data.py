@@ -12,7 +12,7 @@ sys.path.insert(0, str(backend_dir))
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.database import async_session
-from app.models import Instrument, PracticeTemplate, PracticeDay, ExerciseBlock, Exercise
+from app.models import Instrument, PracticeTemplate, PracticeDay, ExerciseBlock, Exercise, BlockType
 
 # Violin rotation data extracted from HTML prototype
 ROTATION_DATA = {
@@ -268,11 +268,16 @@ async def seed_database():
             await session.flush()
             assert template.id is not None  # Type narrowing for type checker
         
+            # Look up block types by slug (seeded by migration)
+            print("Loading block types...")
+            bt_result = await session.execute(select(BlockType))
+            block_types_by_slug = {bt.slug: bt for bt in bt_result.scalars().all()}
+
             print("Populating practice days and exercises...")
             for day_num in range(1, 15):
                 day_data = ROTATION_DATA[day_num]
-                
-                # Create practice day
+
+                # Create practice day (keep deprecated text fields for frontend compat)
                 practice_day = PracticeDay(
                     template_id=template.id,
                     day_number=day_num,
@@ -284,45 +289,91 @@ async def seed_database():
                 session.add(practice_day)
                 await session.flush()
                 assert practice_day.id is not None  # Type narrowing for type checker
-                
-                # Create exercise block A
+
+                # Create warmup block
+                warmup_block = ExerciseBlock(
+                    practice_day_id=practice_day.id,
+                    block_type="warmup",
+                    block_type_id=block_types_by_slug["warmup"].id,
+                    display_order=0
+                )
+                session.add(warmup_block)
+                await session.flush()
+                assert warmup_block.id is not None
+                session.add(Exercise(
+                    block_id=warmup_block.id,
+                    exercise_text=day_data["warmup"],
+                    display_order=1
+                ))
+
+                # Create scales block
+                scales_block = ExerciseBlock(
+                    practice_day_id=practice_day.id,
+                    block_type="scales",
+                    block_type_id=block_types_by_slug["scales"].id,
+                    display_order=1
+                )
+                session.add(scales_block)
+                await session.flush()
+                assert scales_block.id is not None
+                session.add(Exercise(
+                    block_id=scales_block.id,
+                    exercise_text=day_data["scales"],
+                    display_order=1
+                ))
+
+                # Create exercise block A (technique)
                 block_a = ExerciseBlock(
                     practice_day_id=practice_day.id,
                     block_type="blockA",
-                    display_order=1
+                    block_type_id=block_types_by_slug["technique"].id,
+                    display_order=3
                 )
                 session.add(block_a)
                 await session.flush()
-                assert block_a.id is not None  # Type narrowing for type checker
-                
-                # Add exercises to block A
+                assert block_a.id is not None
+
                 for idx, exercise_text in enumerate(day_data["blockA"], start=1):
-                    exercise = Exercise(
+                    session.add(Exercise(
                         block_id=block_a.id,
                         exercise_text=exercise_text,
                         display_order=idx
-                    )
-                    session.add(exercise)
-                
-                # Create exercise block B
+                    ))
+
+                # Create exercise block B (technique)
                 block_b = ExerciseBlock(
                     practice_day_id=practice_day.id,
                     block_type="blockB",
-                    display_order=2
+                    block_type_id=block_types_by_slug["technique"].id,
+                    display_order=4
                 )
                 session.add(block_b)
                 await session.flush()
-                assert block_b.id is not None  # Type narrowing for type checker
-                
-                # Add exercises to block B
+                assert block_b.id is not None
+
                 for idx, exercise_text in enumerate(day_data["blockB"], start=1):
-                    exercise = Exercise(
+                    session.add(Exercise(
                         block_id=block_b.id,
                         exercise_text=exercise_text,
                         display_order=idx
-                    )
-                    session.add(exercise)
-                
+                    ))
+
+                # Create repertoire block
+                repertoire_block = ExerciseBlock(
+                    practice_day_id=practice_day.id,
+                    block_type="repertoire",
+                    block_type_id=block_types_by_slug["repertoire"].id,
+                    display_order=100
+                )
+                session.add(repertoire_block)
+                await session.flush()
+                assert repertoire_block.id is not None
+                session.add(Exercise(
+                    block_id=repertoire_block.id,
+                    exercise_text=day_data["repertoire"],
+                    display_order=1
+                ))
+
                 print(f"  Added Day {day_num}: {day_data['title']}")
             
             await session.commit()
