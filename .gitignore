@@ -69,5 +69,8 @@ postgres_data/
 htmlcov/
 .pytest_cache/
 
+# Manual testing
+.manual-testing/
+
 # Architecture
 .architecture/

@@ -1,11 +1,19 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
+from sqlalchemy import func
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.database import get_session
-from app.models import PracticeTemplate, PracticeDay, ExerciseBlock, Exercise, User
+from app.models import (
+    PracticeTemplate, PracticeDay, ExerciseBlock, Exercise, User, BlockType,
+    TemplateCreate, TemplateUpdate, DayUpdate,
+    BlockCreate, BlockUpdate, BlockReorder,
+    ExerciseCreate, ExerciseUpdate,
+)
 from app.auth import get_current_user
 
 router = APIRouter(prefix="/templates", tags=["templates"])
@@ -270,9 +278,465 @@ async def copy_template(
     
     await session.commit()
     await session.refresh(user_template)
-    
+
     return {
         "id": user_template.id,
         "message": "Template copied successfully",
         "template": user_template
     }
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def get_user_template(
+    template_id: int,
+    session: AsyncSession,
+    current_user: User,
+) -> PracticeTemplate:
+    """Get a template owned by the current user, or raise 404."""
+    statement = select(PracticeTemplate).where(
+        PracticeTemplate.id == template_id,
+        PracticeTemplate.deleted_at == None,
+        PracticeTemplate.is_system == False,
+        PracticeTemplate.user_id == current_user.id,
+    )
+    result = await session.exec(statement)
+    template = result.one_or_none()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return template
+
+
+async def _get_day(
+    template: PracticeTemplate,
+    day_number: int,
+    session: AsyncSession,
+) -> PracticeDay:
+    """Get a specific day within a template, or raise 404."""
+    statement = select(PracticeDay).where(
+        PracticeDay.template_id == template.id,
+        PracticeDay.day_number == day_number,
+    )
+    result = await session.exec(statement)
+    day = result.one_or_none()
+    if not day:
+        raise HTTPException(status_code=404, detail="Practice day not found")
+    return day
+
+
+async def _get_block(
+    day: PracticeDay,
+    block_id: int,
+    session: AsyncSession,
+) -> ExerciseBlock:
+    """Get a specific block within a day, or raise 404."""
+    statement = select(ExerciseBlock).where(
+        ExerciseBlock.id == block_id,
+        ExerciseBlock.practice_day_id == day.id,
+    )
+    result = await session.exec(statement)
+    block = result.one_or_none()
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    return block
+
+
+# ---------------------------------------------------------------------------
+# Template CRUD
+# ---------------------------------------------------------------------------
+
+@router.post("/", status_code=201)
+async def create_template(
+    body: TemplateCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new practice template with empty days."""
+    template = PracticeTemplate(
+        instrument_id=body.instrument_id,
+        name=body.name,
+        days_count=body.days_count,
+        description=body.description,
+        is_active=True,
+        is_system=False,
+        user_id=current_user.id,
+    )
+    session.add(template)
+    await session.flush()
+    assert template.id is not None
+
+    for i in range(1, body.days_count + 1):
+        day = PracticeDay(
+            template_id=template.id,
+            day_number=i,
+            title=f"Day {i}",
+        )
+        session.add(day)
+
+    await session.commit()
+
+    # Return full template via the existing get_template endpoint logic
+    return await get_template(template.id, session, current_user)
+
+
+@router.put("/{template_id}")
+async def update_template(
+    template_id: int,
+    body: TemplateUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Update template metadata. If days_count changes, add/remove days accordingly."""
+    template = await get_user_template(template_id, session, current_user)
+
+    if body.name is not None:
+        template.name = body.name
+    if body.description is not None:
+        template.description = body.description
+
+    if body.days_count is not None and body.days_count != template.days_count:
+        old_count = template.days_count
+        new_count = body.days_count
+
+        if new_count > old_count:
+            # Add new days
+            for i in range(old_count + 1, new_count + 1):
+                day = PracticeDay(
+                    template_id=template.id,
+                    day_number=i,
+                    title=f"Day {i}",
+                )
+                session.add(day)
+        elif new_count < old_count:
+            # Remove days from the end (cascade deletes blocks/exercises)
+            statement = select(PracticeDay).where(
+                PracticeDay.template_id == template.id,
+                PracticeDay.day_number > new_count,
+            )
+            result = await session.exec(statement)
+            for day in result.all():
+                await session.delete(day)
+
+        template.days_count = new_count
+
+    session.add(template)
+    await session.commit()
+
+    return await get_template(template_id, session, current_user)
+
+
+@router.delete("/{template_id}", status_code=204)
+async def delete_template(
+    template_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete a template."""
+    template = await get_user_template(template_id, session, current_user)
+    template.deleted_at = datetime.utcnow()
+    session.add(template)
+    await session.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Day endpoints
+# ---------------------------------------------------------------------------
+
+@router.put("/{template_id}/days/{day_number}")
+async def update_day(
+    template_id: int,
+    day_number: int,
+    body: DayUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a day's title."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+
+    if body.title is not None:
+        day.title = body.title
+
+    session.add(day)
+    await session.commit()
+    await session.refresh(day)
+
+    return {
+        "id": day.id,
+        "template_id": day.template_id,
+        "day_number": day.day_number,
+        "title": day.title,
+        "warmup": day.warmup,
+        "scales": day.scales,
+        "repertoire": day.repertoire,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Block endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/{template_id}/days/{day_number}/blocks", status_code=201)
+async def create_block(
+    template_id: int,
+    day_number: int,
+    body: BlockCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a block to a day."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+
+    # Look up block type to get slug for backward compat
+    block_type = await session.get(BlockType, body.block_type_id)
+    if not block_type:
+        raise HTTPException(status_code=400, detail="Invalid block_type_id")
+
+    # Auto-assign display_order if not provided
+    display_order = body.display_order
+    if display_order is None:
+        result = await session.exec(
+            select(func.coalesce(func.max(ExerciseBlock.display_order), -1)).where(
+                ExerciseBlock.practice_day_id == day.id
+            )
+        )
+        display_order = result.one() + 1
+
+    block = ExerciseBlock(
+        practice_day_id=day.id,
+        block_type=block_type.slug,
+        block_type_id=body.block_type_id,
+        duration_minutes=body.duration_minutes,
+        display_order=display_order,
+    )
+    session.add(block)
+    await session.commit()
+    await session.refresh(block)
+
+    return {
+        "id": block.id,
+        "practice_day_id": block.practice_day_id,
+        "block_type": block.block_type,
+        "block_type_id": block.block_type_id,
+        "duration_minutes": block.duration_minutes,
+        "display_order": block.display_order,
+        "exercises": [],
+    }
+
+
+@router.put("/{template_id}/days/{day_number}/blocks/reorder")
+async def reorder_blocks(
+    template_id: int,
+    day_number: int,
+    body: BlockReorder,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Reorder all blocks on a day."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+
+    # Load all blocks for this day
+    result = await session.exec(
+        select(ExerciseBlock).where(ExerciseBlock.practice_day_id == day.id)
+    )
+    blocks_by_id = {b.id: b for b in result.all()}
+
+    # Validate that all provided IDs belong to this day
+    day_block_ids = set(blocks_by_id.keys())
+    provided_ids = set(body.block_ids)
+    if provided_ids != day_block_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="block_ids must contain exactly the blocks belonging to this day",
+        )
+
+    # Update display_order sequentially
+    for order, block_id in enumerate(body.block_ids):
+        blocks_by_id[block_id].display_order = order
+        session.add(blocks_by_id[block_id])
+
+    await session.commit()
+    return {"status": "ok"}
+
+
+@router.put("/{template_id}/days/{day_number}/blocks/{block_id}")
+async def update_block(
+    template_id: int,
+    day_number: int,
+    block_id: int,
+    body: BlockUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a block."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+    block = await _get_block(day, block_id, session)
+
+    if body.block_type_id is not None:
+        block_type = await session.get(BlockType, body.block_type_id)
+        if not block_type:
+            raise HTTPException(status_code=400, detail="Invalid block_type_id")
+        block.block_type_id = body.block_type_id
+        block.block_type = block_type.slug
+    if body.duration_minutes is not None:
+        block.duration_minutes = body.duration_minutes
+    if body.display_order is not None:
+        block.display_order = body.display_order
+
+    session.add(block)
+    await session.commit()
+    await session.refresh(block)
+
+    return {
+        "id": block.id,
+        "practice_day_id": block.practice_day_id,
+        "block_type": block.block_type,
+        "block_type_id": block.block_type_id,
+        "duration_minutes": block.duration_minutes,
+        "display_order": block.display_order,
+    }
+
+
+@router.delete("/{template_id}/days/{day_number}/blocks/{block_id}", status_code=204)
+async def delete_block(
+    template_id: int,
+    day_number: int,
+    block_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a block and its exercises."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+    block = await _get_block(day, block_id, session)
+
+    await session.delete(block)
+    await session.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Exercise endpoints
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/{template_id}/days/{day_number}/blocks/{block_id}/exercises",
+    status_code=201,
+)
+async def create_exercise(
+    template_id: int,
+    day_number: int,
+    block_id: int,
+    body: ExerciseCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Add an exercise to a block."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+    block = await _get_block(day, block_id, session)
+
+    display_order = body.display_order
+    if display_order is None:
+        result = await session.exec(
+            select(func.coalesce(func.max(Exercise.display_order), -1)).where(
+                Exercise.block_id == block.id
+            )
+        )
+        display_order = result.one() + 1
+
+    exercise = Exercise(
+        block_id=block.id,
+        exercise_text=body.exercise_text,
+        display_order=display_order,
+    )
+    session.add(exercise)
+    await session.commit()
+    await session.refresh(exercise)
+
+    return {
+        "id": exercise.id,
+        "block_id": exercise.block_id,
+        "exercise_text": exercise.exercise_text,
+        "display_order": exercise.display_order,
+    }
+
+
+@router.put(
+    "/{template_id}/days/{day_number}/blocks/{block_id}/exercises/{exercise_id}",
+)
+async def update_exercise(
+    template_id: int,
+    day_number: int,
+    block_id: int,
+    exercise_id: int,
+    body: ExerciseUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Update an exercise."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+    block = await _get_block(day, block_id, session)
+
+    statement = select(Exercise).where(
+        Exercise.id == exercise_id,
+        Exercise.block_id == block.id,
+    )
+    result = await session.exec(statement)
+    exercise = result.one_or_none()
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+
+    if body.exercise_text is not None:
+        exercise.exercise_text = body.exercise_text
+    if body.display_order is not None:
+        exercise.display_order = body.display_order
+
+    session.add(exercise)
+    await session.commit()
+    await session.refresh(exercise)
+
+    return {
+        "id": exercise.id,
+        "block_id": exercise.block_id,
+        "exercise_text": exercise.exercise_text,
+        "display_order": exercise.display_order,
+    }
+
+
+@router.delete(
+    "/{template_id}/days/{day_number}/blocks/{block_id}/exercises/{exercise_id}",
+    status_code=204,
+)
+async def delete_exercise(
+    template_id: int,
+    day_number: int,
+    block_id: int,
+    exercise_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete an exercise."""
+    template = await get_user_template(template_id, session, current_user)
+    day = await _get_day(template, day_number, session)
+    block = await _get_block(day, block_id, session)
+
+    statement = select(Exercise).where(
+        Exercise.id == exercise_id,
+        Exercise.block_id == block.id,
+    )
+    result = await session.exec(statement)
+    exercise = result.one_or_none()
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+
+    await session.delete(exercise)
+    await session.commit()
+    return None
