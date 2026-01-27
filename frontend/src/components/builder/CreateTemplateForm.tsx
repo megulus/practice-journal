@@ -1,18 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import type { createAuthenticatedAPI } from '@/lib/api'
 
 interface CreateTemplateFormProps {
-  instrumentId: number
-  api: ReturnType<typeof createAuthenticatedAPI>
+  onCreateTemplate: (data: { name: string; daysCount: number; description?: string }) => Promise<number>
   onCreated: (templateId: number) => void
   onCancel: () => void
 }
 
 export default function CreateTemplateForm({
-  instrumentId,
-  api,
+  onCreateTemplate,
   onCreated,
   onCancel,
 }: CreateTemplateFormProps) {
@@ -28,13 +25,12 @@ export default function CreateTemplateForm({
     setSubmitting(true)
     setError('')
     try {
-      const template = await api.createTemplate({
-        instrument_id: instrumentId,
+      const templateId = await onCreateTemplate({
         name: name.trim(),
-        days_count: daysCount,
+        daysCount,
         description: description.trim() || undefined,
       })
-      onCreated(template.id)
+      onCreated(templateId)
     } catch (err) {
       setError('Failed to create template. Please try again.')
       console.error(err)

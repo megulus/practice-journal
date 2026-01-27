@@ -141,6 +141,62 @@ export default function TemplateEditPage() {
     }
   }
 
+  async function handleUpdateBlockDuration(blockId: number, minutes: number) {
+    if (!template) return
+    try {
+      await api.updateBlock(template.id, selectedDay, blockId, { duration_minutes: minutes })
+      await refreshTemplate(template.id)
+    } catch (e) {
+      setError('Failed to update block duration.')
+      console.error(e)
+    }
+  }
+
+  async function handleAddExercise(blockId: number, text: string) {
+    if (!template) return
+    try {
+      await api.createExercise(template.id, selectedDay, blockId, { exercise_text: text })
+      await refreshTemplate(template.id)
+    } catch (e) {
+      setError('Failed to add exercise.')
+      console.error(e)
+    }
+  }
+
+  async function handleUpdateExercise(blockId: number, exerciseId: number, text: string) {
+    if (!template) return
+    try {
+      await api.updateExercise(template.id, selectedDay, blockId, exerciseId, {
+        exercise_text: text,
+      })
+      await refreshTemplate(template.id)
+    } catch (e) {
+      setError('Failed to update exercise.')
+      console.error(e)
+    }
+  }
+
+  async function handleDeleteExercise(blockId: number, exerciseId: number) {
+    if (!template) return
+    try {
+      await api.deleteExercise(template.id, selectedDay, blockId, exerciseId)
+      await refreshTemplate(template.id)
+    } catch (e) {
+      setError('Failed to delete exercise.')
+      console.error(e)
+    }
+  }
+
+  async function handleCreateTemplate(data: { name: string; daysCount: number; description?: string }): Promise<number> {
+    const tmpl = await api.createTemplate({
+      instrument_id: instrument!.id,
+      name: data.name,
+      days_count: data.daysCount,
+      description: data.description,
+    })
+    return tmpl.id
+  }
+
   async function handleMoveBlock(currentIndex: number, direction: 'up' | 'down') {
     if (!template) return
     const dayData = template.practice_days?.find((d) => d.day_number === selectedDay)
@@ -197,8 +253,7 @@ export default function TemplateEditPage() {
             <div className="p-8">
               <TemplatePicker
                 templates={templates}
-                instrumentId={instrument.id}
-                api={api}
+                onCreateTemplate={handleCreateTemplate}
                 onSelect={handleSelectTemplate}
               />
             </div>
@@ -285,15 +340,15 @@ export default function TemplateEditPage() {
                   key={block.id}
                   block={block}
                   blockTypes={blockTypes}
-                  templateId={template.id}
-                  dayNumber={selectedDay}
                   isFirst={index === 0}
                   isLast={index === sortedBlocks.length - 1}
                   onMoveUp={() => handleMoveBlock(index, 'up')}
                   onMoveDown={() => handleMoveBlock(index, 'down')}
                   onDelete={() => handleDeleteBlock(block.id)}
-                  onRefresh={() => refreshTemplate(template.id)}
-                  api={api}
+                  onUpdateDuration={handleUpdateBlockDuration}
+                  onAddExercise={handleAddExercise}
+                  onUpdateExercise={handleUpdateExercise}
+                  onDeleteExercise={handleDeleteExercise}
                 />
               ))}
             </div>

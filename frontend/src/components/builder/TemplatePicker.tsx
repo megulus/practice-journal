@@ -2,20 +2,17 @@
 
 import { useState } from 'react'
 import type { PracticeTemplate } from '@/lib/types'
-import type { createAuthenticatedAPI } from '@/lib/api'
 import CreateTemplateForm from './CreateTemplateForm'
 
 interface TemplatePickerProps {
   templates: PracticeTemplate[]
-  instrumentId: number
-  api: ReturnType<typeof createAuthenticatedAPI>
+  onCreateTemplate: (data: { name: string; daysCount: number; description?: string }) => Promise<number>
   onSelect: (templateId: number) => void
 }
 
 export default function TemplatePicker({
   templates,
-  instrumentId,
-  api,
+  onCreateTemplate,
   onSelect,
 }: TemplatePickerProps) {
   const [showCreate, setShowCreate] = useState(false)
@@ -25,8 +22,7 @@ export default function TemplatePicker({
       <div className="max-w-md mx-auto">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Template</h2>
         <CreateTemplateForm
-          instrumentId={instrumentId}
-          api={api}
+          onCreateTemplate={onCreateTemplate}
           onCreated={onSelect}
           onCancel={() => setShowCreate(false)}
         />

@@ -2,35 +2,34 @@
 
 import { useState } from 'react'
 import type { ExerciseBlock, BlockType } from '@/lib/types'
-import type { createAuthenticatedAPI } from '@/lib/api'
 import ExerciseRow from './ExerciseRow'
 
 interface BlockEditorProps {
   block: ExerciseBlock
   blockTypes: BlockType[]
-  templateId: number
-  dayNumber: number
   isFirst: boolean
   isLast: boolean
   onMoveUp: () => void
   onMoveDown: () => void
   onDelete: () => void
-  onRefresh: () => void
-  api: ReturnType<typeof createAuthenticatedAPI>
+  onUpdateDuration: (blockId: number, minutes: number) => Promise<void>
+  onAddExercise: (blockId: number, text: string) => Promise<void>
+  onUpdateExercise: (blockId: number, exerciseId: number, text: string) => Promise<void>
+  onDeleteExercise: (blockId: number, exerciseId: number) => Promise<void>
 }
 
 export default function BlockEditor({
   block,
   blockTypes,
-  templateId,
-  dayNumber,
   isFirst,
   isLast,
   onMoveUp,
   onMoveDown,
   onDelete,
-  onRefresh,
-  api,
+  onUpdateDuration,
+  onAddExercise,
+  onUpdateExercise,
+  onDeleteExercise,
 }: BlockEditorProps) {
   const [duration, setDuration] = useState(String(block.duration_minutes ?? ''))
   const [newExercise, setNewExercise] = useState('')
@@ -44,8 +43,7 @@ export default function BlockEditor({
     if (isNaN(parsed) || parsed === block.duration_minutes) return
     setSaving(true)
     try {
-      await api.updateBlock(templateId, dayNumber, block.id, { duration_minutes: parsed })
-      onRefresh()
+      await onUpdateDuration(block.id, parsed)
     } catch (e) {
       console.error(e)
     } finally {
@@ -58,9 +56,8 @@ export default function BlockEditor({
     if (!text) return
     setSaving(true)
     try {
-      await api.createExercise(templateId, dayNumber, block.id, { exercise_text: text })
+      await onAddExercise(block.id, text)
       setNewExercise('')
-      onRefresh()
     } catch (e) {
       console.error(e)
     } finally {
@@ -70,10 +67,7 @@ export default function BlockEditor({
 
   async function handleUpdateExercise(exerciseId: number, newText: string) {
     try {
-      await api.updateExercise(templateId, dayNumber, block.id, exerciseId, {
-        exercise_text: newText,
-      })
-      onRefresh()
+      await onUpdateExercise(block.id, exerciseId, newText)
     } catch (e) {
       console.error(e)
     }
@@ -81,8 +75,7 @@ export default function BlockEditor({
 
   async function handleDeleteExercise(exerciseId: number) {
     try {
-      await api.deleteExercise(templateId, dayNumber, block.id, exerciseId)
-      onRefresh()
+      await onDeleteExercise(block.id, exerciseId)
     } catch (e) {
       console.error(e)
     }
