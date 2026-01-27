@@ -183,6 +183,57 @@ class PracticeLogCreate(SQLModel):
     log_details: List[PracticeLogDetailCreate] = []
 
 
+class TemplateCreate(SQLModel):
+    """Schema for creating a practice template"""
+    instrument_id: int
+    name: str
+    days_count: int
+    description: Optional[str] = None
+
+
+class TemplateUpdate(SQLModel):
+    """Schema for updating a practice template"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    days_count: Optional[int] = None
+
+
+class DayUpdate(SQLModel):
+    """Schema for updating a practice day"""
+    title: Optional[str] = None
+
+
+class BlockCreate(SQLModel):
+    """Schema for creating an exercise block"""
+    block_type_id: int
+    duration_minutes: Optional[int] = None
+    display_order: Optional[int] = None
+
+
+class BlockUpdate(SQLModel):
+    """Schema for updating an exercise block"""
+    block_type_id: Optional[int] = None
+    duration_minutes: Optional[int] = None
+    display_order: Optional[int] = None
+
+
+class BlockReorder(SQLModel):
+    """Schema for reordering blocks on a day"""
+    block_ids: List[int]
+
+
+class ExerciseCreate(SQLModel):
+    """Schema for creating an exercise"""
+    exercise_text: str
+    display_order: Optional[int] = None
+
+
+class ExerciseUpdate(SQLModel):
+    """Schema for updating an exercise"""
+    exercise_text: Optional[str] = None
+    display_order: Optional[int] = None
+
+
 class AnalyticsSummary(SQLModel):
     """Analytics summary response"""
     total_sessions: int
