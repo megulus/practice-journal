@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
-import type { Instrument, PracticeTemplate, PracticeDay } from '@/lib/types'
+import type { Instrument, PracticeTemplate, PracticeDay, BlockType } from '@/lib/types'
 import DaySelector from '@/components/DaySelector'
 import PracticeBlock from '@/components/PracticeBlock'
 
@@ -15,9 +15,12 @@ export default function PracticePlanPage() {
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
   const [currentDayData, setCurrentDayData] = useState<PracticeDay | null>(null)
+  const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    api.getBlockTypes().then(setBlockTypes).catch(() => {})
+
     Promise.all([api.getInstruments(), api.getTemplates()])
       .then(([instruments, allTemplates]) => {
         const inst = instruments.find(
@@ -106,7 +109,7 @@ export default function PracticePlanPage() {
               onSelectDay={setSelectedDay}
             />
 
-            {currentDayData && <PracticeBlock day={currentDayData} />}
+            {currentDayData && <PracticeBlock day={currentDayData} blockTypes={blockTypes} />}
           </div>
         </div>
       </div>
