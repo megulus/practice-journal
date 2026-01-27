@@ -6,6 +6,16 @@ import type {
   PracticeLog,
   PracticeLogCreate,
   AnalyticsSummary,
+  TemplateCreate,
+  TemplateUpdate,
+  DayUpdate,
+  BlockCreate,
+  BlockUpdate,
+  BlockReorder,
+  ExerciseCreate,
+  ExerciseUpdate,
+  ExerciseBlock,
+  Exercise,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -47,6 +57,10 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
       throw new Error(`API error: ${response.statusText}`)
     }
 
+    if (response.status === 204) {
+      return undefined as T
+    }
+
     return response.json()
   }
 }
@@ -84,6 +98,71 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
 
     getPracticeDay: (templateId: number, dayNumber: number) =>
       authFetchAPI<PracticeDay>(`/api/templates/${templateId}/days/${dayNumber}`),
+
+    // Template CRUD
+    createTemplate: (data: TemplateCreate) =>
+      authFetchAPI<PracticeTemplate>('/api/templates/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateTemplate: (id: number, data: TemplateUpdate) =>
+      authFetchAPI<PracticeTemplate>(`/api/templates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    deleteTemplate: (id: number) =>
+      authFetchAPI<void>(`/api/templates/${id}`, { method: 'DELETE' }),
+
+    // Day CRUD
+    updateDay: (templateId: number, dayNumber: number, data: DayUpdate) =>
+      authFetchAPI<PracticeDay>(`/api/templates/${templateId}/days/${dayNumber}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    // Block CRUD
+    createBlock: (templateId: number, dayNumber: number, data: BlockCreate) =>
+      authFetchAPI<ExerciseBlock>(`/api/templates/${templateId}/days/${dayNumber}/blocks`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateBlock: (templateId: number, dayNumber: number, blockId: number, data: BlockUpdate) =>
+      authFetchAPI<ExerciseBlock>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    reorderBlocks: (templateId: number, dayNumber: number, data: BlockReorder) =>
+      authFetchAPI<void>(`/api/templates/${templateId}/days/${dayNumber}/blocks/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    deleteBlock: (templateId: number, dayNumber: number, blockId: number) =>
+      authFetchAPI<void>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}`, {
+        method: 'DELETE',
+      }),
+
+    // Exercise CRUD
+    createExercise: (templateId: number, dayNumber: number, blockId: number, data: ExerciseCreate) =>
+      authFetchAPI<Exercise>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}/exercises`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateExercise: (templateId: number, dayNumber: number, blockId: number, exerciseId: number, data: ExerciseUpdate) =>
+      authFetchAPI<Exercise>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}/exercises/${exerciseId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    deleteExercise: (templateId: number, dayNumber: number, blockId: number, exerciseId: number) =>
+      authFetchAPI<void>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}/exercises/${exerciseId}`, {
+        method: 'DELETE',
+      }),
 
     // Logs
     createLog: (data: PracticeLogCreate) =>

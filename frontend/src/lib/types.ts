@@ -81,4 +81,48 @@ export interface AnalyticsSummary {
   sessions_by_day: Record<string, number>
 }
 
+// CRUD input types for template builder
+export interface TemplateCreate {
+  instrument_id: number
+  name: string
+  days_count: number
+  description?: string
+}
+
+export interface TemplateUpdate {
+  name?: string
+  description?: string
+  days_count?: number
+}
+
+export interface DayUpdate {
+  title?: string
+}
+
+export interface BlockCreate {
+  block_type_id: number
+  duration_minutes?: number
+  display_order?: number
+}
+
+export interface BlockUpdate {
+  block_type_id?: number
+  duration_minutes?: number
+  display_order?: number
+}
+
+export interface BlockReorder {
+  block_ids: number[]
+}
+
+export interface ExerciseCreate {
+  exercise_text: string
+  display_order?: number
+}
+
+export interface ExerciseUpdate {
+  exercise_text?: string
+  display_order?: number
+}
+
 
