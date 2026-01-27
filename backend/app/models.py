@@ -63,6 +63,25 @@ class PracticeTemplate(SQLModel, table=True):
     practice_logs: List["PracticeLog"] = Relationship(back_populates="template")
 
 
+class BlockType(SQLModel, table=True):
+    """Catalog of practice block categories (warm-up, scales, technique, etc.)"""
+    __tablename__ = "block_types"  # type: ignore[assignment]
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    slug: str = Field(max_length=50, unique=True, index=True)
+    label: str = Field(max_length=100)
+    description: Optional[str] = None
+    default_duration_minutes: int = Field(default=10)
+    icon_key: Optional[str] = Field(default=None, max_length=50)
+    display_order: int = Field(default=0)
+    is_system: bool = Field(default=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    exercise_blocks: List["ExerciseBlock"] = Relationship(back_populates="block_type_rel")
+
+
 class PracticeDay(SQLModel, table=True):
     """Individual day in a practice template"""
     __tablename__ = "practice_days"  # type: ignore[assignment]
@@ -87,12 +106,15 @@ class ExerciseBlock(SQLModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     practice_day_id: int = Field(foreign_key="practice_days.id")
-    block_type: str = Field(max_length=50)  # e.g., "blockA", "blockB"
+    block_type: str = Field(max_length=50)  # e.g., "blockA", "blockB" — kept for backward compat
+    block_type_id: Optional[int] = Field(default=None, foreign_key="block_types.id")
+    duration_minutes: Optional[int] = Field(default=None)
     display_order: int
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
-    
+
     # Relationships
     practice_day: Optional[PracticeDay] = Relationship(back_populates="exercise_blocks")
+    block_type_rel: Optional["BlockType"] = Relationship(back_populates="exercise_blocks")
     exercises: List["Exercise"] = Relationship(back_populates="block", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
