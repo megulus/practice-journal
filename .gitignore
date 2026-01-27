@@ -70,7 +70,7 @@ htmlcov/
 .pytest_cache/
 
 # Manual testing
-manual-testing/
+.manual-testing/
 
 # Architecture
 .architecture/
