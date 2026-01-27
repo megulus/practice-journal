@@ -74,30 +74,28 @@ async def list_practice_logs(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Get practice logs for user's templates, optionally filtered by template."""
-    # Get user's template IDs (excluding soft-deleted templates)
-    template_statement = select(PracticeTemplate.id).where(
-        PracticeTemplate.deleted_at == None,
-        (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
-    )
-    template_result = await session.exec(template_statement)
-    user_template_ids = list(template_result.all())
-    
-    # Filter logs by user's templates or user's freeform logs (excluding soft-deleted logs)
+    """Get practice logs for the current user, optionally filtered by template."""
+    # All logs belong to the user who created them
     statement = (
         select(PracticeLog)
         .where(
-            (PracticeLog.template_id.in_(user_template_ids) | (PracticeLog.user_id == current_user.id)),  # type: ignore[attr-defined]
+            PracticeLog.user_id == current_user.id,
             PracticeLog.deleted_at == None
         )
         .order_by(desc(PracticeLog.practice_date))  # type: ignore[arg-type]
         .options(selectinload(PracticeLog.log_details))  # type: ignore[arg-type]
         .limit(limit)
     )
-    
+
     if template_id:
-        # Verify user has access to this specific template
-        if template_id not in user_template_ids:
+        # Verify user has access to this template
+        template_statement = select(PracticeTemplate).where(
+            PracticeTemplate.id == template_id,
+            PracticeTemplate.deleted_at == None,
+            (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
+        )
+        template_result = await session.exec(template_statement)
+        if not template_result.one_or_none():
             raise HTTPException(status_code=404, detail="Template not found")
         statement = statement.where(PracticeLog.template_id == template_id)
     
@@ -128,20 +126,8 @@ async def get_practice_log(
     if not log:
         raise HTTPException(status_code=404, detail="Practice log not found")
     
-    # Verify user has access — check user_id, then template access for template-linked logs
+    # Logs belong to the user who created them
     if log.user_id != current_user.id:
-        if log.template_id is not None:
-            template_statement = select(PracticeTemplate).where(
-                PracticeTemplate.id == log.template_id,
-                PracticeTemplate.deleted_at == None,
-                (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
-            )
-            template_result = await session.exec(template_statement)
-            template = template_result.one_or_none()
-
-            if not template:
-                raise HTTPException(status_code=404, detail="Practice log not found")
-        else:
-            raise HTTPException(status_code=404, detail="Practice log not found")
+        raise HTTPException(status_code=404, detail="Practice log not found")
 
     return log
