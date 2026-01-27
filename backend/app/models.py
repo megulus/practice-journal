@@ -137,6 +137,7 @@ class PracticeLog(SQLModel, table=True):
     __tablename__ = "practice_logs"  # type: ignore[assignment]
     
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
     template_id: Optional[int] = Field(default=None, foreign_key="practice_templates.id")
     day_number: Optional[int] = Field(default=None)
     practice_date: date
@@ -147,6 +148,7 @@ class PracticeLog(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None)
 
     # Relationships
+    user: Optional["User"] = Relationship()
     template: Optional[PracticeTemplate] = Relationship(back_populates="practice_logs")
     log_details: List["PracticeLogDetail"] = Relationship(back_populates="log", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
