@@ -30,9 +30,10 @@ export default function LogPracticePage() {
   >([])
 
   useEffect(() => {
-    Promise.all([api.getInstruments(), api.getTemplates(), api.getBlockTypes()])
-      .then(([instruments, allTemplates, fetchedBlockTypes]) => {
-        setBlockTypes(fetchedBlockTypes)
+    api.getBlockTypes().then(setBlockTypes).catch(() => {})
+
+    Promise.all([api.getInstruments(), api.getTemplates()])
+      .then(([instruments, allTemplates]) => {
         const inst = instruments.find(
           (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
         )
@@ -93,7 +94,7 @@ export default function LogPracticePage() {
           duration_minutes: parseInt(formData.duration),
           notes: formData.notes,
           log_details: freeformSections
-            .filter((s) => s.content)
+            .filter((s) => s.content && s.label.trim())
             .map((s) => ({
               section_type: s.label.toLowerCase().replace(/\s+/g, '-'),
               content: s.content,

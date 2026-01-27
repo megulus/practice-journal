@@ -19,9 +19,10 @@ export default function PracticePlanPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([api.getInstruments(), api.getTemplates(), api.getBlockTypes()])
-      .then(([instruments, allTemplates, fetchedBlockTypes]) => {
-        setBlockTypes(fetchedBlockTypes)
+    api.getBlockTypes().then(setBlockTypes).catch(() => {})
+
+    Promise.all([api.getInstruments(), api.getTemplates()])
+      .then(([instruments, allTemplates]) => {
         const inst = instruments.find(
           (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
         )
