@@ -22,7 +22,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // Factory function to create API client with auth token
 function createFetchAPI(getToken?: () => Promise<string | null>) {
-  return async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  async function fetchAPI(endpoint: string, options?: RequestInit): Promise<void>
+  async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T>
+  async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T | void> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
@@ -58,11 +60,12 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
     }
 
     if (response.status === 204) {
-      return undefined as T
+      return
     }
 
     return response.json()
   }
+  return fetchAPI
 }
 
 // Create authenticated API client (to be used in components with useAuth)
