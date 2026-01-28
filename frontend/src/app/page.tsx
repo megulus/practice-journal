@@ -115,7 +115,7 @@ export default function Home() {
               Choose Your Instrument
             </h2>
             <p className="text-gray-600 mb-6">
-              Select an instrument to add to your practice journal. We'll set you up with a practice template to get started!
+              Select an instrument to add to your practice journal. We&apos;ll set you up with a practice template to get started!
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {systemInstruments.map((instrument: Instrument) => (

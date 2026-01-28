@@ -66,7 +66,7 @@ export default function InstrumentPage() {
           </div>
 
           <div className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <button
                 onClick={() => router.push(`/${instrumentName}/plan`)}
                 className="p-6 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-lg shadow-md hover:shadow-xl transition-all hover:scale-105"
@@ -80,7 +80,7 @@ export default function InstrumentPage() {
                 className="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg shadow-md hover:shadow-xl transition-all hover:scale-105"
               >
                 <h2 className="text-2xl font-bold mb-2">✏️ Log Practice</h2>
-                <p className="text-green-100">Record today's session</p>
+                <p className="text-green-100">Record today&apos;s session</p>
               </button>
 
               <button
@@ -89,6 +89,16 @@ export default function InstrumentPage() {
               >
                 <h2 className="text-2xl font-bold mb-2">📊 History</h2>
                 <p className="text-purple-100">View past sessions & stats</p>
+              </button>
+
+              <button
+                onClick={() => router.push(`/${instrumentName}/template/edit`)}
+                className="p-6 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-lg shadow-md hover:shadow-xl transition-all hover:scale-105"
+              >
+                <h2 className="text-2xl font-bold mb-2">🛠️ Edit Template</h2>
+                <p className="text-amber-100">
+                  {activeTemplate ? 'Customize your plan' : 'Create a practice plan'}
+                </p>
               </button>
             </div>
           </div>

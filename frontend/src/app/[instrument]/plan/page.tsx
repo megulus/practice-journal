@@ -87,9 +87,17 @@ export default function PracticePlanPage() {
     <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white p-8 text-center">
+          <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white p-8 text-center relative">
             <h1 className="text-4xl font-bold mb-2">📅 Practice Plan</h1>
             <p className="text-primary-100 text-lg">{template.name}</p>
+            <button
+              onClick={() =>
+                router.push(`/${instrumentName}/template/edit?templateId=${template.id}`)
+              }
+              className="mt-3 inline-block text-sm text-primary-200 hover:text-white underline underline-offset-2"
+            >
+              Edit Template
+            </button>
           </div>
 
           <div className="p-8">
