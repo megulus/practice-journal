@@ -188,13 +188,20 @@ export default function TemplateEditPage() {
   }
 
   async function handleCreateTemplate(data: { name: string; daysCount: number; description?: string }): Promise<number> {
-    const tmpl = await api.createTemplate({
-      instrument_id: instrument!.id,
-      name: data.name,
-      days_count: data.daysCount,
-      description: data.description,
-    })
-    return tmpl.id
+    if (!instrument) throw new Error('No instrument loaded')
+    try {
+      const tmpl = await api.createTemplate({
+        instrument_id: instrument.id,
+        name: data.name,
+        days_count: data.daysCount,
+        description: data.description,
+      })
+      return tmpl.id
+    } catch (e) {
+      setError('Failed to create template.')
+      console.error(e)
+      throw e
+    }
   }
 
   async function handleMoveBlock(currentIndex: number, direction: 'up' | 'down') {
