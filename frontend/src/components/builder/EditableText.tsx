@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 
 interface EditableTextProps {
   value: string
-  onSave: (newValue: string) => void
+  onSave: (newValue: string) => void | Promise<void>
   className?: string
   inputClassName?: string
   placeholder?: string

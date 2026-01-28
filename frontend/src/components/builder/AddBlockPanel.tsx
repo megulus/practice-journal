@@ -16,7 +16,7 @@ export default function AddBlockPanel({ blockTypes, onAddBlock }: AddBlockPanelP
         Add a Block
       </h3>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {blockTypes
+        {[...blockTypes]
           .sort((a, b) => a.display_order - b.display_order)
           .map((bt) => (
             <button

@@ -141,6 +141,9 @@ export default function TemplateEditPage() {
     }
   }
 
+  // TODO: These handlers close over `selectedDay` at call time. If the user
+  // switches days while an API call is in flight, the request uses the old day
+  // but refreshTemplate still fetches the correct template. Low risk for now.
   async function handleUpdateBlockDuration(blockId: number, minutes: number) {
     if (!template) return
     try {

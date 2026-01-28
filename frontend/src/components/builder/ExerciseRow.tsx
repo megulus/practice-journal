@@ -5,8 +5,8 @@ import { useState, useRef, useEffect } from 'react'
 interface ExerciseRowProps {
   exerciseId: number
   text: string
-  onUpdate: (id: number, newText: string) => void
-  onDelete: (id: number) => void
+  onUpdate: (id: number, newText: string) => void | Promise<void>
+  onDelete: (id: number) => void | Promise<void>
 }
 
 export default function ExerciseRow({ exerciseId, text, onUpdate, onDelete }: ExerciseRowProps) {

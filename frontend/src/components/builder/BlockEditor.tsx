@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ExerciseBlock, BlockType } from '@/lib/types'
 import ExerciseRow from './ExerciseRow'
 
@@ -34,6 +34,10 @@ export default function BlockEditor({
   const [duration, setDuration] = useState(String(block.duration_minutes ?? ''))
   const [newExercise, setNewExercise] = useState('')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setDuration(String(block.duration_minutes ?? ''))
+  }, [block.duration_minutes])
 
   const blockType = blockTypes.find((bt) => bt.id === block.block_type_id)
   const label = blockType?.label ?? block.block_type
