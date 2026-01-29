@@ -16,6 +16,8 @@ import type {
   ExerciseUpdate,
   ExerciseBlock,
   Exercise,
+  SuggestionsProgressResponse,
+  SuggestionAction,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -186,6 +188,27 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
     getAnalytics: (templateId?: number) =>
       authFetchAPI<AnalyticsSummary>(
         `/api/analytics/${templateId ? `?template_id=${templateId}` : ''}`
+      ),
+
+    // Suggestions
+    getSuggestionsProgress: (instrumentId?: number) =>
+      authFetchAPI<SuggestionsProgressResponse>(
+        `/api/suggestions/progress${instrumentId ? `?instrument_id=${instrumentId}` : ''}`
+      ),
+
+    dismissSuggestion: (suggestionKey: string) =>
+      authFetchAPI<{ status: string; suggestion_key: string }>(
+        `/api/suggestions/dismiss/${suggestionKey}`,
+        { method: 'POST' }
+      ),
+
+    acceptSuggestion: (suggestionKey: string, action: SuggestionAction) =>
+      authFetchAPI<{ status: string; suggestion_key: string; exercise: Exercise }>(
+        `/api/suggestions/accept/${suggestionKey}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(action),
+        }
       ),
   }
 }

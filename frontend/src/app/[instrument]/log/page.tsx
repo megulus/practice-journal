@@ -3,18 +3,33 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
-import type { PracticeTemplate, PracticeDay, BlockType, Exercise } from '@/lib/types'
+import OutcomeSelector from '@/components/OutcomeSelector'
+import SuggestionCard from '@/components/SuggestionCard'
+import { evaluateRules } from '@/lib/progressionRules'
+import type { PracticeTemplate, PracticeDay, BlockType, Exercise, PracticeOutcome, Suggestion, Instrument } from '@/lib/types'
+
+// Track exercise selection with outcome
+interface ExerciseSelection {
+  exerciseId: number
+  exerciseText: string
+  outcome?: PracticeOutcome
+  tempoPracticed?: number
+}
 
 export default function LogPracticePage() {
   const params = useParams()
   const router = useRouter()
   const api = useApi()
   const instrumentName = params.instrument as string
+  const [instrument, setInstrument] = useState<Instrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [freeformMode, setFreeformMode] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set())
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -23,6 +38,8 @@ export default function LogPracticePage() {
     notes: '',
   })
 
+  // Track exercise selections with outcomes (keyed by block id)
+  const [exerciseSelections, setExerciseSelections] = useState<Record<number, ExerciseSelection>>({})
   const [blockNotes, setBlockNotes] = useState<Record<number, string>>({})
 
   const [freeformSections, setFreeformSections] = useState<
@@ -38,6 +55,7 @@ export default function LogPracticePage() {
           (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
         )
         if (inst) {
+          setInstrument(inst)
           const tmpl = allTemplates.find(
             (t) => t.instrument_id === inst.id && t.is_active
           )
@@ -61,9 +79,10 @@ export default function LogPracticePage() {
       })
   }, [instrumentName, api])
 
-  // Reset blockNotes when day changes
+  // Reset selections when day changes
   useEffect(() => {
     setBlockNotes({})
+    setExerciseSelections({})
   }, [formData.dayNumber])
 
   const getCurrentDay = (): PracticeDay | undefined => {
@@ -80,6 +99,34 @@ export default function LogPracticePage() {
     const bt = blockTypes.find((t) => t.slug === block.block_type)
     if (bt) return bt.label
     return block.block_type
+  }
+
+  const handleExerciseSelect = (blockId: number, exercise: Exercise | null) => {
+    if (!exercise) {
+      const { [blockId]: _, ...rest } = exerciseSelections
+      setExerciseSelections(rest)
+      return
+    }
+    setExerciseSelections({
+      ...exerciseSelections,
+      [blockId]: {
+        exerciseId: exercise.id,
+        exerciseText: exercise.exercise_text,
+        tempoPracticed: exercise.tempo_bpm,
+        outcome: exerciseSelections[blockId]?.outcome,
+      },
+    })
+  }
+
+  const handleOutcomeChange = (blockId: number, outcome: PracticeOutcome | undefined) => {
+    if (!exerciseSelections[blockId]) return
+    setExerciseSelections({
+      ...exerciseSelections,
+      [blockId]: {
+        ...exerciseSelections[blockId],
+        outcome,
+      },
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,24 +149,54 @@ export default function LogPracticePage() {
         })
       } else {
         const currentDay = getCurrentDay()
+        // Build log details with exercise outcomes
+        const logDetails = currentDay
+          ? currentDay.exercise_blocks
+              .filter((block) => exerciseSelections[block.id] || blockNotes[block.id])
+              .map((block) => {
+                const selection = exerciseSelections[block.id]
+                if (selection) {
+                  return {
+                    section_type: block.block_type,
+                    content: selection.exerciseText,
+                    exercise_id: selection.exerciseId,
+                    tempo_practiced: selection.tempoPracticed,
+                    outcome: selection.outcome,
+                  }
+                }
+                return {
+                  section_type: block.block_type,
+                  content: blockNotes[block.id],
+                }
+              })
+          : []
+
         await api.createLog({
           template_id: template!.id,
           day_number: formData.dayNumber,
           practice_date: formData.date,
           duration_minutes: parseInt(formData.duration),
           notes: formData.notes,
-          log_details: currentDay
-            ? currentDay.exercise_blocks
-                .filter((block) => blockNotes[block.id])
-                .map((block) => ({
-                  section_type: block.block_type,
-                  content: blockNotes[block.id],
-                }))
-            : [],
+          log_details: logDetails,
         })
       }
 
-      alert('Practice log saved!')
+      // Fetch suggestions after logging
+      if (instrument) {
+        try {
+          const progressData = await api.getSuggestionsProgress(instrument.id)
+          const newSuggestions = evaluateRules(
+            progressData.exercises,
+            progressData.progress,
+            dismissedKeys
+          )
+          setSuggestions(newSuggestions)
+        } catch (err) {
+          console.error('Failed to fetch suggestions:', err)
+        }
+      }
+
+      setShowSuccess(true)
       setFormData({
         date: new Date().toISOString().split('T')[0],
         dayNumber: 1,
@@ -127,6 +204,7 @@ export default function LogPracticePage() {
         notes: '',
       })
       setBlockNotes({})
+      setExerciseSelections({})
       setFreeformSections([])
     } catch (err) {
       console.error(err)
@@ -142,6 +220,37 @@ export default function LogPracticePage() {
 
   const removeFreeformSection = (index: number) => {
     setFreeformSections(freeformSections.filter((_, i) => i !== index))
+  }
+
+  const handleAcceptSuggestion = async (suggestion: Suggestion) => {
+    if (!suggestion.action) return
+    try {
+      await api.acceptSuggestion(suggestion.key, suggestion.action)
+      setSuggestions(suggestions.filter((s) => s.key !== suggestion.key))
+      setDismissedKeys(new Set([...dismissedKeys, suggestion.key]))
+    } catch (err) {
+      console.error('Failed to accept suggestion:', err)
+    }
+  }
+
+  const handleDismissSuggestion = async (suggestion: Suggestion) => {
+    try {
+      await api.dismissSuggestion(suggestion.key)
+      setSuggestions(suggestions.filter((s) => s.key !== suggestion.key))
+      setDismissedKeys(new Set([...dismissedKeys, suggestion.key]))
+    } catch (err) {
+      console.error('Failed to dismiss suggestion:', err)
+    }
+  }
+
+  const handleNotYet = (suggestion: Suggestion) => {
+    // Remove from current view but don't dismiss permanently
+    setSuggestions(suggestions.filter((s) => s.key !== suggestion.key))
+  }
+
+  const handleLogAnother = () => {
+    setShowSuccess(false)
+    setSuggestions([])
   }
 
   const updateFreeformSection = (
@@ -170,6 +279,70 @@ export default function LogPracticePage() {
         (a, b) => a.display_order - b.display_order
       )
     : []
+
+  // Success state with suggestions
+  if (showSuccess) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-xl shadow-xl overflow-hidden">
+            <div className="bg-gradient-to-br from-green-500 to-green-700 text-white p-8 text-center">
+              <div className="text-5xl mb-4">&#10003;</div>
+              <h1 className="text-4xl font-bold mb-2">Practice logged!</h1>
+              <p className="text-green-100 text-lg">
+                {formData.duration ? `${formData.duration} minutes recorded` : 'Great work!'}
+              </p>
+            </div>
+
+            <div className="p-8">
+              {suggestions.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-lg font-semibold text-gray-700 mb-4">Suggestions</h2>
+                  <div className="space-y-4">
+                    {suggestions.slice(0, 3).map((suggestion) => (
+                      <SuggestionCard
+                        key={suggestion.key}
+                        suggestion={suggestion}
+                        onAccept={() => handleAcceptSuggestion(suggestion)}
+                        onDismiss={() => handleDismissSuggestion(suggestion)}
+                        onNotYet={() => handleNotYet(suggestion)}
+                      />
+                    ))}
+                  </div>
+                  {suggestions.length > 3 && (
+                    <p className="text-sm text-gray-500 mt-4 text-center">
+                      +{suggestions.length - 3} more suggestions on the{' '}
+                      <a
+                        href={`/${instrumentName}/suggestions`}
+                        className="text-primary-600 hover:underline"
+                      >
+                        suggestions page
+                      </a>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  onClick={handleLogAnother}
+                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+                >
+                  Log another session
+                </button>
+                <button
+                  onClick={() => router.push(`/${instrumentName}/history`)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
+                >
+                  View history
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
@@ -276,28 +449,40 @@ export default function LogPracticePage() {
                 </label>
 
                 {block.exercises.length > 0 ? (
-                  <select
-                    value={blockNotes[block.id] || ''}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                      setBlockNotes({
-                        ...blockNotes,
-                        [block.id]: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
-                  >
-                    <option value="">Select exercise...</option>
-                    {[...block.exercises]
-                      .sort(
-                        (a: Exercise, b: Exercise) =>
-                          a.display_order - b.display_order
-                      )
-                      .map((ex: Exercise) => (
-                        <option key={ex.id} value={ex.exercise_text}>
-                          {ex.exercise_text}
-                        </option>
-                      ))}
-                  </select>
+                  <div className="space-y-3">
+                    <select
+                      value={exerciseSelections[block.id]?.exerciseId?.toString() || ''}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        const exerciseId = parseInt(e.target.value)
+                        const exercise = block.exercises.find((ex) => ex.id === exerciseId)
+                        handleExerciseSelect(block.id, exercise || null)
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
+                    >
+                      <option value="">Select exercise...</option>
+                      {[...block.exercises]
+                        .sort(
+                          (a: Exercise, b: Exercise) =>
+                            a.display_order - b.display_order
+                        )
+                        .map((ex: Exercise) => (
+                          <option key={ex.id} value={ex.id}>
+                            {ex.exercise_text}
+                            {ex.tempo_bpm && ` (${ex.tempo_bpm} bpm)`}
+                          </option>
+                        ))}
+                    </select>
+                    {exerciseSelections[block.id] && (
+                      <div className="pl-4 border-l-2 border-gray-200">
+                        <p className="text-sm text-gray-600 mb-2">How did it go?</p>
+                        <OutcomeSelector
+                          value={exerciseSelections[block.id]?.outcome}
+                          onChange={(outcome) => handleOutcomeChange(block.id, outcome)}
+                          size="sm"
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <textarea
                     value={blockNotes[block.id] || ''}

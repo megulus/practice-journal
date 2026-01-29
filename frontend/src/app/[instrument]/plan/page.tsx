@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
-import type { Instrument, PracticeTemplate, PracticeDay, BlockType } from '@/lib/types'
+import { evaluateRules } from '@/lib/progressionRules'
+import type { Instrument, PracticeTemplate, PracticeDay, BlockType, Suggestion } from '@/lib/types'
 import DaySelector from '@/components/DaySelector'
 import PracticeBlock from '@/components/PracticeBlock'
 
@@ -12,25 +14,43 @@ export default function PracticePlanPage() {
   const router = useRouter()
   const api = useApi()
   const instrumentName = params.instrument as string
+  const [instrument, setInstrument] = useState<Instrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
   const [currentDayData, setCurrentDayData] = useState<PracticeDay | null>(null)
   const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
+  const [suggestionsCount, setSuggestionsCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     api.getBlockTypes().then(setBlockTypes).catch(() => {})
 
     Promise.all([api.getInstruments(), api.getTemplates()])
-      .then(([instruments, allTemplates]) => {
+      .then(async ([instruments, allTemplates]) => {
         const inst = instruments.find(
           (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
         )
         if (inst) {
+          setInstrument(inst)
           const tmpl = allTemplates.find(
             (t) => t.instrument_id === inst.id && t.is_active
           )
           if (tmpl) {
+            // Fetch suggestions count
+            try {
+              const progressData = await api.getSuggestionsProgress(inst.id)
+              const dismissedKeys: Set<string> = typeof window !== 'undefined'
+                ? new Set(JSON.parse(localStorage.getItem(`dismissed_suggestions_${instrumentName}`) || '[]') as string[])
+                : new Set<string>()
+              const suggestions = evaluateRules(
+                progressData.exercises,
+                progressData.progress,
+                dismissedKeys
+              )
+              setSuggestionsCount(suggestions.length)
+            } catch (err) {
+              console.error('Failed to load suggestions:', err)
+            }
             return api.getTemplate(tmpl.id)
           }
         }
@@ -88,16 +108,29 @@ export default function PracticePlanPage() {
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-xl shadow-xl overflow-hidden">
           <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white p-8 text-center relative">
-            <h1 className="text-4xl font-bold mb-2">📅 Practice Plan</h1>
+            <h1 className="text-4xl font-bold mb-2">Practice Plan</h1>
             <p className="text-primary-100 text-lg">{template.name}</p>
-            <button
-              onClick={() =>
-                router.push(`/${instrumentName}/template/edit?templateId=${template.id}`)
-              }
-              className="mt-3 inline-block text-sm text-primary-200 hover:text-white underline underline-offset-2"
-            >
-              Edit Template
-            </button>
+            <div className="mt-3 flex items-center justify-center gap-4">
+              <button
+                onClick={() =>
+                  router.push(`/${instrumentName}/template/edit?templateId=${template.id}`)
+                }
+                className="text-sm text-primary-200 hover:text-white underline underline-offset-2"
+              >
+                Edit Template
+              </button>
+              {suggestionsCount > 0 && (
+                <Link
+                  href={`/${instrumentName}/suggestions`}
+                  className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-sm transition-colors"
+                >
+                  <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">
+                    {suggestionsCount}
+                  </span>
+                  <span>Suggestions</span>
+                </Link>
+              )}
+            </div>
           </div>
 
           <div className="p-8">

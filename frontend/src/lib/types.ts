@@ -1,3 +1,18 @@
+// Enums (matching backend)
+export type TechniqueCategory =
+  | 'scales'
+  | 'arpeggios'
+  | 'etude'
+  | 'long_tones'
+  | 'shifting'
+  | 'bowing'
+  | 'articulation'
+  | 'repertoire'
+  | 'sight_reading'
+  | 'other'
+
+export type PracticeOutcome = 'struggled' | 'okay' | 'nailed_it'
+
 export interface BlockType {
   id: number
   slug: string
@@ -21,6 +36,11 @@ export interface Exercise {
   id: number
   exercise_text: string
   display_order: number
+  tempo_bpm?: number
+  key?: string
+  technique_category?: TechniqueCategory
+  difficulty_level?: number
+  notes?: string
 }
 
 export interface ExerciseBlock {
@@ -57,6 +77,10 @@ export interface PracticeTemplate {
 export interface PracticeLogDetail {
   section_type: string
   content?: string
+  exercise_id?: number
+  tempo_practiced?: number
+  outcome?: PracticeOutcome
+  notes?: string
 }
 
 export interface PracticeLogCreate {
@@ -118,11 +142,62 @@ export interface BlockReorder {
 export interface ExerciseCreate {
   exercise_text: string
   display_order?: number
+  tempo_bpm?: number
+  key?: string
+  technique_category?: TechniqueCategory
+  difficulty_level?: number
+  notes?: string
 }
 
 export interface ExerciseUpdate {
   exercise_text?: string
   display_order?: number
+  tempo_bpm?: number
+  key?: string
+  technique_category?: TechniqueCategory
+  difficulty_level?: number
+  notes?: string
 }
 
+// Exercise progress tracking
+export interface ExerciseProgress {
+  id: number
+  exercise_id: number
+  times_practiced: number
+  last_practiced_at?: string
+  current_tempo?: number
+  current_difficulty?: number
+  struggled_count: number
+  okay_count: number
+  nailed_it_count: number
+}
 
+// Suggestions API response
+export interface SuggestionsProgressResponse {
+  exercises: Exercise[]
+  progress: ExerciseProgress[]
+}
+
+// Suggestion types for rules engine
+export type SuggestionType =
+  | 'tempo_increase'
+  | 'tempo_decrease'
+  | 'new_variation'
+  | 'new_key'
+  | 'revisit'
+  | 'advance'
+
+export interface SuggestionAction {
+  exercise_id: number
+  field: 'tempo_bpm' | 'key' | 'technique_category' | 'difficulty_level' | 'notes'
+  value: number | string
+}
+
+export interface Suggestion {
+  key: string
+  exercise_id: number
+  exercise_text: string
+  type: SuggestionType
+  message: string
+  action?: SuggestionAction
+}
