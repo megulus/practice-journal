@@ -2,9 +2,35 @@
 SQLModel models for Practice Journal
 These models serve as both database tables AND API schemas
 """
+from enum import Enum
 from typing import Optional, List
 from datetime import datetime, date
 from sqlmodel import Field, SQLModel, Relationship
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+class TechniqueCategory(str, Enum):
+    """Categories for exercise techniques"""
+    SCALES = "scales"
+    ARPEGGIOS = "arpeggios"
+    ETUDE = "etude"
+    LONG_TONES = "long_tones"
+    SHIFTING = "shifting"
+    BOWING = "bowing"
+    ARTICULATION = "articulation"
+    REPERTOIRE = "repertoire"
+    SIGHT_READING = "sight_reading"
+    OTHER = "other"
+
+
+class PracticeOutcome(str, Enum):
+    """How well a practice session went for an exercise"""
+    STRUGGLED = "struggled"
+    OKAY = "okay"
+    NAILED_IT = "nailed_it"
 
 
 class User(SQLModel, table=True):
@@ -121,15 +147,49 @@ class ExerciseBlock(SQLModel, table=True):
 class Exercise(SQLModel, table=True):
     """Individual exercise within a block"""
     __tablename__ = "exercises"  # type: ignore[assignment]
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     block_id: int = Field(foreign_key="exercise_blocks.id")
     exercise_text: str
     display_order: int
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
-    
+
+    # Structured metadata fields (all optional)
+    tempo_bpm: Optional[int] = Field(default=None)
+    key: Optional[str] = Field(default=None, max_length=50)
+    technique_category: Optional[str] = Field(default=None, max_length=50)  # Stores TechniqueCategory value
+    difficulty_level: Optional[int] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
+
     # Relationships
     block: Optional[ExerciseBlock] = Relationship(back_populates="exercises")
+
+
+class ExerciseProgress(SQLModel, table=True):
+    """Tracks user progress on a specific exercise over time"""
+    __tablename__ = "exercise_progress"  # type: ignore[assignment]
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    exercise_id: int = Field(foreign_key="exercises.id", index=True)
+
+    # Aggregated stats
+    times_practiced: int = Field(default=0)
+    last_practiced_at: Optional[datetime] = Field(default=None)
+    current_tempo: Optional[int] = Field(default=None)
+    current_difficulty: Optional[int] = Field(default=None)
+
+    # Outcome tracking
+    struggled_count: int = Field(default=0)
+    okay_count: int = Field(default=0)
+    nailed_it_count: int = Field(default=0)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+
+    # Relationships
+    user: Optional["User"] = Relationship()
+    exercise: Optional[Exercise] = Relationship()
 
 
 class PracticeLog(SQLModel, table=True):
@@ -156,15 +216,22 @@ class PracticeLog(SQLModel, table=True):
 class PracticeLogDetail(SQLModel, table=True):
     """Detailed notes for sections of a practice log"""
     __tablename__ = "practice_log_details"  # type: ignore[assignment]
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     log_id: int = Field(foreign_key="practice_logs.id")
     section_type: str = Field(max_length=50)  # e.g., "warmup", "scales", "techA"
     content: Optional[str] = None
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
-    
+
+    # Enhanced fields for progress tracking
+    exercise_id: Optional[int] = Field(default=None, foreign_key="exercises.id")
+    tempo_practiced: Optional[int] = Field(default=None)
+    outcome: Optional[str] = Field(default=None, max_length=20)  # Stores PracticeOutcome value
+    notes: Optional[str] = Field(default=None)
+
     # Relationships
     log: Optional[PracticeLog] = Relationship(back_populates="log_details")
+    exercise: Optional[Exercise] = Relationship()
 
 
 # API-specific models (for requests/responses that differ from DB models)
@@ -173,6 +240,10 @@ class PracticeLogDetailCreate(SQLModel):
     """Schema for creating log details"""
     section_type: str
     content: Optional[str] = None
+    exercise_id: Optional[int] = None
+    tempo_practiced: Optional[int] = None
+    outcome: Optional[str] = None  # One of PracticeOutcome values
+    notes: Optional[str] = None
 
 
 class PracticeLogCreate(SQLModel):
@@ -228,12 +299,22 @@ class ExerciseCreate(SQLModel):
     """Schema for creating an exercise"""
     exercise_text: str
     display_order: Optional[int] = None
+    tempo_bpm: Optional[int] = None
+    key: Optional[str] = None
+    technique_category: Optional[str] = None  # One of TechniqueCategory values
+    difficulty_level: Optional[int] = None
+    notes: Optional[str] = None
 
 
 class ExerciseUpdate(SQLModel):
     """Schema for updating an exercise"""
     exercise_text: Optional[str] = None
     display_order: Optional[int] = None
+    tempo_bpm: Optional[int] = None
+    key: Optional[str] = None
+    technique_category: Optional[str] = None  # One of TechniqueCategory values
+    difficulty_level: Optional[int] = None
+    notes: Optional[str] = None
 
 
 class AnalyticsSummary(SQLModel):

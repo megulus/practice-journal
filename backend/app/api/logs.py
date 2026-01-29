@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -6,7 +8,10 @@ from sqlalchemy import desc
 from typing import List, Optional
 
 from app.database import get_session
-from app.models import PracticeLog, PracticeLogDetail, PracticeLogCreate, PracticeTemplate, User
+from app.models import (
+    PracticeLog, PracticeLogDetail, PracticeLogCreate, PracticeTemplate, User,
+    ExerciseProgress, PracticeOutcome
+)
 from app.auth import get_current_user
 
 router = APIRouter(prefix="/logs", tags=["logs"])
@@ -45,15 +50,29 @@ async def create_practice_log(
     await session.flush()  # Get the log ID
     assert practice_log.id is not None  # Type narrowing for type checker
     
-    # Create log details
+    # Create log details and track progress
     for detail in log_data.log_details:
         log_detail = PracticeLogDetail(
             log_id=practice_log.id,
             section_type=detail.section_type,
-            content=detail.content
+            content=detail.content,
+            exercise_id=detail.exercise_id,
+            tempo_practiced=detail.tempo_practiced,
+            outcome=detail.outcome,
+            notes=detail.notes,
         )
         session.add(log_detail)
-    
+
+        # Update exercise progress if exercise_id is provided
+        if detail.exercise_id is not None:
+            await _update_exercise_progress(
+                session=session,
+                user_id=current_user.id,
+                exercise_id=detail.exercise_id,
+                tempo_practiced=detail.tempo_practiced,
+                outcome=detail.outcome,
+            )
+
     await session.commit()
     await session.refresh(practice_log)
     
@@ -131,3 +150,54 @@ async def get_practice_log(
         raise HTTPException(status_code=404, detail="Practice log not found")
 
     return log
+
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+async def _update_exercise_progress(
+    session: AsyncSession,
+    user_id: int,
+    exercise_id: int,
+    tempo_practiced: Optional[int],
+    outcome: Optional[str],
+) -> None:
+    """Update or create exercise progress record for a user's exercise."""
+    # Find existing progress record
+    statement = select(ExerciseProgress).where(
+        ExerciseProgress.user_id == user_id,
+        ExerciseProgress.exercise_id == exercise_id,
+    )
+    result = await session.exec(statement)
+    progress = result.one_or_none()
+
+    if progress is None:
+        # Create new progress record
+        progress = ExerciseProgress(
+            user_id=user_id,
+            exercise_id=exercise_id,
+            times_practiced=0,
+            struggled_count=0,
+            okay_count=0,
+            nailed_it_count=0,
+            created_at=datetime.utcnow(),
+        )
+        session.add(progress)
+
+    # Update stats
+    progress.times_practiced += 1
+    progress.last_practiced_at = datetime.utcnow()
+
+    if tempo_practiced is not None:
+        progress.current_tempo = tempo_practiced
+
+    # Update outcome counters
+    if outcome == PracticeOutcome.STRUGGLED.value:
+        progress.struggled_count += 1
+    elif outcome == PracticeOutcome.OKAY.value:
+        progress.okay_count += 1
+    elif outcome == PracticeOutcome.NAILED_IT.value:
+        progress.nailed_it_count += 1
+
+    session.add(progress)
