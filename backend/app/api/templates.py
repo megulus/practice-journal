@@ -112,7 +112,12 @@ async def get_template(
                     "id": ex.id,
                     "block_id": ex.block_id,
                     "exercise_text": ex.exercise_text,
-                    "display_order": ex.display_order
+                    "display_order": ex.display_order,
+                    "tempo_bpm": ex.tempo_bpm,
+                    "key": ex.key,
+                    "technique_category": ex.technique_category,
+                    "difficulty_level": ex.difficulty_level,
+                    "notes": ex.notes,
                 })
 
             day_data["exercise_blocks"].append(block_data)
@@ -191,7 +196,12 @@ async def get_practice_day(
                 "id": ex.id,
                 "block_id": ex.block_id,
                 "exercise_text": ex.exercise_text,
-                "display_order": ex.display_order
+                "display_order": ex.display_order,
+                "tempo_bpm": ex.tempo_bpm,
+                "key": ex.key,
+                "technique_category": ex.technique_category,
+                "difficulty_level": ex.difficulty_level,
+                "notes": ex.notes,
             })
 
         response["exercise_blocks"].append(block_data)
@@ -272,7 +282,12 @@ async def copy_template(
                 user_exercise = Exercise(
                     block_id=user_block.id,
                     exercise_text=exercise.exercise_text,
-                    display_order=exercise.display_order
+                    display_order=exercise.display_order,
+                    tempo_bpm=exercise.tempo_bpm,
+                    key=exercise.key,
+                    technique_category=exercise.technique_category,
+                    difficulty_level=exercise.difficulty_level,
+                    notes=exercise.notes,
                 )
                 session.add(user_exercise)
     
@@ -655,6 +670,11 @@ async def create_exercise(
         block_id=block.id,
         exercise_text=body.exercise_text,
         display_order=display_order,
+        tempo_bpm=body.tempo_bpm,
+        key=body.key,
+        technique_category=body.technique_category,
+        difficulty_level=body.difficulty_level,
+        notes=body.notes,
     )
     session.add(exercise)
     await session.commit()
@@ -665,6 +685,11 @@ async def create_exercise(
         "block_id": exercise.block_id,
         "exercise_text": exercise.exercise_text,
         "display_order": exercise.display_order,
+        "tempo_bpm": exercise.tempo_bpm,
+        "key": exercise.key,
+        "technique_category": exercise.technique_category,
+        "difficulty_level": exercise.difficulty_level,
+        "notes": exercise.notes,
     }
 
 
@@ -698,6 +723,16 @@ async def update_exercise(
         exercise.exercise_text = body.exercise_text
     if body.display_order is not None:
         exercise.display_order = body.display_order
+    if body.tempo_bpm is not None:
+        exercise.tempo_bpm = body.tempo_bpm
+    if body.key is not None:
+        exercise.key = body.key
+    if body.technique_category is not None:
+        exercise.technique_category = body.technique_category
+    if body.difficulty_level is not None:
+        exercise.difficulty_level = body.difficulty_level
+    if body.notes is not None:
+        exercise.notes = body.notes
 
     session.add(exercise)
     await session.commit()
@@ -708,6 +743,11 @@ async def update_exercise(
         "block_id": exercise.block_id,
         "exercise_text": exercise.exercise_text,
         "display_order": exercise.display_order,
+        "tempo_bpm": exercise.tempo_bpm,
+        "key": exercise.key,
+        "technique_category": exercise.technique_category,
+        "difficulty_level": exercise.difficulty_level,
+        "notes": exercise.notes,
     }
 
 

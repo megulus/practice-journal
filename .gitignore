@@ -75,3 +75,6 @@ htmlcov/
 
 # Architecture
 .architecture/
+
+# Local plans
+.plans/
