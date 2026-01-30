@@ -36,15 +36,16 @@ class PracticeOutcome(str, Enum):
 class User(SQLModel, table=True):
     """User account (authenticated via Clerk)"""
     __tablename__ = "users"  # type: ignore[assignment]
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     clerk_user_id: str = Field(unique=True, index=True, max_length=255)
     email: str = Field(max_length=255)
-    name: Optional[str] = Field(default=None, max_length=255)
+    first_name: Optional[str] = Field(default=None, max_length=255)
+    last_name: Optional[str] = Field(default=None, max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     deleted_at: Optional[datetime] = Field(default=None)
-    
+
     # Relationships
     instruments: List["Instrument"] = Relationship(back_populates="user")
     practice_templates: List["PracticeTemplate"] = Relationship(back_populates="user")

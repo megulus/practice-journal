@@ -62,7 +62,13 @@ async def verify_clerk_token(authorization: Optional[str] = Header(None)) -> Opt
         )
 
 
-async def get_or_create_user(session: AsyncSession, clerk_user_id: str, email: str, name: Optional[str] = None) -> User:
+async def get_or_create_user(
+    session: AsyncSession,
+    clerk_user_id: str,
+    email: str,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None
+) -> User:
     """
     Get existing user or create new user record from Clerk JWT claims.
     Called on first authenticated request for each user.
@@ -74,11 +80,13 @@ async def get_or_create_user(session: AsyncSession, clerk_user_id: str, email: s
     user = result.first()
 
     if user:
-        # Update email/name if we have new values to set
+        # Update fields if we have new values to set
         needs_update = False
         if email and user.email != email:
             needs_update = True
-        if name and user.name != name:
+        if first_name and user.first_name != first_name:
+            needs_update = True
+        if last_name and user.last_name != last_name:
             needs_update = True
 
         if needs_update:
@@ -87,7 +95,8 @@ async def get_or_create_user(session: AsyncSession, clerk_user_id: str, email: s
                 .where(User.clerk_user_id == clerk_user_id)
                 .values(
                     email=email if email else user.email,
-                    name=name if name else user.name
+                    first_name=first_name if first_name else user.first_name,
+                    last_name=last_name if last_name else user.last_name
                 )
             )
             await session.exec(stmt)
@@ -99,7 +108,8 @@ async def get_or_create_user(session: AsyncSession, clerk_user_id: str, email: s
     user = User(
         clerk_user_id=clerk_user_id,
         email=email,
-        name=name
+        first_name=first_name,
+        last_name=last_name
     )
     session.add(user)
     await session.commit()
@@ -123,16 +133,12 @@ async def get_current_user_optional(authorization: Optional[str] = Header(None))
         return None
 
     email = token_payload.get("email", "")
-
-    # Build name from first_name and last_name claims
-    first_name = token_payload.get("first_name", "")
-    last_name = token_payload.get("last_name", "")
-    name_parts = [p for p in [first_name, last_name] if p]
-    name = " ".join(name_parts) if name_parts else None
+    first_name = token_payload.get("first_name") or None
+    last_name = token_payload.get("last_name") or None
 
     # Get or create user in our database
     async with async_session() as session:
-        user = await get_or_create_user(session, clerk_user_id, email, name)
+        user = await get_or_create_user(session, clerk_user_id, email, first_name, last_name)
         return user
 
 
