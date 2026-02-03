@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.api import instruments, templates, logs, analytics, user, block_types, suggestions
+from app.api import instruments, templates, logs, analytics, user, block_types, suggestions, user_instruments
 
 settings = get_settings()
 
@@ -28,6 +28,7 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
 app.include_router(block_types.router, prefix="/api")
 app.include_router(suggestions.router, prefix="/api")
+app.include_router(user_instruments.router, prefix="/api")
 
 
 @app.get("/")

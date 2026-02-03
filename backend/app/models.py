@@ -47,45 +47,70 @@ class User(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None)
 
     # Relationships
-    instruments: List["Instrument"] = Relationship(back_populates="user")
+    user_instruments: List["UserInstrument"] = Relationship(back_populates="user")
+    created_instruments: List["Instrument"] = Relationship(back_populates="created_by_user")
     practice_templates: List["PracticeTemplate"] = Relationship(back_populates="user")
 
 
 class Instrument(SQLModel, table=True):
-    """Musical instrument"""
+    """Musical instrument (canonical definitions)"""
     __tablename__ = "instruments"  # type: ignore[assignment]
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=100, index=True)
     description: Optional[str] = None
     is_system: bool = Field(default=False)  # True for system-provided instruments
-    user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # Nullable for backward compatibility
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # For custom instruments
+    is_shareable: bool = Field(default=False)  # Whether custom instrument can be shared
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    
+    deleted_at: Optional[datetime] = Field(default=None)
+
     # Relationships
-    user: Optional["User"] = Relationship(back_populates="instruments")
+    created_by_user: Optional["User"] = Relationship(back_populates="created_instruments")
+    user_instruments: List["UserInstrument"] = Relationship(back_populates="instrument")
+    # Keep for system templates that reference instruments directly
     practice_templates: List["PracticeTemplate"] = Relationship(back_populates="instrument")
+
+
+class UserInstrument(SQLModel, table=True):
+    """Junction table linking users to their instruments"""
+    __tablename__ = "user_instrument"  # type: ignore[assignment]
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    instrument_id: int = Field(foreign_key="instruments.id", index=True)
+    display_order: int = Field(default=0)
+    added_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    user: Optional["User"] = Relationship(back_populates="user_instruments")
+    instrument: Optional["Instrument"] = Relationship(back_populates="user_instruments")
+    practice_templates: List["PracticeTemplate"] = Relationship(back_populates="user_instrument")
 
 
 class PracticeTemplate(SQLModel, table=True):
     """Practice rotation template"""
     __tablename__ = "practice_templates"  # type: ignore[assignment]
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
-    instrument_id: int = Field(foreign_key="instruments.id")
+    # For system templates: references instrument directly
+    instrument_id: Optional[int] = Field(default=None, foreign_key="instruments.id")
+    # For user templates: references user's instrument selection
+    user_instrument_id: Optional[int] = Field(default=None, foreign_key="user_instrument.id")
     name: str = Field(max_length=200)
     days_count: int
     description: Optional[str] = None
     is_active: bool = True
     is_system: bool = Field(default=False)  # True for system-provided templates
-    user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # Nullable for backward compatibility
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     deleted_at: Optional[datetime] = Field(default=None)
-    
+
     # Relationships
     user: Optional["User"] = Relationship(back_populates="practice_templates")
     instrument: Optional[Instrument] = Relationship(back_populates="practice_templates")
+    user_instrument: Optional["UserInstrument"] = Relationship(back_populates="practice_templates")
     practice_days: List["PracticeDay"] = Relationship(back_populates="template", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     practice_logs: List["PracticeLog"] = Relationship(back_populates="template")
 
@@ -259,7 +284,7 @@ class PracticeLogCreate(SQLModel):
 
 class TemplateCreate(SQLModel):
     """Schema for creating a practice template"""
-    instrument_id: int
+    user_instrument_id: int  # User templates reference user_instrument
     name: str
     days_count: int
     description: Optional[str] = None
