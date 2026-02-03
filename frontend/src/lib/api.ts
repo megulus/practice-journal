@@ -1,6 +1,7 @@
 import type {
   BlockType,
   Instrument,
+  UserInstrument,
   PracticeTemplate,
   PracticeDay,
   PracticeLog,
@@ -75,24 +76,43 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
   const authFetchAPI = createFetchAPI(getToken)
   
   return {
-    // Instruments
-    getInstruments: () =>
-      authFetchAPI<Instrument[]>('/api/instruments/'),
+    // User Instruments (user's instrument selections)
+    getUserInstruments: () =>
+      authFetchAPI<UserInstrument[]>('/api/user/instruments'),
+
+    addUserInstrument: (instrumentId: number) =>
+      authFetchAPI<UserInstrument>('/api/user/instruments', {
+        method: 'POST',
+        body: JSON.stringify({ instrument_id: instrumentId }),
+      }),
+
+    removeUserInstrument: (id: number, confirm = false) =>
+      authFetchAPI<{ status: string; deleted_templates: number }>(
+        `/api/user/instruments/${id}${confirm ? '?confirm=true' : ''}`,
+        { method: 'DELETE' }
+      ),
+
+    updateUserInstrument: (id: number, data: { display_order?: number }) =>
+      authFetchAPI<UserInstrument>(`/api/user/instruments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    // Available Instruments (system + shareable)
+    getAvailableInstruments: () =>
+      authFetchAPI<Instrument[]>('/api/instruments/available'),
 
     getInstrument: (id: number) =>
       authFetchAPI<Instrument>(`/api/instruments/${id}`),
-
-    copyInstrument: (id: number) =>
-      authFetchAPI<Instrument>(`/api/instruments/${id}/copy`, { method: 'POST' }),
 
     // Block Types
     getBlockTypes: () =>
       authFetchAPI<BlockType[]>('/api/block-types/'),
 
     // Templates
-    getTemplates: (instrumentId?: number) =>
+    getTemplates: (userInstrumentId?: number) =>
       authFetchAPI<PracticeTemplate[]>(
-        `/api/templates/${instrumentId ? `?instrument_id=${instrumentId}` : ''}`
+        `/api/templates/${userInstrumentId ? `?user_instrument_id=${userInstrumentId}` : ''}`
       ),
 
     getTemplate: (id: number) =>

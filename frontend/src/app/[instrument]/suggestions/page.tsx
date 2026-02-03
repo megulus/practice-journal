@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import SuggestionCard from '@/components/SuggestionCard'
 import { evaluateRules } from '@/lib/progressionRules'
-import type { Instrument, Suggestion } from '@/lib/types'
+import type { UserInstrument, Suggestion } from '@/lib/types'
 
 export default function SuggestionsPage() {
   const params = useParams()
@@ -14,7 +14,7 @@ export default function SuggestionsPage() {
   const api = useApi()
   const instrumentName = params.instrument as string
 
-  const [instrument, setInstrument] = useState<Instrument | null>(null)
+  const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => {
@@ -29,19 +29,19 @@ export default function SuggestionsPage() {
   useEffect(() => {
     const loadSuggestions = async () => {
       try {
-        const instruments = await api.getInstruments()
-        const inst = instruments.find(
-          (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
+        const userInstruments = await api.getUserInstruments()
+        const ui = userInstruments.find(
+          (ui) => ui.instrument.name.toLowerCase() === instrumentName.toLowerCase()
         )
 
-        if (!inst) {
-          router.push('/')
+        if (!ui) {
+          router.push('/me')
           return
         }
 
-        setInstrument(inst)
+        setUserInstrument(ui)
 
-        const progressData = await api.getSuggestionsProgress(inst.id)
+        const progressData = await api.getSuggestionsProgress(ui.instrument.id)
         const newSuggestions = evaluateRules(
           progressData.exercises,
           progressData.progress,
@@ -108,7 +108,7 @@ export default function SuggestionsPage() {
           <div className="bg-gradient-to-br from-purple-500 to-purple-700 text-white p-8 text-center">
             <h1 className="text-4xl font-bold mb-2">Suggestions</h1>
             <p className="text-purple-100 text-lg">
-              {instrument?.name} practice recommendations
+              {userInstrument?.instrument.name} practice recommendations
             </p>
           </div>
 

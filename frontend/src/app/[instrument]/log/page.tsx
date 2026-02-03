@@ -6,7 +6,7 @@ import { useApi } from '@/lib/useApi'
 import OutcomeSelector from '@/components/OutcomeSelector'
 import SuggestionCard from '@/components/SuggestionCard'
 import { evaluateRules } from '@/lib/progressionRules'
-import type { PracticeTemplate, PracticeDay, BlockType, Exercise, PracticeOutcome, Suggestion, Instrument } from '@/lib/types'
+import type { PracticeTemplate, PracticeDay, BlockType, Exercise, PracticeOutcome, Suggestion, UserInstrument } from '@/lib/types'
 
 // Track exercise selection with outcome
 interface ExerciseSelection {
@@ -21,7 +21,7 @@ export default function LogPracticePage() {
   const router = useRouter()
   const api = useApi()
   const instrumentName = params.instrument as string
-  const [instrument, setInstrument] = useState<Instrument | null>(null)
+  const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,16 +49,15 @@ export default function LogPracticePage() {
   useEffect(() => {
     api.getBlockTypes().then(setBlockTypes).catch(() => {})
 
-    Promise.all([api.getInstruments(), api.getTemplates()])
-      .then(([instruments, allTemplates]) => {
-        const inst = instruments.find(
-          (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
+    api.getUserInstruments()
+      .then(async (userInstruments) => {
+        const ui = userInstruments.find(
+          (ui) => ui.instrument.name.toLowerCase() === instrumentName.toLowerCase()
         )
-        if (inst) {
-          setInstrument(inst)
-          const tmpl = allTemplates.find(
-            (t) => t.instrument_id === inst.id && t.is_active
-          )
+        if (ui) {
+          setUserInstrument(ui)
+          const allTemplates = await api.getTemplates(ui.id)
+          const tmpl = allTemplates.find((t) => t.is_active)
           if (tmpl) {
             return api.getTemplate(tmpl.id)
           }
@@ -182,9 +181,9 @@ export default function LogPracticePage() {
       }
 
       // Fetch suggestions after logging
-      if (instrument) {
+      if (userInstrument) {
         try {
-          const progressData = await api.getSuggestionsProgress(instrument.id)
+          const progressData = await api.getSuggestionsProgress(userInstrument.instrument.id)
           const newSuggestions = evaluateRules(
             progressData.exercises,
             progressData.progress,
