@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
-import type { Instrument, PracticeTemplate, BlockType, PracticeDay } from '@/lib/types'
+import type { UserInstrument, PracticeTemplate, BlockType, PracticeDay } from '@/lib/types'
 import DaySelector from '@/components/DaySelector'
 import EditableText from '@/components/builder/EditableText'
 import BlockEditor from '@/components/builder/BlockEditor'
@@ -18,7 +18,7 @@ export default function TemplateEditPage() {
   const instrumentName = params.instrument as string
   const templateIdParam = searchParams.get('templateId')
 
-  const [instrument, setInstrument] = useState<Instrument | null>(null)
+  const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [templates, setTemplates] = useState<PracticeTemplate[]>([])
   const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
@@ -45,24 +45,23 @@ export default function TemplateEditPage() {
   // Initial data load
   useEffect(() => {
     setLoading(true)
-    Promise.all([api.getInstruments(), api.getBlockTypes(), api.getTemplates()])
-      .then(([instruments, bt, allTemplates]) => {
+    Promise.all([api.getUserInstruments(), api.getBlockTypes()])
+      .then(async ([userInstruments, bt]) => {
         setBlockTypes(bt)
-        const inst = instruments.find(
-          (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
+        const ui = userInstruments.find(
+          (ui) => ui.instrument.name.toLowerCase() === instrumentName.toLowerCase()
         )
-        if (!inst) {
+        if (!ui) {
           setLoading(false)
           return
         }
-        setInstrument(inst)
-        setTemplates(allTemplates.filter((t) => t.instrument_id === inst.id))
+        setUserInstrument(ui)
+        const allTemplates = await api.getTemplates(ui.id)
+        setTemplates(allTemplates)
 
         if (templateIdParam) {
-          return api.getTemplate(Number(templateIdParam)).then((tmpl) => {
-            setTemplate(tmpl)
-            setLoading(false)
-          })
+          const tmpl = await api.getTemplate(Number(templateIdParam))
+          setTemplate(tmpl)
         }
         setLoading(false)
       })
@@ -191,10 +190,10 @@ export default function TemplateEditPage() {
   }
 
   async function handleCreateTemplate(data: { name: string; daysCount: number; description?: string }): Promise<number> {
-    if (!instrument) throw new Error('No instrument loaded')
+    if (!userInstrument) throw new Error('No instrument loaded')
     try {
       const tmpl = await api.createTemplate({
-        instrument_id: instrument.id,
+        user_instrument_id: userInstrument.id,
         name: data.name,
         days_count: data.daysCount,
         description: data.description,
@@ -240,7 +239,7 @@ export default function TemplateEditPage() {
     )
   }
 
-  if (!instrument) {
+  if (!userInstrument) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
         <div className="max-w-6xl mx-auto">
@@ -258,7 +257,7 @@ export default function TemplateEditPage() {
           <div className="bg-white rounded-xl shadow-xl overflow-hidden">
             <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white p-8 text-center">
               <h1 className="text-3xl font-bold">Template Builder</h1>
-              <p className="text-primary-100 mt-1">{instrument.name}</p>
+              <p className="text-primary-100 mt-1">{userInstrument.instrument.name}</p>
             </div>
             <div className="p-8">
               <TemplatePicker

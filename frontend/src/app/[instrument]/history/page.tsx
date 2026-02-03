@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
-import type { Instrument, PracticeTemplate, PracticeLog, AnalyticsSummary as AnalyticsType } from '@/lib/types'
+import type { UserInstrument, PracticeTemplate, PracticeLog, AnalyticsSummary as AnalyticsType } from '@/lib/types'
 import AnalyticsSummary from '@/components/AnalyticsSummary'
 import HistoryCard from '@/components/HistoryCard'
 
@@ -20,19 +20,15 @@ export default function HistoryPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instruments, allTemplates] = await Promise.all([
-          api.getInstruments(),
-          api.getTemplates(),
-        ])
+        const userInstruments = await api.getUserInstruments()
 
-        const inst = instruments.find(
-          (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
+        const ui = userInstruments.find(
+          (ui) => ui.instrument.name.toLowerCase() === instrumentName.toLowerCase()
         )
 
-        if (inst) {
-          const tmpl = allTemplates.find(
-            (t) => t.instrument_id === inst.id && t.is_active
-          )
+        if (ui) {
+          const allTemplates = await api.getTemplates(ui.id)
+          const tmpl = allTemplates.find((t) => t.is_active)
 
           if (tmpl) {
             const [templateData, logsData, analyticsData] = await Promise.all([

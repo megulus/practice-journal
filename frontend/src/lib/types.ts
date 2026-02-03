@@ -27,9 +27,20 @@ export interface Instrument {
   id: number
   name: string
   description?: string
-  created_at: string
-  user_id?: number
   is_system: boolean
+  is_shareable?: boolean
+  created_by_user_id?: number
+  created_at?: string
+}
+
+export interface UserInstrument {
+  id: number
+  user_id: number
+  instrument_id: number
+  instrument: Instrument
+  display_order: number
+  added_at: string
+  template_count: number
 }
 
 export interface Exercise {
@@ -64,7 +75,8 @@ export interface PracticeDay {
 
 export interface PracticeTemplate {
   id: number
-  instrument_id: number
+  instrument_id?: number  // For system templates
+  user_instrument_id?: number  // For user templates
   name: string
   days_count: number
   description?: string
@@ -107,7 +119,7 @@ export interface AnalyticsSummary {
 
 // CRUD input types for template builder
 export interface TemplateCreate {
-  instrument_id: number
+  user_instrument_id: number
   name: string
   days_count: number
   description?: string

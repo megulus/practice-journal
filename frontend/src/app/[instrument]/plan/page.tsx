@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { evaluateRules } from '@/lib/progressionRules'
-import type { Instrument, PracticeTemplate, PracticeDay, BlockType, Suggestion } from '@/lib/types'
+import type { UserInstrument, PracticeTemplate, PracticeDay, BlockType, Suggestion } from '@/lib/types'
 import DaySelector from '@/components/DaySelector'
 import PracticeBlock from '@/components/PracticeBlock'
 
@@ -14,7 +14,7 @@ export default function PracticePlanPage() {
   const router = useRouter()
   const api = useApi()
   const instrumentName = params.instrument as string
-  const [instrument, setInstrument] = useState<Instrument | null>(null)
+  const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
   const [currentDayData, setCurrentDayData] = useState<PracticeDay | null>(null)
@@ -25,20 +25,19 @@ export default function PracticePlanPage() {
   useEffect(() => {
     api.getBlockTypes().then(setBlockTypes).catch(() => {})
 
-    Promise.all([api.getInstruments(), api.getTemplates()])
-      .then(async ([instruments, allTemplates]) => {
-        const inst = instruments.find(
-          (i) => i.name.toLowerCase() === instrumentName.toLowerCase()
+    api.getUserInstruments()
+      .then(async (userInstruments) => {
+        const ui = userInstruments.find(
+          (ui) => ui.instrument.name.toLowerCase() === instrumentName.toLowerCase()
         )
-        if (inst) {
-          setInstrument(inst)
-          const tmpl = allTemplates.find(
-            (t) => t.instrument_id === inst.id && t.is_active
-          )
+        if (ui) {
+          setUserInstrument(ui)
+          const allTemplates = await api.getTemplates(ui.id)
+          const tmpl = allTemplates.find((t) => t.is_active)
           if (tmpl) {
             // Fetch suggestions count
             try {
-              const progressData = await api.getSuggestionsProgress(inst.id)
+              const progressData = await api.getSuggestionsProgress(ui.instrument.id)
               const dismissedKeys: Set<string> = typeof window !== 'undefined'
                 ? new Set(JSON.parse(localStorage.getItem(`dismissed_suggestions_${instrumentName}`) || '[]') as string[])
                 : new Set<string>()
