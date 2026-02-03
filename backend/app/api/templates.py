@@ -10,7 +10,7 @@ from typing import List, Optional
 from app.database import get_session
 from app.models import (
     PracticeTemplate, PracticeDay, ExerciseBlock, Exercise, User, BlockType,
-    TemplateCreate, TemplateUpdate, DayUpdate,
+    UserInstrument, TemplateCreate, TemplateUpdate, DayUpdate,
     BlockCreate, BlockUpdate, BlockReorder,
     ExerciseCreate, ExerciseUpdate,
 )
@@ -22,6 +22,7 @@ router = APIRouter(prefix="/templates", tags=["templates"])
 @router.get("/", response_model=List[PracticeTemplate])
 async def list_templates(
     instrument_id: Optional[int] = None,
+    user_instrument_id: Optional[int] = None,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
@@ -31,10 +32,14 @@ async def list_templates(
         PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
-    
-    if instrument_id:
+
+    # Filter by user_instrument_id (for user templates)
+    if user_instrument_id:
+        statement = statement.where(PracticeTemplate.user_instrument_id == user_instrument_id)
+    # Filter by instrument_id (for system templates, deprecated for user templates)
+    elif instrument_id:
         statement = statement.where(PracticeTemplate.instrument_id == instrument_id)
-    
+
     result = await session.exec(statement)
     templates = result.all()
     return templates
@@ -76,6 +81,7 @@ async def get_template(
     response = {
         "id": template.id,
         "instrument_id": template.instrument_id,
+        "user_instrument_id": template.user_instrument_id,
         "name": template.name,
         "days_count": template.days_count,
         "description": template.description,
@@ -369,8 +375,19 @@ async def create_template(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new practice template with empty days."""
+    # Verify user_instrument belongs to current user
+    user_instrument_result = await session.exec(
+        select(UserInstrument).where(
+            UserInstrument.id == body.user_instrument_id,
+            UserInstrument.user_id == current_user.id
+        )
+    )
+    user_instrument = user_instrument_result.one_or_none()
+    if not user_instrument:
+        raise HTTPException(status_code=404, detail="User instrument not found")
+
     template = PracticeTemplate(
-        instrument_id=body.instrument_id,
+        user_instrument_id=body.user_instrument_id,
         name=body.name,
         days_count=body.days_count,
         description=body.description,
