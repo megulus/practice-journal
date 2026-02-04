@@ -16,6 +16,17 @@ from app.auth import get_current_user
 router = APIRouter(prefix="/user/instruments", tags=["user-instruments"])
 
 
+class InstrumentResponse(BaseModel):
+    """Response model for instrument details"""
+    id: int
+    name: str
+    description: Optional[str]
+    is_system: bool
+
+    class Config:
+        from_attributes = True
+
+
 class UserInstrumentResponse(BaseModel):
     """Response model for user instrument with nested instrument details"""
     id: int
@@ -23,19 +34,8 @@ class UserInstrumentResponse(BaseModel):
     instrument_id: int
     display_order: int
     added_at: str
-    instrument: "InstrumentResponse"
+    instrument: InstrumentResponse
     template_count: int = 0
-
-    class Config:
-        from_attributes = True
-
-
-class InstrumentResponse(BaseModel):
-    """Response model for instrument details"""
-    id: int
-    name: str
-    description: Optional[str]
-    is_system: bool
 
     class Config:
         from_attributes = True
