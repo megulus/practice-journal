@@ -3,6 +3,7 @@ Instruments API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
+from sqlalchemy import exists
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
 
@@ -23,21 +24,20 @@ async def list_available_instruments(
     Returns system instruments and shareable custom instruments,
     excluding instruments the user already has.
     """
-    # Get IDs of instruments the user already has
-    user_instrument_result = await session.exec(
-        select(UserInstrument.instrument_id)
-        .where(UserInstrument.user_id == current_user.id)
+    # Use NOT EXISTS subquery instead of NOT IN for better performance
+    user_has_instrument = exists(
+        select(UserInstrument.id).where(
+            UserInstrument.user_id == current_user.id,
+            UserInstrument.instrument_id == Instrument.id
+        )
     )
-    user_instrument_ids = user_instrument_result.all()
 
     # Get available instruments (system or shareable, not deleted, not already owned)
     statement = select(Instrument).where(
         Instrument.deleted_at == None,
-        (Instrument.is_system == True) | (Instrument.is_shareable == True)
+        (Instrument.is_system == True) | (Instrument.is_shareable == True),
+        ~user_has_instrument
     )
-
-    if user_instrument_ids:
-        statement = statement.where(Instrument.id.not_in(user_instrument_ids))
 
     result = await session.exec(statement)
     instruments = result.all()

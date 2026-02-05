@@ -5,6 +5,7 @@ Manages the relationship between users and their instruments
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select, col
 from sqlalchemy.orm import selectinload
+from sqlalchemy import func
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List, Optional
 from pydantic import BaseModel
@@ -51,6 +52,97 @@ class UpdateUserInstrumentRequest(BaseModel):
     display_order: Optional[int] = None
 
 
+class UserInstrumentsWithAvailableResponse(BaseModel):
+    """Combined response with user's instruments and available instruments"""
+    user_instruments: List[UserInstrumentResponse]
+    available_instruments: List[InstrumentResponse]
+
+
+@router.get("/with-available", response_model=UserInstrumentsWithAvailableResponse)
+async def list_user_instruments_with_available(
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Get user's instruments AND available instruments in a single call (saves an auth round-trip)."""
+    from sqlalchemy import exists
+
+    # Get user instruments with their instrument details
+    user_instruments_stmt = (
+        select(UserInstrument)
+        .where(UserInstrument.user_id == current_user.id)
+        .options(selectinload(UserInstrument.instrument))  # type: ignore[arg-type]
+        .order_by(UserInstrument.display_order, UserInstrument.added_at)
+    )
+    result = await session.exec(user_instruments_stmt)
+    user_instruments = result.all()
+
+    # Get template counts in a single query
+    template_counts: dict[int, int] = {}
+    if user_instruments:
+        user_instrument_ids = [ui.id for ui in user_instruments]
+        template_counts_result = await session.exec(
+            select(
+                PracticeTemplate.user_instrument_id,
+                func.count(PracticeTemplate.id)
+            )
+            .where(
+                PracticeTemplate.user_instrument_id.in_(user_instrument_ids),
+                PracticeTemplate.deleted_at == None
+            )
+            .group_by(PracticeTemplate.user_instrument_id)
+        )
+        template_counts = {row[0]: row[1] for row in template_counts_result.all()}
+
+    # Get available instruments (not already owned by user)
+    user_has_instrument = exists(
+        select(UserInstrument.id).where(
+            UserInstrument.user_id == current_user.id,
+            UserInstrument.instrument_id == Instrument.id
+        )
+    )
+    available_stmt = select(Instrument).where(
+        Instrument.deleted_at == None,
+        (Instrument.is_system == True) | (Instrument.is_shareable == True),
+        ~user_has_instrument
+    )
+    available_result = await session.exec(available_stmt)
+    available_instruments = available_result.all()
+
+    # Build response
+    user_instruments_response = [
+        UserInstrumentResponse(
+            id=ui.id,
+            user_id=ui.user_id,
+            instrument_id=ui.instrument_id,
+            display_order=ui.display_order,
+            added_at=ui.added_at.isoformat(),
+            instrument=InstrumentResponse(
+                id=ui.instrument.id,
+                name=ui.instrument.name,
+                description=ui.instrument.description,
+                is_system=ui.instrument.is_system
+            ),
+            template_count=template_counts.get(ui.id, 0)
+        )
+        for ui in user_instruments
+    ]
+
+    available_response = [
+        InstrumentResponse(
+            id=inst.id,
+            name=inst.name,
+            description=inst.description,
+            is_system=inst.is_system
+        )
+        for inst in available_instruments
+    ]
+
+    return UserInstrumentsWithAvailableResponse(
+        user_instruments=user_instruments_response,
+        available_instruments=available_response
+    )
+
+
 @router.get("/", response_model=List[UserInstrumentResponse])
 async def list_user_instruments(
     session: AsyncSession = Depends(get_session),
@@ -66,18 +158,26 @@ async def list_user_instruments(
     result = await session.exec(statement)
     user_instruments = result.all()
 
-    # Get template counts for each user instrument
-    response = []
-    for ui in user_instruments:
-        template_count_result = await session.exec(
-            select(PracticeTemplate)
+    # Get all template counts in a single query (avoid N+1)
+    template_counts: dict[int, int] = {}
+    if user_instruments:
+        user_instrument_ids = [ui.id for ui in user_instruments]
+        template_counts_result = await session.exec(
+            select(
+                PracticeTemplate.user_instrument_id,
+                func.count(PracticeTemplate.id)
+            )
             .where(
-                PracticeTemplate.user_instrument_id == ui.id,
+                PracticeTemplate.user_instrument_id.in_(user_instrument_ids),
                 PracticeTemplate.deleted_at == None
             )
+            .group_by(PracticeTemplate.user_instrument_id)
         )
-        template_count = len(template_count_result.all())
+        template_counts = {row[0]: row[1] for row in template_counts_result.all()}
 
+    # Build response using pre-fetched counts
+    response = []
+    for ui in user_instruments:
         response.append(UserInstrumentResponse(
             id=ui.id,
             user_id=ui.user_id,
@@ -90,7 +190,7 @@ async def list_user_instruments(
                 description=ui.instrument.description,
                 is_system=ui.instrument.is_system
             ),
-            template_count=template_count
+            template_count=template_counts.get(ui.id, 0)
         ))
 
     return response
@@ -244,15 +344,15 @@ async def update_user_instrument(
     await session.commit()
     await session.refresh(user_instrument)
 
-    # Get template count
+    # Get template count efficiently
     template_count_result = await session.exec(
-        select(PracticeTemplate)
+        select(func.count(PracticeTemplate.id))
         .where(
             PracticeTemplate.user_instrument_id == user_instrument.id,
             PracticeTemplate.deleted_at == None
         )
     )
-    template_count = len(template_count_result.all())
+    template_count = template_count_result.one()
 
     return UserInstrumentResponse(
         id=user_instrument.id,

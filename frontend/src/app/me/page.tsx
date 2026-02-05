@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
 import { useUser } from '@clerk/nextjs'
@@ -19,14 +19,21 @@ export default function MePage() {
   const api = useApi()
   const { isLoaded, isSignedIn } = useUser()
 
+  // Track if user was ever signed in during this session
+  const wasSignedIn = useRef(false)
+  if (isSignedIn) {
+    wasSignedIn.current = true
+  }
+
+  // Prevent duplicate fetches when dependencies change
+  const hasFetched = useRef(false)
+
   const fetchData = async () => {
     try {
-      const [instruments, available] = await Promise.all([
-        api.getUserInstruments(),
-        api.getAvailableInstruments(),
-      ])
-      setUserInstruments(instruments)
-      setAvailableInstruments(available)
+      // Use combined endpoint to avoid two auth round-trips
+      const data = await api.getUserInstrumentsWithAvailable()
+      setUserInstruments(data.user_instruments)
+      setAvailableInstruments(data.available_instruments)
       setLoading(false)
     } catch (err: any) {
       setError(err.message)
@@ -40,6 +47,8 @@ export default function MePage() {
       router.push('/sign-in')
       return
     }
+    if (hasFetched.current) return
+    hasFetched.current = true
     fetchData()
   }, [isLoaded, isSignedIn, router, api])
 
@@ -73,6 +82,15 @@ export default function MePage() {
     } finally {
       setRemovingId(null)
     }
+  }
+
+  // If user was signed in and is now signing out (Clerk updating or signed out), show blank background
+  // This prevents the jarring "My Instruments" loading state during sign-out
+  if (wasSignedIn.current && (!isLoaded || !isSignedIn)) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100">
+      </main>
+    )
   }
 
   if (!isLoaded || loading) {

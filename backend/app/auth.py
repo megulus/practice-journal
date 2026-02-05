@@ -3,13 +3,13 @@ Authentication utilities for Clerk JWT validation
 """
 from typing import Optional
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import get_settings
 from app.models import User
-from app.database import async_session
+from app.database import get_session
 
 settings = get_settings()
 
@@ -117,7 +117,10 @@ async def get_or_create_user(
     return user
 
 
-async def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[User]:
+async def get_current_user_optional(
+    authorization: Optional[str] = Header(None),
+    session: AsyncSession = Depends(get_session)
+) -> Optional[User]:
     """
     Dependency to get the current authenticated user (optional).
     Returns None if no valid token is provided.
@@ -136,25 +139,40 @@ async def get_current_user_optional(authorization: Optional[str] = Header(None))
     first_name = token_payload.get("first_name") or None
     last_name = token_payload.get("last_name") or None
 
-    # Get or create user in our database
-    async with async_session() as session:
-        user = await get_or_create_user(session, clerk_user_id, email, first_name, last_name)
-        return user
+    # Get or create user in our database (reuses the request's session)
+    user = await get_or_create_user(session, clerk_user_id, email, first_name, last_name)
+    return user
 
 
-async def get_current_user(authorization: Optional[str] = Header(None)) -> User:
+async def get_current_user(
+    authorization: Optional[str] = Header(None),
+    session: AsyncSession = Depends(get_session)
+) -> User:
     """
     Dependency to get the current authenticated user (required).
     Raises 401 if no valid token is provided.
     Use this for endpoints that require authentication.
-    
-    NOTE: This will be used in PR #3. For now, it's defined but not used.
     """
-    user = await get_current_user_optional(authorization)
-    if not user:
+    token_payload = await verify_clerk_token(authorization)
+    if not token_payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required"
         )
+
+    # Extract user info from JWT claims
+    clerk_user_id = token_payload.get("sub")
+    if not clerk_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+
+    email = token_payload.get("email", "")
+    first_name = token_payload.get("first_name") or None
+    last_name = token_payload.get("last_name") or None
+
+    # Get or create user in our database (reuses the request's session)
+    user = await get_or_create_user(session, clerk_user_id, email, first_name, last_name)
     return user
 
