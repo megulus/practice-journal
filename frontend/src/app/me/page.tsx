@@ -25,14 +25,15 @@ export default function MePage() {
     wasSignedIn.current = true
   }
 
+  // Prevent duplicate fetches when dependencies change
+  const hasFetched = useRef(false)
+
   const fetchData = async () => {
     try {
-      const [instruments, available] = await Promise.all([
-        api.getUserInstruments(),
-        api.getAvailableInstruments(),
-      ])
-      setUserInstruments(instruments)
-      setAvailableInstruments(available)
+      // Use combined endpoint to avoid two auth round-trips
+      const data = await api.getUserInstrumentsWithAvailable()
+      setUserInstruments(data.user_instruments)
+      setAvailableInstruments(data.available_instruments)
       setLoading(false)
     } catch (err: any) {
       setError(err.message)
@@ -46,6 +47,8 @@ export default function MePage() {
       router.push('/sign-in')
       return
     }
+    if (hasFetched.current) return
+    hasFetched.current = true
     fetchData()
   }, [isLoaded, isSignedIn, router, api])
 

@@ -78,10 +78,16 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
   return {
     // User Instruments (user's instrument selections)
     getUserInstruments: () =>
-      authFetchAPI<UserInstrument[]>('/api/user/instruments'),
+      authFetchAPI<UserInstrument[]>('/api/user/instruments/'),
+
+    // Combined endpoint - gets user instruments AND available in one call (faster)
+    getUserInstrumentsWithAvailable: () =>
+      authFetchAPI<{ user_instruments: UserInstrument[]; available_instruments: Instrument[] }>(
+        '/api/user/instruments/with-available'
+      ),
 
     addUserInstrument: (instrumentId: number) =>
-      authFetchAPI<UserInstrument>('/api/user/instruments', {
+      authFetchAPI<UserInstrument>('/api/user/instruments/', {
         method: 'POST',
         body: JSON.stringify({ instrument_id: instrumentId }),
       }),
