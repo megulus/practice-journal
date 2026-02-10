@@ -116,10 +116,13 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
       authFetchAPI<BlockType[]>('/api/block-types/'),
 
     // Templates
-    getTemplates: (userInstrumentId?: number) =>
-      authFetchAPI<PracticeTemplate[]>(
-        `/api/templates/${userInstrumentId ? `?user_instrument_id=${userInstrumentId}` : ''}`
-      ),
+    getTemplates: (userInstrumentId?: number, includeArchived?: boolean) => {
+      const params = new URLSearchParams()
+      if (userInstrumentId) params.set('user_instrument_id', String(userInstrumentId))
+      if (includeArchived) params.set('include_archived', 'true')
+      const qs = params.toString()
+      return authFetchAPI<PracticeTemplate[]>(`/api/templates/${qs ? `?${qs}` : ''}`)
+    },
 
     getTemplate: (id: number) =>
       authFetchAPI<PracticeTemplate>(`/api/templates/${id}`),

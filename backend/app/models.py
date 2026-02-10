@@ -295,6 +295,7 @@ class TemplateUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
     days_count: Optional[int] = None
+    is_active: Optional[bool] = None
 
 
 class DayUpdate(SQLModel):
