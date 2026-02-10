@@ -129,6 +129,7 @@ export interface TemplateUpdate {
   name?: string
   description?: string
   days_count?: number
+  is_active?: boolean
 }
 
 export interface DayUpdate {

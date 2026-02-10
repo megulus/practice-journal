@@ -23,15 +23,18 @@ router = APIRouter(prefix="/templates", tags=["templates"])
 async def list_templates(
     instrument_id: Optional[int] = None,
     user_instrument_id: Optional[int] = None,
+    include_archived: bool = False,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get all practice templates (user's own + system templates), optionally filtered by instrument."""
     statement = select(PracticeTemplate).where(
-        PracticeTemplate.is_active == True,
         PracticeTemplate.deleted_at == None,
         (PracticeTemplate.user_id == current_user.id) | (PracticeTemplate.is_system == True)
     )
+
+    if not include_archived:
+        statement = statement.where(PracticeTemplate.is_active == True)
 
     # Filter by user_instrument_id (for user templates)
     if user_instrument_id:
@@ -427,6 +430,8 @@ async def update_template(
         template.name = body.name
     if body.description is not None:
         template.description = body.description
+    if body.is_active is not None:
+        template.is_active = body.is_active
 
     if body.days_count is not None and body.days_count != template.days_count:
         old_count = template.days_count

@@ -9,6 +9,7 @@ import EditableText from '@/components/builder/EditableText'
 import BlockEditor from '@/components/builder/BlockEditor'
 import AddBlockPanel from '@/components/builder/AddBlockPanel'
 import TemplatePicker from '@/components/builder/TemplatePicker'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 export default function TemplateEditPage() {
   const params = useParams()
@@ -25,8 +26,22 @@ export default function TemplateEditPage() {
   const [selectedDay, setSelectedDay] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState(false)
 
   const clearError = () => setError('')
+
+  const refreshTemplateList = useCallback(
+    async (ui: UserInstrument) => {
+      try {
+        const allTemplates = await api.getTemplates(ui.id, true)
+        setTemplates(allTemplates)
+      } catch (e) {
+        console.error(e)
+      }
+    },
+    [api]
+  )
 
   const refreshTemplate = useCallback(
     async (id: number) => {
@@ -56,7 +71,7 @@ export default function TemplateEditPage() {
           return
         }
         setUserInstrument(ui)
-        const allTemplates = await api.getTemplates(ui.id)
+        const allTemplates = await api.getTemplates(ui.id, true)
         setTemplates(allTemplates)
 
         if (templateIdParam) {
@@ -74,6 +89,44 @@ export default function TemplateEditPage() {
 
   function handleSelectTemplate(templateId: number) {
     router.push(`/${instrumentName}/template/edit?templateId=${templateId}`)
+  }
+
+  async function handleDeleteTemplate(templateId: number) {
+    try {
+      await api.deleteTemplate(templateId)
+      if (template?.id === templateId) {
+        setTemplate(null)
+        router.push(`/${instrumentName}/template/edit`)
+      }
+      if (userInstrument) await refreshTemplateList(userInstrument)
+    } catch (e) {
+      setError('Failed to delete template.')
+      console.error(e)
+    }
+  }
+
+  async function handleArchiveTemplate(templateId: number) {
+    try {
+      await api.updateTemplate(templateId, { is_active: false })
+      if (template?.id === templateId) {
+        setTemplate(null)
+        router.push(`/${instrumentName}/template/edit`)
+      }
+      if (userInstrument) await refreshTemplateList(userInstrument)
+    } catch (e) {
+      setError('Failed to archive template.')
+      console.error(e)
+    }
+  }
+
+  async function handleUnarchiveTemplate(templateId: number) {
+    try {
+      await api.updateTemplate(templateId, { is_active: true })
+      if (userInstrument) await refreshTemplateList(userInstrument)
+    } catch (e) {
+      setError('Failed to unarchive template.')
+      console.error(e)
+    }
   }
 
   async function handleUpdateTemplateName(newName: string) {
@@ -198,6 +251,7 @@ export default function TemplateEditPage() {
         days_count: data.daysCount,
         description: data.description,
       })
+      await refreshTemplateList(userInstrument)
       return tmpl.id
     } catch (e) {
       setError('Failed to create template.')
@@ -264,6 +318,11 @@ export default function TemplateEditPage() {
                 templates={templates}
                 onCreateTemplate={handleCreateTemplate}
                 onSelect={handleSelectTemplate}
+                onDelete={handleDeleteTemplate}
+                onArchive={handleArchiveTemplate}
+                onUnarchive={handleUnarchiveTemplate}
+                showArchived={showArchived}
+                onToggleShowArchived={() => setShowArchived((v) => !v)}
               />
             </div>
           </div>
@@ -293,6 +352,41 @@ export default function TemplateEditPage() {
               className="text-xl text-primary-100"
               inputClassName="text-xl text-white text-center"
             />
+            {/* Template actions in header */}
+            {!template.is_system && (
+              <div className="flex justify-center gap-3 mt-4">
+                {template.is_active ? (
+                  <button
+                    onClick={() => handleArchiveTemplate(template.id)}
+                    className="text-sm text-primary-200 hover:text-white flex items-center gap-1.5 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                    Archive
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleUnarchiveTemplate(template.id)}
+                    className="text-sm text-primary-200 hover:text-white flex items-center gap-1.5 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Unarchive
+                  </button>
+                )}
+                <button
+                  onClick={() => setConfirmDeleteTemplate(true)}
+                  className="text-sm text-red-300 hover:text-red-100 flex items-center gap-1.5 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="p-8">
@@ -377,6 +471,26 @@ export default function TemplateEditPage() {
           </div>
         </div>
       </div>
+
+      {confirmDeleteTemplate && (
+        <ConfirmDialog
+          title="Delete Template?"
+          message={
+            <p>
+              This will permanently delete <strong>{template.name}</strong>. Your practice logs will be preserved.
+              <br />
+              <span className="text-red-600 text-sm mt-2 block">This action cannot be undone.</span>
+            </p>
+          }
+          confirmLabel="Delete Template"
+          confirmVariant="danger"
+          onConfirm={() => {
+            handleDeleteTemplate(template.id)
+            setConfirmDeleteTemplate(false)
+          }}
+          onCancel={() => setConfirmDeleteTemplate(false)}
+        />
+      )}
     </main>
   )
 }
