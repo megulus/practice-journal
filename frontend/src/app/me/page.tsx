@@ -124,17 +124,15 @@ export default function MePage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-bold text-primary-700">My Instruments</h1>
-          {availableInstruments.length > 0 && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Instrument
-            </button>
-          )}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Instrument
+          </button>
         </div>
 
         {userInstruments.length === 0 ? (
@@ -203,7 +201,7 @@ export default function MePage() {
             </div>
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               {availableInstruments.length === 0 ? (
-                <p className="text-gray-500 text-center">No more instruments available to add.</p>
+                <p className="text-gray-500 text-center py-4">You&apos;ve added all available instruments!</p>
               ) : (
                 <div className="grid gap-3">
                   {availableInstruments.map((instrument) => {

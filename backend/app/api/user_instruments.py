@@ -104,7 +104,7 @@ async def list_user_instruments_with_available(
         Instrument.deleted_at == None,
         (Instrument.is_system == True) | (Instrument.is_shareable == True),
         ~user_has_instrument
-    )
+    ).order_by(Instrument.name)
     available_result = await session.exec(available_stmt)
     available_instruments = available_result.all()
 
