@@ -95,6 +95,7 @@ export interface PracticeLogDetail {
   notes?: string
   key_practiced?: string
   time_signature?: string
+  duration_minutes?: number
 }
 
 export interface PracticeLogCreate {

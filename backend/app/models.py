@@ -256,6 +256,7 @@ class PracticeLogDetail(SQLModel, table=True):
     notes: Optional[str] = Field(default=None)
     key_practiced: Optional[str] = Field(default=None, max_length=20)
     time_signature: Optional[str] = Field(default=None, max_length=10)
+    duration_minutes: Optional[int] = Field(default=None)
 
     # Relationships
     log: Optional[PracticeLog] = Relationship(back_populates="log_details")
@@ -274,6 +275,7 @@ class PracticeLogDetailCreate(SQLModel):
     notes: Optional[str] = None
     key_practiced: Optional[str] = None
     time_signature: Optional[str] = None
+    duration_minutes: Optional[int] = None
 
 
 class PracticeLogCreate(SQLModel):

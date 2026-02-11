@@ -63,6 +63,7 @@ async def create_practice_log(
             notes=detail.notes,
             key_practiced=detail.key_practiced,
             time_signature=detail.time_signature,
+            duration_minutes=detail.duration_minutes,
         )
         session.add(log_detail)
 

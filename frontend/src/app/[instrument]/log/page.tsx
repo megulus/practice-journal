@@ -45,7 +45,7 @@ export default function LogPracticePage() {
   const [blockNotes, setBlockNotes] = useState<Record<number, string>>({})
 
   const [freeformSections, setFreeformSections] = useState<
-    { label: string; content: string; tempo_practiced?: number; key_practiced?: string; time_signature?: string }[]
+    { label: string; content: string; duration_minutes?: number; tempo_practiced?: number; key_practiced?: string; time_signature?: string }[]
   >([])
   const [sectionSuggestions, setSectionSuggestions] = useState<string[]>([])
 
@@ -165,6 +165,7 @@ export default function LogPracticePage() {
             .map((s) => ({
               section_type: s.label.toLowerCase().replace(/\s+/g, '-'),
               content: s.content,
+              duration_minutes: s.duration_minutes,
               tempo_practiced: s.tempo_practiced,
               key_practiced: s.key_practiced,
               time_signature: s.time_signature,
@@ -278,7 +279,7 @@ export default function LogPracticePage() {
 
   const updateFreeformSection = (
     index: number,
-    field: 'label' | 'content' | 'tempo_practiced' | 'key_practiced' | 'time_signature',
+    field: 'label' | 'content' | 'duration_minutes' | 'tempo_practiced' | 'key_practiced' | 'time_signature',
     value: string | number | undefined
   ) => {
     const updated = [...freeformSections]
@@ -559,6 +560,23 @@ export default function LogPracticePage() {
                           placeholder="Section name (e.g., Warm-up, Scales)"
                         />
                       </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={section.duration_minutes ?? ''}
+                          onChange={(e) =>
+                            updateFreeformSection(
+                              index,
+                              'duration_minutes',
+                              e.target.value ? parseInt(e.target.value) : undefined
+                            )
+                          }
+                          placeholder="min"
+                          min="1"
+                          className="w-16 px-2 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm text-center"
+                        />
+                        <span className="text-xs text-gray-400">min</span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => removeFreeformSection(index)}
@@ -587,13 +605,30 @@ export default function LogPracticePage() {
                 ))}
 
                 {freeformSections.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={addFreeformSection}
-                    className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
-                  >
-                    + Add section
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={addFreeformSection}
+                      className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                    >
+                      + Add section
+                    </button>
+                    {(() => {
+                      const sectionTotal = freeformSections.reduce(
+                        (sum, s) => sum + (s.duration_minutes ?? 0),
+                        0
+                      )
+                      const overall = parseInt(formData.duration) || 0
+                      if (sectionTotal > 0 && overall > 0) {
+                        return (
+                          <span className="text-xs text-gray-400">
+                            {sectionTotal} of {overall} min accounted for
+                          </span>
+                        )
+                      }
+                      return null
+                    })()}
+                  </div>
                 )}
               </div>
             )}
