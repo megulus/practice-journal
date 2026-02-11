@@ -585,6 +585,16 @@ export default function LogPracticePage() {
                     />
                   </div>
                 ))}
+
+                {freeformSections.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={addFreeformSection}
+                    className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                  >
+                    + Add section
+                  </button>
+                )}
               </div>
             )}
 
