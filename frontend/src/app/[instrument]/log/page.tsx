@@ -56,7 +56,10 @@ export default function LogPracticePage() {
       api.getSectionTypes().catch(() => [] as string[]),
     ]).then(([bts, pastSections]) => {
       const labels = bts.map((bt) => bt.label)
-      const seen = new Set(labels.map((l) => l.toLowerCase()))
+      const seen = new Set([
+        ...labels.map((l) => l.toLowerCase()),
+        ...bts.map((bt) => bt.slug.toLowerCase()),
+      ])
       for (const s of pastSections) {
         if (!seen.has(s.toLowerCase())) {
           labels.push(s)
