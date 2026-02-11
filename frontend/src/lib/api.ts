@@ -198,6 +198,10 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
         method: 'DELETE',
       }),
 
+    // Section types (for freeform section name suggestions)
+    getSectionTypes: () =>
+      authFetchAPI<string[]>('/api/logs/section-types'),
+
     // Logs
     createLog: (data: PracticeLogCreate) =>
       authFetchAPI<PracticeLog>('/api/logs/', {

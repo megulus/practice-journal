@@ -1,6 +1,7 @@
 'use client'
 
 import type { PracticeLog } from '@/lib/types'
+import { formatTempo } from '@/lib/metronome'
 
 interface HistoryCardProps {
   log: PracticeLog
@@ -40,6 +41,17 @@ export default function HistoryCard({ log, dayTitle }: HistoryCardProps) {
               <div key={detail.id}>
                 <p className="font-semibold text-gray-700 capitalize">{detail.section_type}:</p>
                 <p className="text-gray-600">{detail.content}</p>
+                {(detail.tempo_practiced || detail.key_practiced || detail.time_signature) && (
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {[
+                      detail.tempo_practiced && formatTempo(detail.tempo_practiced),
+                      detail.key_practiced,
+                      detail.time_signature,
+                    ]
+                      .filter(Boolean)
+                      .join(' \u00B7 ')}
+                  </p>
+                )}
               </div>
             )
           ))}
