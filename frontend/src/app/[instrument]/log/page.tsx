@@ -111,6 +111,21 @@ export default function LogPracticePage() {
     )
   }
 
+  const getContentPlaceholder = (label: string): string => {
+    const l = label.toLowerCase()
+    if (l.includes('warm') || l.includes('cool'))
+      return 'Exercises, stretches, long tones...'
+    if (l.includes('scale') || l.includes('arpeggio'))
+      return 'Keys, patterns, thirds/sixths...'
+    if (l.includes('repertoire'))
+      return 'Piece, movement, measures...'
+    if (l.includes('technique') || l.includes('etude'))
+      return 'Etude, exercise name, passage...'
+    if (l.includes('sight'))
+      return 'What did you sight-read?'
+    return 'What did you work on?'
+  }
+
   const getBlockLabel = (block: { block_type: string; block_type_id?: number }) => {
     if (block.block_type_id) {
       const bt = blockTypes.find((t) => t.id === block.block_type_id)
@@ -590,7 +605,7 @@ export default function LogPracticePage() {
                       onChange={(e) =>
                         updateFreeformSection(index, 'content', e.target.value)
                       }
-                      placeholder="What did you work on?"
+                      placeholder={getContentPlaceholder(section.label)}
                       className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none resize-y min-h-[80px] text-sm"
                     />
                     <SectionDetailFields
