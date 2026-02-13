@@ -46,7 +46,7 @@ export default function LogPracticePage() {
   const [dismissedBlocks, setDismissedBlocks] = useState<Set<number>>(new Set())
 
   const [freeformSections, setFreeformSections] = useState<
-    { label: string; content: string; duration_minutes?: number; tempo_practiced?: number; key_practiced?: string; time_signature?: string }[]
+    { label: string; content: string; duration_minutes?: number; tempo_practiced?: number; key_practiced?: string; time_signature?: string; outcome?: PracticeOutcome }[]
   >([])
   const [sectionSuggestions, setSectionSuggestions] = useState<string[]>([])
 
@@ -196,6 +196,7 @@ export default function LogPracticePage() {
               tempo_practiced: s.tempo_practiced,
               key_practiced: s.key_practiced,
               time_signature: s.time_signature,
+              outcome: s.outcome,
             })),
         })
       } else {
@@ -231,6 +232,7 @@ export default function LogPracticePage() {
             tempo_practiced: s.tempo_practiced,
             key_practiced: s.key_practiced,
             time_signature: s.time_signature,
+            outcome: s.outcome,
           }))
 
         await api.createLog({
@@ -382,7 +384,7 @@ export default function LogPracticePage() {
 
   const updateFreeformSection = (
     index: number,
-    field: 'label' | 'content' | 'duration_minutes' | 'tempo_practiced' | 'key_practiced' | 'time_signature',
+    field: 'label' | 'content' | 'duration_minutes' | 'tempo_practiced' | 'key_practiced' | 'time_signature' | 'outcome',
     value: string | number | undefined
   ) => {
     const updated = [...freeformSections]
@@ -787,6 +789,14 @@ export default function LogPracticePage() {
                       onKeyChange={(val) => updateFreeformSection(index, 'key_practiced', val)}
                       onTimeSignatureChange={(val) => updateFreeformSection(index, 'time_signature', val)}
                     />
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-600 mb-1">How did it go?</p>
+                      <OutcomeSelector
+                        value={section.outcome}
+                        onChange={(outcome) => updateFreeformSection(index, 'outcome', outcome)}
+                        size="sm"
+                      />
+                    </div>
                   </div>
                 ))}
 
