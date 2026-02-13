@@ -13,6 +13,7 @@ from app.models import (
     ExerciseProgress, PracticeOutcome
 )
 from app.auth import get_current_user
+from sqlalchemy import func
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
@@ -60,6 +61,9 @@ async def create_practice_log(
             tempo_practiced=detail.tempo_practiced,
             outcome=detail.outcome,
             notes=detail.notes,
+            key_practiced=detail.key_practiced,
+            time_signature=detail.time_signature,
+            duration_minutes=detail.duration_minutes,
         )
         session.add(log_detail)
 
@@ -121,6 +125,26 @@ async def list_practice_logs(
     result = await session.exec(statement)
     logs = result.all()
     return logs
+
+
+@router.get("/section-types", response_model=List[str])
+async def get_section_types(
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Get distinct section type names from the user's past logs."""
+    statement = (
+        select(PracticeLogDetail.section_type)
+        .join(PracticeLog, PracticeLogDetail.log_id == PracticeLog.id)
+        .where(
+            PracticeLog.user_id == current_user.id,
+            PracticeLog.deleted_at == None,
+        )
+        .distinct()
+        .order_by(PracticeLogDetail.section_type)
+    )
+    result = await session.exec(statement)
+    return list(result.all())
 
 
 @router.get("/{log_id}", response_model=PracticeLog)

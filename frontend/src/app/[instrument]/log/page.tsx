@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
 import OutcomeSelector from '@/components/OutcomeSelector'
 import SuggestionCard from '@/components/SuggestionCard'
+import Combobox from '@/components/Combobox'
+import SectionDetailFields from '@/components/SectionDetailFields'
 import { evaluateRules } from '@/lib/progressionRules'
 import type { PracticeTemplate, PracticeDay, BlockType, Exercise, PracticeOutcome, Suggestion, UserInstrument } from '@/lib/types'
 
@@ -43,11 +45,30 @@ export default function LogPracticePage() {
   const [blockNotes, setBlockNotes] = useState<Record<number, string>>({})
 
   const [freeformSections, setFreeformSections] = useState<
-    { label: string; content: string }[]
+    { label: string; content: string; duration_minutes?: number; tempo_practiced?: number; key_practiced?: string; time_signature?: string }[]
   >([])
+  const [sectionSuggestions, setSectionSuggestions] = useState<string[]>([])
 
   useEffect(() => {
-    api.getBlockTypes().then(setBlockTypes).catch(() => {})
+    // Fetch block types and section type suggestions, then merge for combobox
+    Promise.all([
+      api.getBlockTypes().then((bts) => { setBlockTypes(bts); return bts }),
+      api.getSectionTypes().catch(() => [] as string[]),
+    ]).then(([bts, pastSections]) => {
+      const labels = bts.map((bt) => bt.label)
+      const seen = new Set([
+        ...labels.map((l) => l.toLowerCase()),
+        ...bts.map((bt) => bt.slug.toLowerCase()),
+      ])
+      for (const s of pastSections) {
+        if (!seen.has(s.toLowerCase())) {
+          labels.push(s)
+          seen.add(s.toLowerCase())
+        }
+      }
+      labels.sort((a, b) => a.localeCompare(b))
+      setSectionSuggestions(labels)
+    }).catch(() => {})
 
     api.getUserInstruments()
       .then(async (userInstruments) => {
@@ -88,6 +109,21 @@ export default function LogPracticePage() {
     return template?.practice_days?.find(
       (d) => d.day_number === formData.dayNumber
     )
+  }
+
+  const getContentPlaceholder = (label: string): string => {
+    const l = label.toLowerCase()
+    if (l.includes('warm') || l.includes('cool'))
+      return 'Exercises, stretches, long tones...'
+    if (l.includes('scale') || l.includes('arpeggio'))
+      return 'Keys, patterns, thirds/sixths...'
+    if (l.includes('repertoire'))
+      return 'Piece, movement, measures...'
+    if (l.includes('technique') || l.includes('etude'))
+      return 'Etude, exercise name, passage...'
+    if (l.includes('sight'))
+      return 'What did you sight-read?'
+    return 'What did you work on?'
   }
 
   const getBlockLabel = (block: { block_type: string; block_type_id?: number }) => {
@@ -144,6 +180,10 @@ export default function LogPracticePage() {
             .map((s) => ({
               section_type: s.label.toLowerCase().replace(/\s+/g, '-'),
               content: s.content,
+              duration_minutes: s.duration_minutes,
+              tempo_practiced: s.tempo_practiced,
+              key_practiced: s.key_practiced,
+              time_signature: s.time_signature,
             })),
         })
       } else {
@@ -254,8 +294,8 @@ export default function LogPracticePage() {
 
   const updateFreeformSection = (
     index: number,
-    field: 'label' | 'content',
-    value: string
+    field: 'label' | 'content' | 'duration_minutes' | 'tempo_practiced' | 'key_practiced' | 'time_signature',
+    value: string | number | undefined
   ) => {
     const updated = [...freeformSections]
     updated[index] = { ...updated[index], [field]: value }
@@ -525,15 +565,33 @@ export default function LogPracticePage() {
                     className="border border-gray-200 rounded-lg p-4 mb-4"
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={section.label}
-                        onChange={(e) =>
-                          updateFreeformSection(index, 'label', e.target.value)
-                        }
-                        placeholder="Section name (e.g., Warm-up, Scales)"
-                        className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm"
-                      />
+                      <div className="flex-1">
+                        <Combobox
+                          value={section.label}
+                          onChange={(val) =>
+                            updateFreeformSection(index, 'label', val)
+                          }
+                          suggestions={sectionSuggestions}
+                          placeholder="Section name (e.g., Warm-up, Scales)"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={section.duration_minutes ?? ''}
+                          onChange={(e) =>
+                            updateFreeformSection(
+                              index,
+                              'duration_minutes',
+                              e.target.value ? parseInt(e.target.value) : undefined
+                            )
+                          }
+                          placeholder="min"
+                          min="1"
+                          className="w-16 px-2 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm text-center"
+                        />
+                        <span className="text-xs text-gray-400">min</span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => removeFreeformSection(index)}
@@ -547,11 +605,46 @@ export default function LogPracticePage() {
                       onChange={(e) =>
                         updateFreeformSection(index, 'content', e.target.value)
                       }
-                      placeholder="What did you work on?"
+                      placeholder={getContentPlaceholder(section.label)}
                       className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none resize-y min-h-[80px] text-sm"
+                    />
+                    <SectionDetailFields
+                      tempo={section.tempo_practiced}
+                      keyPracticed={section.key_practiced}
+                      timeSignature={section.time_signature}
+                      onTempoChange={(val) => updateFreeformSection(index, 'tempo_practiced', val)}
+                      onKeyChange={(val) => updateFreeformSection(index, 'key_practiced', val)}
+                      onTimeSignatureChange={(val) => updateFreeformSection(index, 'time_signature', val)}
                     />
                   </div>
                 ))}
+
+                {freeformSections.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={addFreeformSection}
+                      className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                    >
+                      + Add section
+                    </button>
+                    {(() => {
+                      const sectionTotal = freeformSections.reduce(
+                        (sum, s) => sum + (s.duration_minutes ?? 0),
+                        0
+                      )
+                      const overall = parseInt(formData.duration) || 0
+                      if (sectionTotal > 0 && overall > 0) {
+                        return (
+                          <span className="text-xs text-gray-400">
+                            {sectionTotal} of {overall} min accounted for
+                          </span>
+                        )
+                      }
+                      return null
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 

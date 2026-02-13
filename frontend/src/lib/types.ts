@@ -93,6 +93,9 @@ export interface PracticeLogDetail {
   tempo_practiced?: number
   outcome?: PracticeOutcome
   notes?: string
+  key_practiced?: string
+  time_signature?: string
+  duration_minutes?: number
 }
 
 export interface PracticeLogCreate {
