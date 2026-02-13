@@ -265,6 +265,38 @@ class PracticeLogDetail(SQLModel, table=True):
 
 # API-specific models (for requests/responses that differ from DB models)
 
+class PracticeLogDetailRead(SQLModel):
+    """Response schema for log details — explicit fields, no relationship ambiguity."""
+    model_config = {"from_attributes": True}
+
+    id: int
+    log_id: int
+    section_type: str
+    content: Optional[str] = None
+    exercise_id: Optional[int] = None
+    tempo_practiced: Optional[int] = None
+    outcome: Optional[str] = None
+    notes: Optional[str] = None
+    key_practiced: Optional[str] = None
+    time_signature: Optional[str] = None
+    duration_minutes: Optional[int] = None
+
+
+class PracticeLogRead(SQLModel):
+    """Response schema for practice logs — ensures log_details is always serialized."""
+    model_config = {"from_attributes": True}
+
+    id: int
+    user_id: int
+    template_id: Optional[int] = None
+    day_number: Optional[int] = None
+    practice_date: date
+    duration_minutes: int
+    notes: Optional[str] = None
+    created_at: datetime
+    log_details: List[PracticeLogDetailRead] = []
+
+
 class PracticeLogDetailCreate(SQLModel):
     """Schema for creating log details"""
     section_type: str

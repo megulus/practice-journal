@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import select, func
+from sqlmodel import select, func, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import Optional
 
@@ -24,61 +24,59 @@ async def get_analytics(
     )
     template_result = await session.exec(template_statement)
     user_template_ids = list(template_result.all())
-    
-    if not user_template_ids:
-        # No templates, return empty analytics
-        return AnalyticsSummary(
-            total_sessions=0,
-            total_minutes=0,
-            average_duration=0.0,
-            sessions_by_day={}
-        )
-    
-    # Filter by specific template if provided
+
+    # Build the ownership filter for logs
     if template_id:
-        # Verify user has access to this template
+        # Specific template requested — verify access
         if template_id not in user_template_ids:
             raise HTTPException(status_code=404, detail="Template not found")
-        filter_template_ids = [template_id]
+        log_owner_filter = PracticeLog.template_id == template_id
     else:
-        filter_template_ids = user_template_ids
-    
+        # All logs: those tied to user's templates OR freeform (NULL template_id)
+        log_owner_filter = or_(
+            PracticeLog.template_id.in_(user_template_ids) if user_template_ids else False,  # type: ignore[attr-defined]
+            PracticeLog.template_id == None,  # noqa: E711  # freeform logs
+        )
+
     # Get total sessions (excluding soft-deleted logs)
     count_statement = select(func.count(PracticeLog.id)).where(  # type: ignore[arg-type]
-        PracticeLog.template_id.in_(filter_template_ids),  # type: ignore[attr-defined]
+        PracticeLog.user_id == current_user.id,
+        log_owner_filter,
         PracticeLog.deleted_at == None
     )
-    
+
     result = await session.exec(count_statement)
     total_sessions = result.one() or 0
-    
+
     # Get total minutes (excluding soft-deleted logs)
     sum_statement = select(func.sum(PracticeLog.duration_minutes)).where(  # type: ignore[arg-type]
-        PracticeLog.template_id.in_(filter_template_ids),  # type: ignore[attr-defined]
+        PracticeLog.user_id == current_user.id,
+        log_owner_filter,
         PracticeLog.deleted_at == None
     )
-    
+
     result = await session.exec(sum_statement)
     total_minutes = result.one() or 0
-    
+
     # Calculate average duration
     average_duration = total_minutes / total_sessions if total_sessions > 0 else 0
-    
+
     # Get sessions by day number (excluding soft-deleted logs)
     sessions_by_day = {}
     day_statement = (
         select(PracticeLog.day_number, func.count(PracticeLog.id).label('count'))  # type: ignore[arg-type]
         .where(
-            PracticeLog.template_id.in_(filter_template_ids),  # type: ignore[attr-defined]
+            PracticeLog.user_id == current_user.id,
+            log_owner_filter,
             PracticeLog.deleted_at == None
         )
         .group_by(PracticeLog.day_number)  # type: ignore[arg-type]
     )
-    
+
     result = await session.exec(day_statement)
     for row in result:
         sessions_by_day[str(row[0])] = row[1]  # row is tuple: (day_number, count)
-    
+
     return AnalyticsSummary(
         total_sessions=total_sessions,
         total_minutes=int(total_minutes),

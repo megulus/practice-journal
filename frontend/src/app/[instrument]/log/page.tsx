@@ -43,11 +43,22 @@ export default function LogPracticePage() {
   // Track exercise selections with outcomes (keyed by block id)
   const [exerciseSelections, setExerciseSelections] = useState<Record<number, ExerciseSelection>>({})
   const [blockNotes, setBlockNotes] = useState<Record<number, string>>({})
+  const [dismissedBlocks, setDismissedBlocks] = useState<Set<number>>(new Set())
 
   const [freeformSections, setFreeformSections] = useState<
     { label: string; content: string; duration_minutes?: number; tempo_practiced?: number; key_practiced?: string; time_signature?: string }[]
   >([])
   const [sectionSuggestions, setSectionSuggestions] = useState<string[]>([])
+
+  // Save-as-template state
+  const [submittedFreeformSections, setSubmittedFreeformSections] = useState<
+    typeof freeformSections
+  >([])
+  const [submittedInFreeformMode, setSubmittedInFreeformMode] = useState(false)
+  const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [savedTemplateId, setSavedTemplateId] = useState<number | null>(null)
 
   useEffect(() => {
     // Fetch block types and section type suggestions, then merge for combobox
@@ -103,6 +114,7 @@ export default function LogPracticePage() {
   useEffect(() => {
     setBlockNotes({})
     setExerciseSelections({})
+    setDismissedBlocks(new Set())
   }, [formData.dayNumber])
 
   const getCurrentDay = (): PracticeDay | undefined => {
@@ -210,13 +222,24 @@ export default function LogPracticePage() {
               })
           : []
 
+        const freeformDetails = freeformSections
+          .filter((s) => s.content && s.label.trim())
+          .map((s) => ({
+            section_type: s.label.toLowerCase().replace(/\s+/g, '-'),
+            content: s.content,
+            duration_minutes: s.duration_minutes,
+            tempo_practiced: s.tempo_practiced,
+            key_practiced: s.key_practiced,
+            time_signature: s.time_signature,
+          }))
+
         await api.createLog({
           template_id: template!.id,
           day_number: formData.dayNumber,
           practice_date: formData.date,
           duration_minutes: parseInt(formData.duration),
           notes: formData.notes,
-          log_details: logDetails,
+          log_details: [...logDetails, ...freeformDetails],
         })
       }
 
@@ -235,6 +258,12 @@ export default function LogPracticePage() {
         }
       }
 
+      // Preserve freeform sections for save-as-template prompt
+      setSubmittedFreeformSections(
+        freeformSections.filter((s) => s.content && s.label.trim())
+      )
+      setSubmittedInFreeformMode(freeformMode)
+
       setShowSuccess(true)
       setFormData({
         date: new Date().toISOString().split('T')[0],
@@ -244,6 +273,7 @@ export default function LogPracticePage() {
       })
       setBlockNotes({})
       setExerciseSelections({})
+      setDismissedBlocks(new Set())
       setFreeformSections([])
     } catch (err) {
       console.error(err)
@@ -259,6 +289,14 @@ export default function LogPracticePage() {
 
   const removeFreeformSection = (index: number) => {
     setFreeformSections(freeformSections.filter((_, i) => i !== index))
+  }
+
+  const moveFreeformSection = (index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= freeformSections.length) return
+    const updated = [...freeformSections]
+    ;[updated[index], updated[target]] = [updated[target], updated[index]]
+    setFreeformSections(updated)
   }
 
   const handleAcceptSuggestion = async (suggestion: Suggestion) => {
@@ -287,9 +325,59 @@ export default function LogPracticePage() {
     setSuggestions(suggestions.filter((s) => s.key !== suggestion.key))
   }
 
+  const handleSaveAsTemplate = async () => {
+    if (!userInstrument || !templateName.trim()) return
+    setSavingTemplate(true)
+    try {
+      const newTemplate = await api.createTemplate({
+        user_instrument_id: userInstrument.id,
+        name: templateName.trim(),
+        days_count: 1,
+      })
+
+      for (let i = 0; i < submittedFreeformSections.length; i++) {
+        const section = submittedFreeformSections[i]
+        // Match section label to a block type by label or slug; fall back to "technique"
+        const matchedType = blockTypes.find(
+          (bt) =>
+            bt.label.toLowerCase() === section.label.toLowerCase() ||
+            bt.slug.toLowerCase() === section.label.toLowerCase().replace(/\s+/g, '-')
+        )
+        const fallbackType = blockTypes.find((bt) => bt.slug === 'technique')
+        const blockTypeId = matchedType?.id ?? fallbackType?.id ?? blockTypes[0]?.id
+
+        const block = await api.createBlock(newTemplate.id, 1, {
+          block_type_id: blockTypeId,
+          duration_minutes: section.duration_minutes,
+          display_order: i + 1,
+        })
+
+        await api.createExercise(newTemplate.id, 1, block.id, {
+          exercise_text: section.content,
+          tempo_bpm: section.tempo_practiced,
+          key: section.key_practiced,
+          display_order: 1,
+        })
+      }
+
+      setSavedTemplateId(newTemplate.id)
+    } catch (err) {
+      console.error('Failed to save template:', err)
+      alert('Error saving template')
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
   const handleLogAnother = () => {
     setShowSuccess(false)
     setSuggestions([])
+    setSubmittedFreeformSections([])
+    setSubmittedInFreeformMode(false)
+    setShowSaveAsTemplate(false)
+    setTemplateName('')
+    setSavingTemplate(false)
+    setSavedTemplateId(null)
   }
 
   const updateFreeformSection = (
@@ -358,6 +446,58 @@ export default function LogPracticePage() {
                         suggestions page
                       </a>
                     </p>
+                  )}
+                </div>
+              )}
+
+              {/* Save as template prompt (freeform submissions with sections only) */}
+              {submittedInFreeformMode && submittedFreeformSections.length > 0 && (
+                <div className="mb-8">
+                  {savedTemplateId ? (
+                    <div className="border border-green-300 bg-green-50 rounded-lg p-4 text-center">
+                      <p className="text-green-700 font-medium mb-1">Template saved!</p>
+                      <a
+                        href={`/${instrumentName}/template/edit?templateId=${savedTemplateId}`}
+                        className="text-primary-600 hover:underline text-sm"
+                      >
+                        Edit template
+                      </a>
+                    </div>
+                  ) : showSaveAsTemplate ? (
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <p className="text-sm text-gray-500 mb-3">
+                        Sections: {submittedFreeformSections.map((s) => s.label).join(', ')}
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                          placeholder="Template name"
+                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm"
+                        />
+                        <button
+                          onClick={handleSaveAsTemplate}
+                          disabled={savingTemplate || !templateName.trim()}
+                          className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {savingTemplate ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setShowSaveAsTemplate(false)}
+                          className="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSaveAsTemplate(true)}
+                      className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors text-sm"
+                    >
+                      Save this session structure as a template
+                    </button>
                   )}
                 </div>
               )}
@@ -476,16 +616,26 @@ export default function LogPracticePage() {
             </div>
 
             {/* Template-based block sections */}
-            {!freeformMode && sortedBlocks.map((block) => (
+            {!freeformMode && sortedBlocks.filter((b) => !dismissedBlocks.has(b.id)).map((block) => (
               <div key={block.id} className="mb-6">
-                <label className="block font-semibold text-gray-700 mb-2">
-                  {getBlockLabel(block)}
-                  {block.duration_minutes && (
-                    <span className="ml-2 text-sm font-normal text-gray-500">
-                      ({block.duration_minutes} min)
-                    </span>
-                  )}
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block font-semibold text-gray-700">
+                    {getBlockLabel(block)}
+                    {block.duration_minutes && (
+                      <span className="ml-2 text-sm font-normal text-gray-500">
+                        ({block.duration_minutes} min)
+                      </span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setDismissedBlocks(new Set([...dismissedBlocks, block.id]))}
+                    className="text-gray-400 hover:text-red-500 text-sm transition-colors"
+                    title="Skip this section"
+                  >
+                    Skip
+                  </button>
+                </div>
 
                 {block.exercises.length > 0 ? (
                   <div className="space-y-3">
@@ -539,10 +689,11 @@ export default function LogPracticePage() {
             ))}
 
             {/* Freeform sections */}
-            {freeformMode && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-700">Sections</h3>
+                  <h3 className="font-semibold text-gray-700">
+                    {freeformMode ? 'Sections' : 'Additional sections'}
+                  </h3>
                   <button
                     type="button"
                     onClick={addFreeformSection}
@@ -552,7 +703,7 @@ export default function LogPracticePage() {
                   </button>
                 </div>
 
-                {freeformSections.length === 0 && (
+                {freeformMode && freeformSections.length === 0 && (
                   <p className="text-gray-400 italic text-sm mb-4">
                     No sections added. Click &quot;Add section&quot; to log
                     specific areas of practice.
@@ -591,6 +742,26 @@ export default function LogPracticePage() {
                           className="w-16 px-2 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm text-center"
                         />
                         <span className="text-xs text-gray-400">min</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveFreeformSection(index, 'up')}
+                          disabled={index === 0}
+                          className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move up"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFreeformSection(index, 'down')}
+                          disabled={index === freeformSections.length - 1}
+                          className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move down"
+                        >
+                          ▼
+                        </button>
                       </div>
                       <button
                         type="button"
@@ -646,7 +817,6 @@ export default function LogPracticePage() {
                   </div>
                 )}
               </div>
-            )}
 
             {/* Notes */}
             <div className="mb-6">
