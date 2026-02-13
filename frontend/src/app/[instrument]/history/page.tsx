@@ -30,17 +30,16 @@ export default function HistoryPage() {
           const allTemplates = await api.getTemplates(ui.id)
           const tmpl = allTemplates.find((t) => t.is_active)
 
-          if (tmpl) {
-            const [templateData, logsData, analyticsData] = await Promise.all([
-              api.getTemplate(tmpl.id),
-              api.getLogs(tmpl.id),
-              api.getAnalytics(tmpl.id),
-            ])
+          // Fetch logs and analytics without template filter so freeform logs are included
+          const [templateData, logsData, analyticsData] = await Promise.all([
+            tmpl ? api.getTemplate(tmpl.id) : Promise.resolve(null),
+            api.getLogs(),
+            api.getAnalytics(),
+          ])
 
-            setTemplate(templateData)
-            setLogs(logsData)
-            setAnalytics(analyticsData)
-          }
+          setTemplate(templateData)
+          setLogs(logsData)
+          setAnalytics(analyticsData)
         }
       } catch (err) {
         console.error(err)
@@ -57,16 +56,6 @@ export default function HistoryPage() {
       <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
         <div className="max-w-6xl mx-auto">
           <p className="text-center text-gray-600">Loading history...</p>
-        </div>
-      </main>
-    )
-  }
-
-  if (!template) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-center text-red-600">No active template found</p>
         </div>
       </main>
     )
@@ -94,7 +83,7 @@ export default function HistoryPage() {
             ) : (
               <div>
                 {logs.map((log) => {
-                  const dayData = template.practice_days?.find(
+                  const dayData = template?.practice_days?.find(
                     (d) => d.day_number === log.day_number
                   )
                   return (

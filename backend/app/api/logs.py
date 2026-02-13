@@ -9,8 +9,8 @@ from typing import List, Optional
 
 from app.database import get_session
 from app.models import (
-    PracticeLog, PracticeLogDetail, PracticeLogCreate, PracticeTemplate, User,
-    ExerciseProgress, PracticeOutcome
+    PracticeLog, PracticeLogDetail, PracticeLogCreate, PracticeLogRead,
+    PracticeTemplate, User, ExerciseProgress, PracticeOutcome
 )
 from app.auth import get_current_user
 from sqlalchemy import func
@@ -18,7 +18,7 @@ from sqlalchemy import func
 router = APIRouter(prefix="/logs", tags=["logs"])
 
 
-@router.post("/", response_model=PracticeLog, status_code=201)
+@router.post("/", response_model=PracticeLogRead, status_code=201)
 async def create_practice_log(
     log_data: PracticeLogCreate,
     session: AsyncSession = Depends(get_session),
@@ -90,7 +90,7 @@ async def create_practice_log(
     return result.scalar_one()
 
 
-@router.get("/", response_model=List[PracticeLog])
+@router.get("/", response_model=List[PracticeLogRead])
 async def list_practice_logs(
     template_id: Optional[int] = None,
     limit: int = 50,
@@ -124,6 +124,9 @@ async def list_practice_logs(
     
     result = await session.exec(statement)
     logs = result.all()
+    # Access relationship to ensure it's included in serialization
+    for log in logs:
+        _ = log.log_details
     return logs
 
 
@@ -147,7 +150,7 @@ async def get_section_types(
     return list(result.all())
 
 
-@router.get("/{log_id}", response_model=PracticeLog)
+@router.get("/{log_id}", response_model=PracticeLogRead)
 async def get_practice_log(
     log_id: int,
     session: AsyncSession = Depends(get_session),

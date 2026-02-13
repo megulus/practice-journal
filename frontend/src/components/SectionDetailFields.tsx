@@ -57,7 +57,7 @@ export default function SectionDetailFields({
         <label className="text-xs text-gray-500 mr-1">BPM</label>
         <button
           type="button"
-          onClick={() => onTempoChange(prevTempo(tempo ?? 80))}
+          onClick={() => onTempoChange(prevTempo(tempo ?? 72))}
           className="w-7 h-7 flex items-center justify-center rounded border border-gray-300 text-gray-600 hover:bg-gray-100 text-sm"
         >
           -
@@ -68,14 +68,14 @@ export default function SectionDetailFields({
           onChange={(e) =>
             onTempoChange(e.target.value ? parseInt(e.target.value) : undefined)
           }
-          placeholder="--"
+          placeholder="72"
           min="20"
           max="300"
-          className="w-16 px-2 py-1 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm text-center"
+          className="w-16 px-2 py-1 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none text-sm text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           type="button"
-          onClick={() => onTempoChange(nextTempo(tempo ?? 80))}
+          onClick={() => onTempoChange(nextTempo(tempo ?? 72))}
           className="w-7 h-7 flex items-center justify-center rounded border border-gray-300 text-gray-600 hover:bg-gray-100 text-sm"
         >
           +
@@ -101,7 +101,7 @@ export default function SectionDetailFields({
 
       {/* Time signature */}
       <div className="flex items-center gap-1">
-        <label className="text-xs text-gray-500 mr-1">Time</label>
+        <label className="text-xs text-gray-500 mr-1">Meter</label>
         <select
           value={timeSignature ?? ''}
           onChange={(e) => onTimeSignatureChange(e.target.value || undefined)}
