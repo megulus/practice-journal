@@ -1,25 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { evaluateRules } from '@/lib/progressionRules'
-import type { UserInstrument, PracticeTemplate, PracticeDay, BlockType, Suggestion } from '@/lib/types'
+import type { UserInstrument, PracticeTemplate, PracticeDay, BlockType, Suggestion, PracticeLog } from '@/lib/types'
 import DaySelector from '@/components/DaySelector'
 import PracticeBlock from '@/components/PracticeBlock'
 
 export default function PracticePlanPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const api = useApi()
   const instrumentName = params.instrument as string
+  const loggedParam = searchParams.get('logged')
   const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [selectedDay, setSelectedDay] = useState(1)
   const [currentDayData, setCurrentDayData] = useState<PracticeDay | null>(null)
   const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
   const [suggestionsCount, setSuggestionsCount] = useState(0)
+  const [todayLogs, setTodayLogs] = useState<PracticeLog[]>([])
+  const [showLoggedToast, setShowLoggedToast] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -82,6 +86,36 @@ export default function PracticePlanPage() {
     }
   }, [selectedDay, template])
 
+  // Fetch today's logs on initial load
+  useEffect(() => {
+    if (!template) return
+    const today = new Date().toISOString().split('T')[0]
+    api.getLogs(template.id).then((logs) => {
+      setTodayLogs(logs.filter((log) => log.practice_date === today))
+    }).catch((err) => {
+      console.error('Failed to fetch logs:', err)
+    })
+  }, [template, api])
+
+  // Handle return from single-block log: show toast, re-fetch logs, clean URL
+  const loggedParamHandled = useRef<string | null>(null)
+  useEffect(() => {
+    if (!loggedParam || loggedParam === loggedParamHandled.current) return
+    loggedParamHandled.current = loggedParam
+
+    setShowLoggedToast(true)
+    setTimeout(() => setShowLoggedToast(false), 3000)
+
+    if (template) {
+      const today = new Date().toISOString().split('T')[0]
+      api.getLogs(template.id).then((logs) => {
+        setTodayLogs(logs.filter((log) => log.practice_date === today))
+      }).catch(console.error)
+    }
+
+    router.replace(`/${instrumentName}/plan`, { scroll: false })
+  }, [loggedParam, template, api, router, instrumentName])
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
@@ -104,6 +138,14 @@ export default function PracticePlanPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
+      {showLoggedToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          Practice logged!
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-xl shadow-xl overflow-hidden">
           <div className="bg-gradient-to-br from-primary-500 to-primary-700 text-white p-8 text-center relative">
@@ -149,7 +191,47 @@ export default function PracticePlanPage() {
               onSelectDay={setSelectedDay}
             />
 
-            {currentDayData && <PracticeBlock day={currentDayData} blockTypes={blockTypes} />}
+            {currentDayData && (
+              <>
+                <PracticeBlock
+                  day={currentDayData}
+                  blockTypes={blockTypes}
+                  onLogBlock={(blockId) =>
+                    router.push(
+                      `/${instrumentName}/log?day=${selectedDay}&blockId=${blockId}`
+                    )
+                  }
+                  loggedBlockIds={(() => {
+                    const ids = new Set<number>()
+                    for (const log of todayLogs) {
+                      for (const detail of log.log_details) {
+                        for (const block of currentDayData.exercise_blocks) {
+                          // Match by exercise_id
+                          if (detail.exercise_id && block.exercises.some((ex) => ex.id === detail.exercise_id)) {
+                            ids.add(block.id)
+                          }
+                          // Match by section_type for blocks without exercises
+                          if (!detail.exercise_id && detail.section_type === block.block_type) {
+                            ids.add(block.id)
+                          }
+                        }
+                      }
+                    }
+                    return ids
+                  })()}
+                />
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() =>
+                      router.push(`/${instrumentName}/log?day=${selectedDay}`)
+                    }
+                    className="px-6 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                  >
+                    Log full session
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

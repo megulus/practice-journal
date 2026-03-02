@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import OutcomeSelector from '@/components/OutcomeSelector'
 import SuggestionCard from '@/components/SuggestionCard'
@@ -21,8 +22,12 @@ interface ExerciseSelection {
 export default function LogPracticePage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const api = useApi()
   const instrumentName = params.instrument as string
+  const urlParamsApplied = useRef(false)
+  const skipNextReset = useRef(false)
+  const singleBlockMode = useRef(false)
   const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
   const [template, setTemplate] = useState<PracticeTemplate | null>(null)
   const [blockTypes, setBlockTypes] = useState<BlockType[]>([])
@@ -110,8 +115,51 @@ export default function LogPracticePage() {
       })
   }, [instrumentName, api])
 
-  // Reset selections when day changes
+  // Handle URL params after template loads (one-time)
   useEffect(() => {
+    if (!template || urlParamsApplied.current) return
+    const dayParam = searchParams.get('day')
+    if (!dayParam) {
+      urlParamsApplied.current = true
+      return
+    }
+
+    urlParamsApplied.current = true
+    const dayNum = parseInt(dayParam)
+    if (dayNum < 1 || dayNum > template.days_count) return
+
+    const blockIdParam = searchParams.get('blockId')
+    const dayData = template.practice_days?.find((d) => d.day_number === dayNum)
+
+    if (blockIdParam && dayData) {
+      const targetBlockId = parseInt(blockIdParam)
+      const otherBlockIds = dayData.exercise_blocks
+        .filter((b) => b.id !== targetBlockId)
+        .map((b) => b.id)
+      const targetBlock = dayData.exercise_blocks.find((b) => b.id === targetBlockId)
+
+      // Track single-block mode for auto-return after save
+      singleBlockMode.current = true
+
+      // Set day, dismiss other blocks, and pre-fill duration together
+      skipNextReset.current = true
+      setFormData((prev) => ({
+        ...prev,
+        dayNumber: dayNum,
+        duration: targetBlock?.duration_minutes ? String(targetBlock.duration_minutes) : prev.duration,
+      }))
+      setDismissedBlocks(new Set(otherBlockIds))
+    } else {
+      setFormData((prev) => ({ ...prev, dayNumber: dayNum }))
+    }
+  }, [template, searchParams])
+
+  // Reset selections when day changes (skipped for URL-param-driven change with blockId)
+  useEffect(() => {
+    if (skipNextReset.current) {
+      skipNextReset.current = false
+      return
+    }
     setBlockNotes({})
     setExerciseSelections({})
     setDismissedBlocks(new Set())
@@ -243,6 +291,12 @@ export default function LogPracticePage() {
           notes: formData.notes,
           log_details: [...logDetails, ...freeformDetails],
         })
+      }
+
+      // In single-block mode, return to plan page instead of showing success screen
+      if (singleBlockMode.current) {
+        router.push(`/${instrumentName}/plan?logged=${Date.now()}`)
+        return
       }
 
       // Fetch suggestions after logging
@@ -526,7 +580,17 @@ export default function LogPracticePage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 p-8">
+    <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100 pt-14 p-8">
+      <div className="fixed top-0 left-0 right-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-200 px-8 py-3">
+        <div className="max-w-4xl mx-auto">
+          <Link
+            href={`/${instrumentName}/plan`}
+            className="text-sm text-primary-600 hover:text-primary-800 font-medium transition-colors"
+          >
+            &larr; Back to practice plan
+          </Link>
+        </div>
+      </div>
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-xl overflow-hidden">
           <div className="bg-gradient-to-br from-green-500 to-green-700 text-white p-8 text-center">

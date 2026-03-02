@@ -5,9 +5,11 @@ import type { PracticeDay, BlockType } from '@/lib/types'
 interface PracticeBlockProps {
   day: PracticeDay
   blockTypes: BlockType[]
+  onLogBlock?: (blockId: number) => void
+  loggedBlockIds?: Set<number>
 }
 
-export default function PracticeBlock({ day, blockTypes }: PracticeBlockProps) {
+export default function PracticeBlock({ day, blockTypes, onLogBlock, loggedBlockIds }: PracticeBlockProps) {
   const sortedBlocks = [...day.exercise_blocks].sort(
     (a, b) => a.display_order - b.display_order
   )
@@ -39,14 +41,32 @@ export default function PracticeBlock({ day, blockTypes }: PracticeBlockProps) {
 
       {sortedBlocks.map((block) => (
         <div key={block.id} className="mb-4">
-          <h4 className="text-lg font-semibold text-primary-600 mt-4 mb-2">
-            {getBlockLabel(block)}
-            {block.duration_minutes && (
-              <span className="ml-2 text-sm font-normal text-gray-500">
-                ({block.duration_minutes} min)
-              </span>
+          <div className="flex items-center justify-between mt-4 mb-2">
+            <h4 className="text-lg font-semibold text-primary-600 flex items-center gap-2">
+              {getBlockLabel(block)}
+              {block.duration_minutes && (
+                <span className="text-sm font-normal text-gray-500">
+                  ({block.duration_minutes} min)
+                </span>
+              )}
+              {loggedBlockIds?.has(block.id) && (
+                <span className="text-green-500 text-sm font-medium flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Logged
+                </span>
+              )}
+            </h4>
+            {onLogBlock && (
+              <button
+                onClick={() => onLogBlock(block.id)}
+                className="text-sm text-primary-600 hover:text-primary-800 font-medium px-3 py-1 rounded-lg hover:bg-primary-50 transition-colors"
+              >
+                Log this
+              </button>
             )}
-          </h4>
+          </div>
 
           {block.exercises.length > 0 ? (
             <>
