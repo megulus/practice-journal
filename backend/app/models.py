@@ -52,6 +52,17 @@ class User(SQLModel, table=True):
     practice_templates: List["PracticeTemplate"] = Relationship(back_populates="user")
 
 
+class UserSettings(SQLModel, table=True):
+    """Per-user settings (auto-created on first access)"""
+    __tablename__ = "user_settings"  # type: ignore[assignment]
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", unique=True, index=True)
+    suggestions_enabled: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+
+
 class Instrument(SQLModel, table=True):
     """Musical instrument (canonical definitions)"""
     __tablename__ = "instruments"  # type: ignore[assignment]
@@ -388,4 +399,16 @@ class AnalyticsSummary(SQLModel):
     total_minutes: int
     average_duration: float
     sessions_by_day: dict = {}
+
+
+class UserSettingsRead(SQLModel):
+    """Response schema for user settings"""
+    model_config = {"from_attributes": True}
+
+    suggestions_enabled: bool
+
+
+class UserSettingsUpdate(SQLModel):
+    """Schema for partial-updating user settings"""
+    suggestions_enabled: Optional[bool] = None
 

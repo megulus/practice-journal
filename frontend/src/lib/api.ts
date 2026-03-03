@@ -19,6 +19,8 @@ import type {
   Exercise,
   SuggestionsProgressResponse,
   SuggestionAction,
+  UserSettings,
+  UserSettingsUpdate,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -243,5 +245,15 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
           body: JSON.stringify(action),
         }
       ),
+
+    // Settings
+    getSettings: () =>
+      authFetchAPI<UserSettings>('/api/settings/'),
+
+    updateSettings: (data: UserSettingsUpdate) =>
+      authFetchAPI<UserSettings>('/api/settings/', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   }
 }

@@ -194,6 +194,15 @@ export interface SuggestionsProgressResponse {
   progress: ExerciseProgress[]
 }
 
+// User settings
+export interface UserSettings {
+  suggestions_enabled: boolean
+}
+
+export interface UserSettingsUpdate {
+  suggestions_enabled?: boolean
+}
+
 // Suggestion types for rules engine
 export type SuggestionType =
   | 'tempo_increase'
