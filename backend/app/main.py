@@ -5,6 +5,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import engine
 from app.api import instruments, templates, logs, analytics, user, block_types, suggestions, user_instruments
+from app.api import settings as settings_api
 
 settings = get_settings()
 
@@ -56,6 +57,7 @@ app.include_router(user.router, prefix="/api")
 app.include_router(block_types.router, prefix="/api")
 app.include_router(suggestions.router, prefix="/api")
 app.include_router(user_instruments.router, prefix="/api")
+app.include_router(settings_api.router, prefix="/api")
 
 
 @app.get("/")
