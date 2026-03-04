@@ -42,6 +42,31 @@ const typeStyles: Record<string, { icon: string; bgColor: string; borderColor: s
     bgColor: 'bg-pink-50',
     borderColor: 'border-pink-200',
   },
+  consistency: {
+    icon: '📅',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+  },
+  balance: {
+    icon: '⚖️',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+  },
+  duration: {
+    icon: '⏱️',
+    bgColor: 'bg-cyan-50',
+    borderColor: 'border-cyan-200',
+  },
+  coverage: {
+    icon: '🗺️',
+    bgColor: 'bg-yellow-50',
+    borderColor: 'border-yellow-200',
+  },
+  warmup: {
+    icon: '🔥',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+  },
 }
 
 export default function SuggestionCard({

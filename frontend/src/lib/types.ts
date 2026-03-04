@@ -211,6 +211,11 @@ export type SuggestionType =
   | 'new_key'
   | 'revisit'
   | 'advance'
+  | 'consistency'
+  | 'balance'
+  | 'duration'
+  | 'coverage'
+  | 'warmup'
 
 export interface SuggestionAction {
   exercise_id: number
@@ -220,9 +225,11 @@ export interface SuggestionAction {
 
 export interface Suggestion {
   key: string
-  exercise_id: number
-  exercise_text: string
+  exercise_id?: number
+  exercise_text?: string
   type: SuggestionType
   message: string
   action?: SuggestionAction
+  priority?: number
+  instrument_id?: number
 }

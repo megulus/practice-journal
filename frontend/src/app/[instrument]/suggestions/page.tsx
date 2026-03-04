@@ -15,7 +15,8 @@ export default function SuggestionsPage() {
   const instrumentName = params.instrument as string
 
   const [userInstrument, setUserInstrument] = useState<UserInstrument | null>(null)
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [sessionSuggestions, setSessionSuggestions] = useState<Suggestion[]>([])
+  const [exerciseSuggestions, setExerciseSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => {
     // Load dismissed keys from localStorage
@@ -41,13 +42,25 @@ export default function SuggestionsPage() {
 
         setUserInstrument(ui)
 
-        const progressData = await api.getSuggestionsProgress(ui.instrument.id)
-        const newSuggestions = evaluateRules(
+        // Fetch both session-level and exercise-level suggestions in parallel
+        const [sessionData, progressData] = await Promise.all([
+          api.getSessionSuggestions(ui.instrument.id),
+          api.getSuggestionsProgress(ui.instrument.id),
+        ])
+
+        // Session suggestions from backend (filter dismissed)
+        const filteredSession = sessionData.filter(
+          (s) => !dismissedKeys.has(s.key)
+        )
+        setSessionSuggestions(filteredSession)
+
+        // Exercise suggestions from frontend rules engine
+        const newExerciseSuggestions = evaluateRules(
           progressData.exercises,
           progressData.progress,
           dismissedKeys
         )
-        setSuggestions(newSuggestions)
+        setExerciseSuggestions(newExerciseSuggestions)
       } catch (err) {
         console.error('Failed to load suggestions:', err)
       } finally {
@@ -68,11 +81,14 @@ export default function SuggestionsPage() {
     }
   }
 
+  const allSuggestions = [...sessionSuggestions, ...exerciseSuggestions]
+
   const handleAcceptSuggestion = async (suggestion: Suggestion) => {
     if (!suggestion.action) return
     try {
       await api.acceptSuggestion(suggestion.key, suggestion.action)
-      setSuggestions(suggestions.filter((s) => s.key !== suggestion.key))
+      setSessionSuggestions(sessionSuggestions.filter((s) => s.key !== suggestion.key))
+      setExerciseSuggestions(exerciseSuggestions.filter((s) => s.key !== suggestion.key))
       const newKeys = new Set([...dismissedKeys, suggestion.key])
       saveDismissedKeys(newKeys)
     } catch (err) {
@@ -83,7 +99,8 @@ export default function SuggestionsPage() {
   const handleDismissSuggestion = async (suggestion: Suggestion) => {
     try {
       await api.dismissSuggestion(suggestion.key)
-      setSuggestions(suggestions.filter((s) => s.key !== suggestion.key))
+      setSessionSuggestions(sessionSuggestions.filter((s) => s.key !== suggestion.key))
+      setExerciseSuggestions(exerciseSuggestions.filter((s) => s.key !== suggestion.key))
       const newKeys = new Set([...dismissedKeys, suggestion.key])
       saveDismissedKeys(newKeys)
     } catch (err) {
@@ -113,7 +130,7 @@ export default function SuggestionsPage() {
           </div>
 
           <div className="p-8">
-            {suggestions.length === 0 ? (
+            {allSuggestions.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">&#127942;</div>
                 <h2 className="text-xl font-semibold text-gray-700 mb-2">
@@ -132,19 +149,41 @@ export default function SuggestionsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {suggestions.map((suggestion) => (
-                  <SuggestionCard
-                    key={suggestion.key}
-                    suggestion={suggestion}
-                    onAccept={
-                      suggestion.action
-                        ? () => handleAcceptSuggestion(suggestion)
-                        : undefined
-                    }
-                    onDismiss={() => handleDismissSuggestion(suggestion)}
-                    compact
-                  />
-                ))}
+                {sessionSuggestions.length > 0 && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                      Practice Habits
+                    </h3>
+                    {sessionSuggestions.map((suggestion) => (
+                      <SuggestionCard
+                        key={suggestion.key}
+                        suggestion={suggestion}
+                        onDismiss={() => handleDismissSuggestion(suggestion)}
+                        compact
+                      />
+                    ))}
+                  </>
+                )}
+                {exerciseSuggestions.length > 0 && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mt-6">
+                      Exercise Progress
+                    </h3>
+                    {exerciseSuggestions.map((suggestion) => (
+                      <SuggestionCard
+                        key={suggestion.key}
+                        suggestion={suggestion}
+                        onAccept={
+                          suggestion.action
+                            ? () => handleAcceptSuggestion(suggestion)
+                            : undefined
+                        }
+                        onDismiss={() => handleDismissSuggestion(suggestion)}
+                        compact
+                      />
+                    ))}
+                  </>
+                )}
               </div>
             )}
 

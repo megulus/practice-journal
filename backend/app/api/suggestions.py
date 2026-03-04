@@ -15,11 +15,38 @@ from sqlalchemy.orm import selectinload
 from app.database import get_session
 from app.models import (
     ExerciseProgress, Exercise, ExerciseBlock, PracticeDay,
-    PracticeTemplate, Instrument, User
+    PracticeTemplate, Instrument, User, UserSettings
 )
 from app.auth import get_current_user
+from app.suggestions import evaluate_session_rules, SessionSuggestion
 
 router = APIRouter(prefix="/suggestions", tags=["suggestions"])
+
+
+@router.get("/", response_model=List[SessionSuggestion])
+async def get_session_suggestions(
+    instrument_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get session-level practice suggestions based on habit patterns.
+
+    Returns up to 3 suggestions about consistency, balance, duration, coverage,
+    and warmups. Returns [] if the user has opted out via settings.
+    """
+    # Check if user has suggestions disabled
+    settings_query = select(UserSettings).where(
+        UserSettings.user_id == current_user.id
+    )
+    result = await session.exec(settings_query)
+    settings = result.one_or_none()
+    if settings and not settings.suggestions_enabled:
+        return []
+
+    return await evaluate_session_rules(
+        session, current_user.id, instrument_id
+    )
 
 
 @router.get("/progress")
