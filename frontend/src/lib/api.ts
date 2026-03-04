@@ -17,6 +17,7 @@ import type {
   ExerciseUpdate,
   ExerciseBlock,
   Exercise,
+  Suggestion,
   SuggestionsProgressResponse,
   SuggestionAction,
   UserSettings,
@@ -226,6 +227,11 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
       ),
 
     // Suggestions
+    getSessionSuggestions: (instrumentId?: number) =>
+      authFetchAPI<Suggestion[]>(
+        `/api/suggestions/${instrumentId ? `?instrument_id=${instrumentId}` : ''}`
+      ),
+
     getSuggestionsProgress: (instrumentId?: number) =>
       authFetchAPI<SuggestionsProgressResponse>(
         `/api/suggestions/progress${instrumentId ? `?instrument_id=${instrumentId}` : ''}`
