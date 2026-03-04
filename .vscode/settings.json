@@ -1,3 +1,33 @@
 {
-  "css.lint.unknownAtRules": "ignore"
+  "css.lint.unknownAtRules": "ignore",
+
+  // Python
+  "python.defaultInterpreterPath": "./backend/venv/bin/python",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["./backend"],
+
+  // TypeScript / Frontend
+  "typescript.tsdk": "./frontend/node_modules/typescript/lib",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  },
+
+  // Tailwind
+  "tailwindCSS.experimental.classRegex": [
+    ["className\\s*=\\s*['\"]([^'\"]*)['\"]"]
+  ],
+
+  // File associations
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+
+  // Search exclusions
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/venv": true,
+    "**/__pycache__": true
+  }
 }
