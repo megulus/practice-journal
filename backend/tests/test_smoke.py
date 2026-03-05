@@ -52,7 +52,11 @@ class TestFullStack:
                 "days_count": 3,
             },
         )
-        assert resp.status_code in (200, 201), resp.text
+        assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["name"] == "Smoke Test Template"
         assert data["days_count"] == 3
+
+    async def test_get_nonexistent_template_returns_404(self, client: AsyncClient):
+        resp = await client.get("/api/templates/99999")
+        assert resp.status_code == 404

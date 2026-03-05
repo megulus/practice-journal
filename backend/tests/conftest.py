@@ -30,14 +30,22 @@ _BASE_DB_URL = os.getenv(
 )
 
 TEST_DB_NAME = "practice_journal_test"
+assert "test" in TEST_DB_NAME, "Refusing to run tests against a non-test database"
 
 _TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
     f"postgresql+asyncpg://practice_user:practice_pass@{_DB_HOST}:5432/{TEST_DB_NAME}",
 )
 
+# Point the app's database config at the test DB so the lifespan handler
+# (connection pool warmup) doesn't touch the dev database.
+os.environ["DATABASE_URL"] = _TEST_DB_URL
+
+# Clear the cached settings so the app picks up the test DATABASE_URL.
+from app.config import get_settings
+get_settings.cache_clear()
+
 _session_failed = False
-_tables_created = False
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +108,11 @@ async def test_engine():
 
 @pytest_asyncio.fixture
 async def db_session(test_engine):
-    """Per-test async session. Truncates all tables after each test for isolation."""
+    """Per-test async session. Truncates all tables after each test for isolation.
+
+    NOTE: Fixture data must be committed (not just flushed) to be visible
+    to the HTTP client, which uses a separate session.
+    """
     factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
     session = factory()
     try:
@@ -136,6 +148,20 @@ async def test_user(db_session: AsyncSession) -> User:
     return user
 
 
+def _make_session_override(test_engine):
+    """Shared session override factory for test clients."""
+    factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def override():
+        session = factory()
+        try:
+            yield session
+        finally:
+            await session.close()
+
+    return override
+
+
 @pytest_asyncio.fixture
 async def client(test_engine, test_user: User):
     """
@@ -147,22 +173,13 @@ async def client(test_engine, test_user: User):
     from app.database import get_session
     from app.auth import get_current_user, get_current_user_optional
 
-    factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-    async def _override_session():
-        session = factory()
-        try:
-            yield session
-        finally:
-            await session.close()
-
     async def _override_current_user():
         return test_user
 
     async def _override_current_user_optional():
         return test_user
 
-    app.dependency_overrides[get_session] = _override_session
+    app.dependency_overrides[get_session] = _make_session_override(test_engine)
     app.dependency_overrides[get_current_user] = _override_current_user
     app.dependency_overrides[get_current_user_optional] = _override_current_user_optional
 
@@ -170,7 +187,9 @@ async def client(test_engine, test_user: User):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
-    app.dependency_overrides.clear()
+    del app.dependency_overrides[get_session]
+    del app.dependency_overrides[get_current_user]
+    del app.dependency_overrides[get_current_user_optional]
 
 
 @pytest_asyncio.fixture
@@ -182,15 +201,6 @@ async def unauth_client(test_engine):
     from app.database import get_session
     from app.auth import get_current_user, get_current_user_optional
 
-    factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-    async def _override_session():
-        session = factory()
-        try:
-            yield session
-        finally:
-            await session.close()
-
     async def _override_current_user():
         from fastapi import HTTPException, status
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
@@ -198,7 +208,7 @@ async def unauth_client(test_engine):
     async def _override_current_user_optional():
         return None
 
-    app.dependency_overrides[get_session] = _override_session
+    app.dependency_overrides[get_session] = _make_session_override(test_engine)
     app.dependency_overrides[get_current_user] = _override_current_user
     app.dependency_overrides[get_current_user_optional] = _override_current_user_optional
 
@@ -206,7 +216,9 @@ async def unauth_client(test_engine):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
-    app.dependency_overrides.clear()
+    del app.dependency_overrides[get_session]
+    del app.dependency_overrides[get_current_user]
+    del app.dependency_overrides[get_current_user_optional]
 
 
 # ---------------------------------------------------------------------------
