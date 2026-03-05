@@ -30,7 +30,7 @@ Open a new terminal window and run:
 docker compose exec backend alembic upgrade head
 
 # Seed with violin practice data
-docker compose exec backend python seed_data.py
+docker compose exec backend python scripts/seed_data.py
 ```
 
 You should see confirmation that the database has been seeded successfully.

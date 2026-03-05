@@ -61,7 +61,7 @@ In a new terminal, run the database migrations and seed data:
 docker compose exec backend alembic upgrade head
 
 # Seed the database with violin practice data
-docker compose exec backend python seed_data.py
+docker compose exec backend python scripts/seed_data.py
 ```
 
 ### 4. Access the Application
@@ -88,7 +88,10 @@ practice-journal/
 │   │   ├── database.py       # Database connection
 │   │   └── main.py           # FastAPI application
 │   ├── alembic/              # Database migrations
-│   ├── seed_data.py          # Initial data population
+│   ├── scripts/              # Utility scripts
+│   │   ├── seed_data.py      # Initial data population
+│   │   ├── setup-dev-env.sh  # Local Python dev environment
+│   │   └── clean-test-dbs.sh # Remove leftover test databases
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -204,7 +207,7 @@ docker volume rm practice-journal_postgres_data
 # Restart and re-initialize
 docker compose up -d
 docker compose exec backend alembic upgrade head
-docker compose exec backend python seed_data.py
+docker compose exec backend python scripts/seed_data.py
 ```
 
 ## Adding a New Instrument
@@ -256,7 +259,7 @@ The application is designed with future expansion in mind:
 - Try restarting: `docker compose restart db`
 
 ### "No data" in frontend
-- Make sure you ran the seed script: `docker compose exec backend python seed_data.py`
+- Make sure you ran the seed script: `docker compose exec backend python scripts/seed_data.py`
 - Check if backend is accessible: http://localhost:8000/health
 - Verify API calls in browser console
 
