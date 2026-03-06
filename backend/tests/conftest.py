@@ -148,6 +148,21 @@ async def test_user(db_session: AsyncSession) -> User:
     return user
 
 
+@pytest_asyncio.fixture
+async def other_user(db_session: AsyncSession) -> User:
+    """A second test user for cross-user isolation tests."""
+    user = User(
+        clerk_user_id="test_clerk_user_2",
+        email="other@example.com",
+        first_name="Other",
+        last_name="User",
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
 def _make_session_override(test_engine):
     """Shared session override factory for test clients."""
     factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)

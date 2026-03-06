@@ -1,5 +1,10 @@
 """Tests for analytics API endpoints."""
+from datetime import date
+
 from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models import PracticeLog, User
 
 
 class TestGetAnalytics:
@@ -44,6 +49,30 @@ class TestGetAnalytics:
         )
         resp = await client.get(f"/api/analytics/?template_id={test_template.id}")
         assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_sessions"] == 1
+        assert data["total_minutes"] == 30
+
+    async def test_user_isolation(
+        self, client: AsyncClient, db_session: AsyncSession, other_user: User
+    ):
+        """Analytics only reflect the requesting user's data."""
+        # User 1 logs 30 minutes via API
+        await client.post(
+            "/api/logs/",
+            json={"practice_date": "2026-03-01", "duration_minutes": 30},
+        )
+        # Insert a log for other_user directly in DB
+        other_log = PracticeLog(
+            user_id=other_user.id,
+            practice_date=date(2026, 3, 2),
+            duration_minutes=60,
+        )
+        db_session.add(other_log)
+        await db_session.commit()
+
+        # User 1 analytics should only show their 30-minute session
+        resp = await client.get("/api/analytics/")
         data = resp.json()
         assert data["total_sessions"] == 1
         assert data["total_minutes"] == 30

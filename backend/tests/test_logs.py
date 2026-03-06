@@ -2,6 +2,9 @@
 from datetime import date
 
 from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models import PracticeLog, User
 
 
 class TestCreateLog:
@@ -91,6 +94,29 @@ class TestListLogs:
         resp = await client.get("/api/logs/")
         assert resp.status_code == 200
         assert len(resp.json()) == 1
+
+    async def test_user_isolation(
+        self, client: AsyncClient, db_session: AsyncSession, other_user: User
+    ):
+        """Each user only sees their own logs."""
+        # User 1 creates a log via API
+        await client.post(
+            "/api/logs/",
+            json={"practice_date": "2026-03-01", "duration_minutes": 30},
+        )
+        # Insert a log for other_user directly in DB
+        other_log = PracticeLog(
+            user_id=other_user.id,
+            practice_date=date(2026, 3, 2),
+            duration_minutes=60,
+        )
+        db_session.add(other_log)
+        await db_session.commit()
+
+        # User 1 should only see their own log
+        resp = await client.get("/api/logs/")
+        assert len(resp.json()) == 1
+        assert resp.json()[0]["duration_minutes"] == 30
 
     async def test_filter_by_template(self, client: AsyncClient, test_template):
         # Create logs with and without template

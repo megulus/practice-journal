@@ -1,5 +1,14 @@
 """Tests for templates API endpoints (templates, days, blocks, exercises)."""
 from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models import (
+    PracticeTemplate,
+    PracticeDay,
+    ExerciseBlock,
+    Exercise,
+    Instrument,
+)
 
 
 class TestListTemplates:
@@ -95,7 +104,7 @@ class TestUpdateTemplate:
             f"/api/templates/{test_template.id}",
             json={"days_count": 3},
         )
-        # Then decrease to 1
+        # Then decrease to 1 — should keep day 1, remove days 2 and 3
         resp = await client.put(
             f"/api/templates/{test_template.id}",
             json={"days_count": 1},
@@ -104,6 +113,7 @@ class TestUpdateTemplate:
         data = resp.json()
         assert data["days_count"] == 1
         assert len(data["practice_days"]) == 1
+        assert data["practice_days"][0]["day_number"] == 1
 
 
 class TestDeleteTemplate:
@@ -209,6 +219,12 @@ class TestBlockCRUD:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
+        # Verify the order actually changed
+        day_resp = await client.get(f"/api/templates/{test_template.id}/days/1")
+        blocks = day_resp.json()["exercise_blocks"]
+        block_ids_in_order = [b["id"] for b in sorted(blocks, key=lambda b: b["display_order"])]
+        assert block_ids_in_order == [id2, id1]
+
 
 class TestExerciseCRUD:
     async def _create_block(self, client, template_id, block_type_id):
@@ -278,4 +294,84 @@ class TestExerciseCRUD:
             f"/api/templates/{test_template.id}/days/1/blocks/{block_id}/exercises/99999",
             json={"exercise_text": "Doesn't exist"},
         )
+        assert resp.status_code == 404
+
+
+class TestCopyTemplate:
+    async def test_copy_system_template(
+        self, client: AsyncClient, db_session: AsyncSession, test_block_type
+    ):
+        """Copying a system template creates a user-owned deep copy."""
+        # Create a system template with a day, block, and exercise
+        instrument = Instrument(name="Piano", is_system=True)
+        db_session.add(instrument)
+        await db_session.commit()
+        await db_session.refresh(instrument)
+
+        sys_template = PracticeTemplate(
+            instrument_id=instrument.id,
+            name="System Scales",
+            days_count=1,
+            is_system=True,
+        )
+        db_session.add(sys_template)
+        await db_session.commit()
+        await db_session.refresh(sys_template)
+
+        day = PracticeDay(template_id=sys_template.id, day_number=1, title="Day 1")
+        db_session.add(day)
+        await db_session.commit()
+        await db_session.refresh(day)
+
+        block = ExerciseBlock(
+            practice_day_id=day.id,
+            block_type=test_block_type.slug,
+            block_type_id=test_block_type.id,
+            duration_minutes=15,
+            display_order=0,
+        )
+        db_session.add(block)
+        await db_session.commit()
+        await db_session.refresh(block)
+
+        exercise = Exercise(
+            block_id=block.id,
+            exercise_text="C Major Scale",
+            tempo_bpm=100,
+            key="C Major",
+            display_order=0,
+        )
+        db_session.add(exercise)
+        await db_session.commit()
+
+        # Copy the system template
+        resp = await client.post(f"/api/templates/{sys_template.id}/copy")
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["message"] == "Template copied successfully"
+        assert data["template"]["name"] == "System Scales"
+        assert data["template"]["is_system"] is False
+        assert data["id"] != sys_template.id
+
+        # Verify nested data was copied by fetching the new template
+        get_resp = await client.get(f"/api/templates/{data['id']}")
+        assert get_resp.status_code == 200
+        copied = get_resp.json()
+        assert len(copied["practice_days"]) == 1
+        assert len(copied["practice_days"][0]["exercise_blocks"]) == 1
+        copied_block = copied["practice_days"][0]["exercise_blocks"][0]
+        assert copied_block["duration_minutes"] == 15
+        assert len(copied_block["exercises"]) == 1
+        assert copied_block["exercises"][0]["exercise_text"] == "C Major Scale"
+        assert copied_block["exercises"][0]["tempo_bpm"] == 100
+
+    async def test_copy_nonexistent_template(self, client: AsyncClient):
+        resp = await client.post("/api/templates/99999/copy")
+        assert resp.status_code == 404
+
+    async def test_copy_non_system_template(
+        self, client: AsyncClient, test_template
+    ):
+        """User templates (non-system) cannot be copied via this endpoint."""
+        resp = await client.post(f"/api/templates/{test_template.id}/copy")
         assert resp.status_code == 404

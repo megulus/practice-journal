@@ -25,7 +25,9 @@ class TestUpdateSettings:
         assert resp.json()["suggestions_enabled"] is False
 
     async def test_partial_update_ignores_unknown_fields(self, client: AsyncClient):
-        resp = await client.patch("/api/settings/", json={})
+        resp = await client.patch(
+            "/api/settings/", json={"nonexistent_field": "foo", "another": 123}
+        )
         assert resp.status_code == 200
-        # Should still return valid settings with defaults
-        assert "suggestions_enabled" in resp.json()
+        # Should still return valid settings with defaults unchanged
+        assert resp.json()["suggestions_enabled"] is True
