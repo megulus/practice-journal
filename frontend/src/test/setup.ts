@@ -3,6 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
 
 // ---------------------------------------------------------------------------
+// jsdom stubs for missing DOM APIs
+// ---------------------------------------------------------------------------
+Element.prototype.scrollIntoView = vi.fn()
+
+// ---------------------------------------------------------------------------
 // Mock next/navigation (App Router)
 // ---------------------------------------------------------------------------
 vi.mock('next/navigation', () => ({
@@ -27,6 +32,7 @@ vi.mock('@clerk/nextjs', () => ({
     userId: 'test-user-id',
   }),
   useUser: () => ({
+    isLoaded: true,
     isSignedIn: true,
     user: {
       id: 'test-user-id',
