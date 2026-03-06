@@ -45,6 +45,38 @@ describe('SuggestionCard', () => {
     expect(onDismiss).toHaveBeenCalledOnce()
   })
 
+  it('calls onNotYet when Not yet button is clicked', async () => {
+    const onNotYet = vi.fn()
+    const user = userEvent.setup()
+
+    render(<SuggestionCard suggestion={baseSuggestion} onNotYet={onNotYet} />)
+
+    await user.click(screen.getByText('Not yet'))
+    expect(onNotYet).toHaveBeenCalledOnce()
+  })
+
+  it('shows action buttons in compact mode', async () => {
+    const onAccept = vi.fn()
+    const onDismiss = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <SuggestionCard
+        suggestion={baseSuggestion}
+        onAccept={onAccept}
+        onDismiss={onDismiss}
+        compact
+      />
+    )
+
+    // Compact mode uses "Accept" instead of "Update exercise"
+    await user.click(screen.getByText('Accept'))
+    expect(onAccept).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByText('Dismiss'))
+    expect(onDismiss).toHaveBeenCalledOnce()
+  })
+
   it('hides accept button when suggestion has no action', () => {
     const noActionSuggestion: Suggestion = {
       ...baseSuggestion,

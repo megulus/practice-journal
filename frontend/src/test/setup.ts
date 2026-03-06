@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
 
@@ -34,8 +35,8 @@ vi.mock('@clerk/nextjs', () => ({
       primaryEmailAddress: { emailAddress: 'test@example.com' },
     },
   }),
-  ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
-  SignedIn: ({ children }: { children: React.ReactNode }) => children,
-  SignedOut: ({ children }: { children: React.ReactNode }) => null,
+  ClerkProvider: ({ children }: { children: ReactNode }) => children,
+  SignedIn: ({ children }: { children: ReactNode }) => children,
+  SignedOut: ({ children }: { children: ReactNode }) => null,
   UserButton: () => null,
 }))
