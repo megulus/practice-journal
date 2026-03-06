@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -10,6 +10,10 @@ describe('ConfirmDialog', () => {
     onConfirm: vi.fn(),
     onCancel: vi.fn(),
   }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('renders title, message, and buttons', () => {
     render(<ConfirmDialog {...defaultProps} />)

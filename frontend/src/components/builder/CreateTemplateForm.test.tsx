@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import CreateTemplateForm from './CreateTemplateForm'
 
@@ -8,6 +8,11 @@ describe('CreateTemplateForm', () => {
     onCreated: vi.fn(),
     onCancel: vi.fn(),
   }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    defaultProps.onCreateTemplate.mockResolvedValue(42)
+  })
 
   it('renders form fields', () => {
     render(<CreateTemplateForm {...defaultProps} />)
@@ -39,8 +44,8 @@ describe('CreateTemplateForm', () => {
         daysCount: 3,
         description: undefined,
       })
+      expect(onCreated).toHaveBeenCalledWith(99)
     })
-    expect(onCreated).toHaveBeenCalledWith(99)
   })
 
   it('disables submit when name is empty', () => {
