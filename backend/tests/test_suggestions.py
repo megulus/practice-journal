@@ -34,6 +34,87 @@ class TestGetProgress:
         assert resp.status_code == 401
 
 
+class TestRecordInteraction:
+    async def test_record_shown(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/suggestions/interactions",
+            json={
+                "suggestion_rule_id": "consistency",
+                "suggestion_text": "It's been 5 days since your last practice.",
+                "interaction_type": "shown",
+            },
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["suggestion_rule_id"] == "consistency"
+        assert data["interaction_type"] == "shown"
+        assert "id" in data
+        assert "created_at" in data
+
+    async def test_record_dismissed(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/suggestions/interactions",
+            json={
+                "suggestion_rule_id": "balance",
+                "suggestion_text": "Try balancing your practice more.",
+                "interaction_type": "dismissed",
+                "instrument_id": None,
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["interaction_type"] == "dismissed"
+
+    async def test_record_acted_on(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/suggestions/interactions",
+            json={
+                "suggestion_rule_id": "warmup",
+                "suggestion_text": "Consider adding a warm-up.",
+                "interaction_type": "acted_on",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["interaction_type"] == "acted_on"
+
+    async def test_with_instrument_id(
+        self, client: AsyncClient, test_instrument,
+    ):
+        resp = await client.post(
+            "/api/suggestions/interactions",
+            json={
+                "suggestion_rule_id": "duration",
+                "suggestion_text": "Your sessions are getting shorter.",
+                "interaction_type": "shown",
+                "instrument_id": test_instrument.id,
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["instrument_id"] == test_instrument.id
+
+    async def test_invalid_interaction_type(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/suggestions/interactions",
+            json={
+                "suggestion_rule_id": "consistency",
+                "suggestion_text": "Test",
+                "interaction_type": "invalid_type",
+            },
+        )
+        assert resp.status_code == 400
+        assert "interaction_type" in resp.json()["detail"]
+
+    async def test_requires_auth(self, unauth_client: AsyncClient):
+        resp = await unauth_client.post(
+            "/api/suggestions/interactions",
+            json={
+                "suggestion_rule_id": "consistency",
+                "suggestion_text": "Test",
+                "interaction_type": "shown",
+            },
+        )
+        assert resp.status_code == 401
+
+
 class TestDismissSuggestion:
     async def test_dismiss_returns_success(self, client: AsyncClient):
         resp = await client.post("/api/suggestions/dismiss/some_key")

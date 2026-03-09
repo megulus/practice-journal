@@ -15,7 +15,9 @@ from sqlalchemy.orm import selectinload
 from app.database import get_session
 from app.models import (
     ExerciseProgress, Exercise, ExerciseBlock, PracticeDay,
-    PracticeTemplate, Instrument, User, UserSettings
+    PracticeTemplate, Instrument, User, UserSettings,
+    SuggestionInteraction, SuggestionInteractionCreate,
+    SuggestionInteractionRead, InteractionType,
 )
 from app.auth import get_current_user
 from app.suggestions import evaluate_session_rules, SessionSuggestion
@@ -47,6 +49,37 @@ async def get_session_suggestions(
     return await evaluate_session_rules(
         session, current_user.id, instrument_id
     )
+
+
+@router.post("/interactions", response_model=SuggestionInteractionRead, status_code=201)
+async def record_suggestion_interaction(
+    interaction_data: SuggestionInteractionCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Record a user interaction with a suggestion (shown, dismissed, or acted_on).
+    """
+    # Validate interaction_type
+    valid_types = [t.value for t in InteractionType]
+    if interaction_data.interaction_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid interaction_type. Must be one of: {valid_types}",
+        )
+
+    interaction = SuggestionInteraction(
+        user_id=current_user.id,
+        instrument_id=interaction_data.instrument_id,
+        suggestion_rule_id=interaction_data.suggestion_rule_id,
+        suggestion_text=interaction_data.suggestion_text,
+        interaction_type=interaction_data.interaction_type,
+        metadata_json=interaction_data.metadata_json,
+    )
+    session.add(interaction)
+    await session.commit()
+    await session.refresh(interaction)
+    return interaction
 
 
 @router.get("/progress")
