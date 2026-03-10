@@ -22,6 +22,7 @@ import type {
   SuggestionAction,
   UserSettings,
   UserSettingsUpdate,
+  SuggestionInteractionCreate,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -251,6 +252,12 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
           body: JSON.stringify(action),
         }
       ),
+
+    recordInteraction: (data: SuggestionInteractionCreate) =>
+      authFetchAPI<void>('/api/suggestions/interactions', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
 
     // Settings
     getSettings: () =>

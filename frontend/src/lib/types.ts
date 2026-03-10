@@ -203,6 +203,17 @@ export interface UserSettingsUpdate {
   suggestions_enabled?: boolean
 }
 
+// Suggestion interaction tracking
+export type InteractionType = 'shown' | 'dismissed' | 'acted_on'
+
+export interface SuggestionInteractionCreate {
+  suggestion_rule_id: string
+  suggestion_text: string
+  interaction_type: InteractionType
+  instrument_id?: number
+  metadata_json?: string
+}
+
 // Suggestion types for rules engine
 export type SuggestionType =
   | 'tempo_increase'

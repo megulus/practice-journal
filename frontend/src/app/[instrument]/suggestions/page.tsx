@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import SuggestionCard from '@/components/SuggestionCard'
 import { evaluateRules } from '@/lib/progressionRules'
-import type { UserInstrument, Suggestion } from '@/lib/types'
+import type { UserInstrument, Suggestion, InteractionType } from '@/lib/types'
 
 export default function SuggestionsPage() {
   const params = useParams()
@@ -81,11 +81,23 @@ export default function SuggestionsPage() {
     }
   }
 
+  const trackInteraction = (suggestion: Suggestion, type: InteractionType) => {
+    api.recordInteraction({
+      suggestion_rule_id: suggestion.type,
+      suggestion_text: suggestion.message,
+      interaction_type: type,
+      instrument_id: suggestion.instrument_id ?? undefined,
+    }).catch((err) => {
+      console.error('Failed to record interaction:', err)
+    })
+  }
+
   const allSuggestions = [...sessionSuggestions, ...exerciseSuggestions]
 
   const handleAcceptSuggestion = async (suggestion: Suggestion) => {
     if (!suggestion.action) return
     try {
+      trackInteraction(suggestion, 'acted_on')
       await api.acceptSuggestion(suggestion.key, suggestion.action)
       setSessionSuggestions(sessionSuggestions.filter((s) => s.key !== suggestion.key))
       setExerciseSuggestions(exerciseSuggestions.filter((s) => s.key !== suggestion.key))
@@ -98,6 +110,7 @@ export default function SuggestionsPage() {
 
   const handleDismissSuggestion = async (suggestion: Suggestion) => {
     try {
+      trackInteraction(suggestion, 'dismissed')
       await api.dismissSuggestion(suggestion.key)
       setSessionSuggestions(sessionSuggestions.filter((s) => s.key !== suggestion.key))
       setExerciseSuggestions(exerciseSuggestions.filter((s) => s.key !== suggestion.key))
