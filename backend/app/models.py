@@ -33,6 +33,13 @@ class PracticeOutcome(str, Enum):
     NAILED_IT = "nailed_it"
 
 
+class InteractionType(str, Enum):
+    """Type of user interaction with a suggestion"""
+    SHOWN = "shown"
+    DISMISSED = "dismissed"
+    ACTED_ON = "acted_on"
+
+
 class User(SQLModel, table=True):
     """User account (authenticated via Clerk)"""
     __tablename__ = "users"  # type: ignore[assignment]
@@ -61,6 +68,41 @@ class UserSettings(SQLModel, table=True):
     suggestions_enabled: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+
+
+class SuggestionInteraction(SQLModel, table=True):
+    """Tracks user interactions with practice suggestions"""
+    __tablename__ = "suggestion_interactions"  # type: ignore[assignment]
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    instrument_id: Optional[int] = Field(default=None, foreign_key="instruments.id")
+    suggestion_rule_id: str = Field(max_length=100)
+    suggestion_text: str
+    interaction_type: str = Field(max_length=20)  # Stores InteractionType value
+    metadata_json: Optional[str] = Field(default=None)  # JSON string for extensibility
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class SuggestionInteractionCreate(SQLModel):
+    """Schema for recording a suggestion interaction"""
+    suggestion_rule_id: str
+    suggestion_text: str
+    interaction_type: str  # One of InteractionType values
+    instrument_id: Optional[int] = None
+    metadata_json: Optional[str] = None
+
+
+class SuggestionInteractionRead(SQLModel):
+    """Response schema for suggestion interactions"""
+    model_config = {"from_attributes": True}
+
+    id: int
+    suggestion_rule_id: str
+    suggestion_text: str
+    interaction_type: str
+    instrument_id: Optional[int] = None
+    created_at: datetime
 
 
 class Instrument(SQLModel, table=True):
