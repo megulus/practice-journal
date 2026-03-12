@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
+import DashboardSuggestions from '@/components/DashboardSuggestions'
 import type { UserInstrument, PracticeTemplate } from '@/lib/types'
 
 export default function InstrumentPage() {
@@ -120,6 +121,12 @@ export default function InstrumentPage() {
                 </p>
               </button>
             </div>
+
+            <DashboardSuggestions
+              instrumentId={userInstrument.instrument.id}
+              instrumentName={instrumentName}
+              api={api}
+            />
           </div>
         </div>
       </div>
