@@ -73,9 +73,12 @@ Bottom tab navigation
 │   ├── Active session (plan view + inline logging)
 │   └── Session summary (post-practice results)
 ├── Progress
-│   ├── Session history
-│   ├── Analytics dashboard
-│   └── Exercise progress
+│   ├── History (default sub-tab)
+│   │   └── Session list (expandable)
+│   └── Insights (sub-tab)
+│       ├── Practice calendar heatmap
+│       ├── Time comparisons
+│       └── Rating trend
 ├── Plans
 │   ├── Template list
 │   ├── Template editor
@@ -144,12 +147,17 @@ Each section (warm-up, scales, repertoire, etc.) contains:
 
 **Rating indicator (chevrons):**
 
-Three circular buttons per exercise, each containing a directional arrow:
-- **Down chevron** = Struggled (amber background when selected: #FAEEDA fill, #BA7517 stroke)
-- **Horizontal line** = Okay (gray background when selected)
-- **Up chevron** = Nailed it (teal background when selected: #E1F5EE fill, #0F6E56 stroke)
+Three circular buttons per exercise, each containing a directional arrow. The rating measures **trajectory, not quality** — "how did this compare to last time?" rather than "how good was that?" This framing is deliberate: musicians are notoriously self-critical, and asking them to declare victory ("Nailed it") skews data negative and makes logging feel punishing. Asking about direction is an observation, not a boast.
 
-Directional shape encodes meaning independently of color (accessible to colorblind users). A text label ("Struggled", "Okay", "Nailed it") appears on selection for the first few uses.
+- **Down chevron** = Step back (amber background when selected: #FAEEDA fill, #BA7517 stroke) — harder than last time, or something regressed
+- **Horizontal line** = Steady (gray background when selected) — about the same as last time
+- **Up chevron** = Step forward (teal background when selected: #E1F5EE fill, #0F6E56 stroke) — improvement, even small
+
+Directional shape encodes meaning independently of color (accessible to colorblind users). A text label ("Step back", "Steady", "Step forward") appears on selection for the first few uses. The framing is consistent from the first session onward — even without a prior session to compare against, users can interpret the scale against their own internal baseline.
+
+**Per-exercise notes:**
+
+Each exercise row includes a small "add note" link that expands an inline text field below the exercise. Notes are scoped to a specific block (stored in BlockLog), not the whole session. This is where users write observations like "intonation still shaky in the top octave of mm. 24–28." The suggestions engine can surface these back in future sessions ("Last session you noted..."). The note field is optional and collapsed by default — zero friction for users who just want to tap ratings and move on.
 
 **In-the-moment suggestions:**
 
@@ -171,11 +179,32 @@ The post-practice reward screen. Answers: "How did that go?"
 
 **"What you practiced" list:**
 
-Each exercise shown with a colored dot (teal for completed, gray for skipped) and its rating in words ("Nailed it", "Struggled", "Skipped").
+Each exercise shown with a colored dot and its rating in words:
+- Teal dot + "Step forward" — exercise where the user improved
+- Gray dot + "Steady" — about the same as last time
+- Amber dot + "Step back" — something regressed
+- Light gray dot + "Skipped" — exercise not completed
+
+Per-exercise notes from the active session are displayed inline below the relevant exercise, providing context for the rating.
 
 **Post-session suggestion:**
 
-A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your Bruch slow practice is trending in the right direction: you struggled less on mm. 17–32 than last time."
+A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your mm. 1–16 are trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
+
+**Guided reflection prompt:**
+
+Below the coaching card, a rotating question with a single optional text field. The prompt encourages noticing over evaluating — it should work equally well whether the session went great or rough. The answer is stored on the PracticeLog alongside session-level notes.
+
+Prompt rotation pool (11 prompts):
+
+- *Progress-oriented:* "What felt different today?" / "What was easier than you expected?" / "Did anything click that hadn't before?"
+- *Forward-looking:* "What do you want to focus on next time?" / "If you had 10 more minutes, what would you spend them on?"
+- *Awareness-building:* "What did you notice about your playing today?" / "Where did your attention go during the session?" / "Was there a moment you want to remember?"
+- *Honest check-in:* "What was the hardest part of today's session?" / "Did anything surprise you?" / "How does your body feel after playing?"
+
+Styled with a brief subtext: "Optional — a moment to notice what you might forget later." Placeholder text models a good answer (e.g., "Felt more relaxed in the left hand. Maybe the new warm-up is helping...").
+
+Rotation rules: the app should avoid showing the same prompt twice in a row and should not repeat any of the last 3 prompts shown. No sophisticated algorithm needed — a shuffle with recency exclusion is sufficient.
 
 **Actions:**
 - "Done" button (primary) — returns to Today tab.
@@ -244,20 +273,94 @@ The bottom nav appears on step 4 (user is now "in" the app). Steps 1–3 do not 
 
 ### 5.7 Progress tab
 
-**Not yet wireframed.** Planned contents:
+The Progress tab uses two sub-tabs: **History** (default) and **Insights**. Both sub-tabs share the instrument pill toggle at the top (same behavior as the Today tab — switches all content to the selected instrument).
 
-- **Session history:** Chronological list of past sessions with date, session name, duration, and expandable detail (exercises, ratings, notes). Filterable by instrument, session type, and date range.
-- **Analytics dashboard:** Practice frequency over time (chart), total time by period (this week vs. last week), average session duration trends, section-type distribution.
-- **Exercise progress:** Per-exercise view showing ratings over time, notes history, and tempo/difficulty progression.
-- **Pattern-level suggestions:** Structural coaching insights that surface here rather than on the Today tab. Example: "Your average session is 15 minutes shorter on weekends" or "You tend to skip cool-down sections."
+**Pattern-level suggestion cards** appear at the top of both sub-tabs, styled with an info-blue accent to distinguish them from the amber pre-session suggestions on the Today tab. The suggestion content can differ between sub-tabs: History might surface session-specific patterns ("You tend to skip cool-down sections"), while Insights might surface frequency patterns ("Your average session is 15 min shorter on weekends"). Suggestions are dismissible and follow the same server-side tracking as other suggestion tiers.
+
+#### History sub-tab (default)
+
+A reverse-chronological list of past sessions. Each session card shows:
+
+**Collapsed state (default):**
+- Date (e.g., "Sat, Mar 21")
+- Session name / day focus (e.g., "Technique focus")
+- Plan source and rotation position (e.g., "Learn the Bruch concerto · session 2 of 7") — or "Off-plan · no template" for freeform sessions
+- Total duration
+- Exercise count
+- Expand/collapse affordance
+
+**Expanded state:**
+- All collapsed-state info, plus:
+- Block list with colored dots matching the rating scheme (teal = step forward, gray = steady, amber = step back, light gray = skipped) and rating label in words
+- Per-exercise notes displayed inline below the relevant exercise (if any were logged)
+- Session-level notes (if any)
+- Reflection prompt response (if any)
+
+**Filtering:** A row of time-range pills (All sessions / This week / This month) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+
+#### Insights sub-tab
+
+Four components, each answering a distinct question about the user's practice:
+
+**1. Practice calendar heatmap**
+
+A GitHub-style contribution grid showing practice activity over the year. Rows are days of the week (Mon–Sun), columns are months. Cell intensity maps to practice duration (not just binary practiced/didn't-practice), using the teal ramp: empty (no practice), light, medium, dark, full. A legend ("Less → More") sits below the grid.
+
+This is the primary consistency motivator — the user can see the pattern of their week/month at a glance. It answers: "Am I showing up?"
+
+**2. Time comparisons ("This week vs. last")**
+
+Two side-by-side stat cards showing:
+- Days practiced (with delta, e.g., "+1 day vs. last week")
+- Total practice time
+
+Below the stat cards, a paired bar chart shows daily breakdown for the current and previous week (teal bars = this week, gray bars = last week). This makes weekly patterns visible at a glance.
+
+Answers: "Am I practicing consistently?"
+
+**3. Rating trend ("How it's going")**
+
+Stacked horizontal bars showing the step back / steady / step forward distribution for each of the last 4 weeks. Uses the same amber / gray / teal color scheme as the rating chevrons. A plain-language summary sits below the chart (e.g., "Trending up — more exercises moving forward each week").
+
+This is the key differentiator from other practice trackers — it directly answers: "Am I getting better?" No other app in the competitive landscape visualizes improvement trajectory this way.
+
+**4. Pattern-level suggestion card** (described above, shared with History sub-tab)
+
+**Deferred to a later release:** Section-type distribution (where time goes), per-exercise drill-down views, and exercise-level progress timelines. These are valuable but not emotionally compelling enough for v1 — they're "hmm, neat" rather than "yes, I'm getting better."
 
 ### 5.8 Profile tab
 
-**Not yet wireframed.** Contains:
+A single scrollable page (no sub-tabs — not enough content to justify them) with four sections:
 
-- **Instruments:** Add, remove, configure instruments. Each instrument can have a practice frequency setting ("I aim to practice this: daily / a few times a week / weekly / occasionally") which calibrates the suggestions engine and the Today tab's instrument rotation.
-- **Settings:** Suggestions opt-in/out (with a possible "fewer suggestions" middle option that limits suggestions to the session summary screen only). Other app preferences.
-- **Account:** Clerk-managed authentication and profile.
+**Account header:**
+
+Compact row showing avatar (initials circle), display name, email, and a "Manage account" link that opens Clerk's account management UI. Clerk handles authentication, password changes, and profile editing.
+
+**My instruments:**
+
+Each instrument is a card showing:
+- Instrument name with an "edit" link (opens detail view for removing the instrument, viewing its plans, etc.)
+- Practice frequency setting as inline pills: Daily / Few times a week / Weekly / Occasionally. Adjustable directly on the card — no drill-down needed. This setting calibrates the suggestions engine and Today tab instrument rotation (see section 6).
+- Summary line: number of active plans and last practice date (e.g., "1 active plan · last practiced today")
+
+"+ Add instrument" button below the instrument cards (dashed border style, matching the template editor's "+ Add section" pattern).
+
+**Coaching suggestions:**
+
+Three radio button options with descriptions:
+- **All suggestions** — "Before, during, and after practice." Pre-session nudges, in-the-moment coaching, post-session reflection, and pattern-level insights are all active.
+- **Fewer suggestions** — "Only in session summaries and Insights." Disables pre-session nudges and in-the-moment coaching. Post-session coaching cards and Progress tab pattern insights remain.
+- **Off** — "No coaching suggestions anywhere." All suggestion tiers disabled.
+
+**Preferences:**
+
+Slim for v1:
+- **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
+- **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
+
+Additional preferences can slot in here as needed in later releases.
+
+**Sign out** button at the bottom (danger-colored text, no fill).
 
 ---
 
@@ -285,7 +388,7 @@ Five rules analyze practice patterns and surface coaching nudges. Suggestions ar
 |------|----------|--------|----------|
 | Pre-session nudges | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
 | In-the-moment coaching | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
-| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your Bruch slow practice is trending: you struggled less on mm. 17–32 than last time." |
+| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your mm. 1–16 are trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
 | Pattern-level insights | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
 
 ### Design principles for suggestions
@@ -299,7 +402,7 @@ Five rules analyze practice patterns and surface coaching nudges. Suggestions ar
 ### User controls
 
 - Global opt-out in Settings.
-- "Fewer suggestions" option limits suggestions to the session summary screen only.
+- "Fewer suggestions" option limits suggestions to the session summary screen and the Insights sub-tab only.
 - Individual suggestions are dismissible (tracked server-side so dismissed suggestions don't reappear).
 
 ---
@@ -324,8 +427,8 @@ Key entities and their relationships (for developer reference, not a full schema
 - **Session (template unit)** — belongs to Template, has name (user-provided), focus description, order in rotation, has many Sections
 - **Section** — belongs to Session, has type (warm-up, scales, repertoire, etc.), has many Blocks, has estimated duration
 - **Block** — belongs to Section, has name, description, estimated duration, metadata (tempo, key, difficulty), order in section. May reference a curated block from the library.
-- **PracticeLog** — belongs to Instrument, optionally linked to a Template and Session. Has date, total duration, notes. Has many BlockLogs.
-- **BlockLog** — belongs to PracticeLog, linked to a Block (or freeform). Has actual duration, rating (1=struggled, 2=okay, 3=nailed it), notes.
+- **PracticeLog** — belongs to Instrument, optionally linked to a Template and Session. Has date, total duration, notes, reflection_prompt (which rotating question was shown), reflection_response (user's answer, nullable). Has many BlockLogs.
+- **BlockLog** — belongs to PracticeLog, linked to a Block (or freeform). Has actual duration, rating (-1=step back, 0=steady, 1=step forward), notes (per-exercise note, nullable).
 - **Suggestion** — engine-generated, linked to User/Instrument. Has type, content, dismissed status.
 - **CuratedBlock** — instrument-specific library entry. Has name, description, category, usage count (for popularity ranking).
 
@@ -350,15 +453,18 @@ Wireframes were developed in conversation and should be saved as screenshots in 
 | File | Description |
 |------|-------------|
 | `today-tab.png` | Today tab with instrument toggle, suggestion, plan card, start button |
-| `active-session.png` | Active session with progress bar, inline logging, chevron ratings, time steppers |
-| `session-summary.png` | Post-practice summary with stats, exercise list, coaching suggestion |
+| `active-session.png` | Active session with progress bar, inline logging, directional ratings (step back/steady/step forward), per-exercise notes, time steppers |
+| `session-summary.png` | Post-practice summary with stats, exercise list with directional ratings and notes, coaching suggestion, guided reflection prompt |
 | `quickstart-step1.png` | Wizard step 1: instrument selection |
 | `quickstart-step2.png` | Wizard step 2: what are you working on |
 | `quickstart-step3.png` | Wizard step 3: session area selection |
 | `quickstart-step4.png` | Wizard step 4: time budget and plan preview |
 | `template-editor.png` | Template editor with session tabs, section cards, block list |
 | `block-library.png` | Add block screen with curated library and custom creation |
-| `rating-chevrons.png` | Rating indicator design: chevron style with color |
+| `rating-chevrons.png` | Rating indicator design: directional chevrons (step back/steady/step forward) with amber/gray/teal color |
+| `progress-history.png` | Progress tab, History sub-tab: pattern suggestion card, time filters, session list with expanded/collapsed states |
+| `progress-insights.png` | Progress tab, Insights sub-tab: pattern suggestion card, practice calendar heatmap, weekly time comparisons with bar chart, rating trend stacked bars |
+| `profile.png` | Profile tab: account header, instrument cards with inline frequency settings, coaching suggestions radio options, preferences |
 
 ### Wireframe conventions
 
