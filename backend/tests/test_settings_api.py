@@ -71,9 +71,53 @@ class TestUpdateSettings:
         assert resp.status_code == 200
         assert resp.json()["suggestions_preference"] == "off"
 
+    async def test_empty_body_returns_unchanged(self, client: AsyncClient):
+        await client.get("/api/settings")
+        resp = await client.patch("/api/settings", json={})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["suggestions_preference"] == "all"
+        assert data["default_session_duration_minutes"] == 30
+        assert data["week_starts_on"] == "monday"
+
+    async def test_invalid_duration_returns_422(self, client: AsyncClient):
+        resp = await client.patch(
+            "/api/settings",
+            json={"default_session_duration_minutes": 0},
+        )
+        assert resp.status_code == 422
+
     async def test_unauthenticated_returns_401(self, unauth_client: AsyncClient):
         resp = await unauth_client.patch(
             "/api/settings",
             json={"suggestions_preference": "off"},
         )
         assert resp.status_code == 401
+
+
+class TestSettingsCrossUserIsolation:
+    async def test_users_have_separate_settings(
+        self, db_session, test_user, other_user
+    ):
+        """Verify settings are scoped per-user at the DB level."""
+        from app.models import UserSettings
+
+        # Create settings for both users
+        s1 = UserSettings(user_id=test_user.id, suggestions_preference="off")
+        s2 = UserSettings(user_id=other_user.id)  # defaults
+        db_session.add(s1)
+        db_session.add(s2)
+        await db_session.commit()
+
+        from sqlmodel import select
+
+        # Verify each user sees their own settings
+        result = await db_session.exec(
+            select(UserSettings).where(UserSettings.user_id == test_user.id)
+        )
+        assert result.first().suggestions_preference == "off"
+
+        result = await db_session.exec(
+            select(UserSettings).where(UserSettings.user_id == other_user.id)
+        )
+        assert result.first().suggestions_preference == "all"

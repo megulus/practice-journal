@@ -235,6 +235,36 @@ async def client(test_engine, test_user: User):
 
 
 @pytest_asyncio.fixture
+async def other_user_client(test_engine, other_user: User):
+    """Async HTTP client authenticated as other_user.
+
+    WARNING: Do not use in the same test as `client` — both share the same
+    app.dependency_overrides dict and will interfere with each other.
+    """
+    from app.main import app
+    from app.database import get_session
+    from app.auth import get_current_user, get_current_user_optional
+
+    async def _override_current_user():
+        return other_user
+
+    async def _override_current_user_optional():
+        return other_user
+
+    app.dependency_overrides[get_session] = _make_session_override(test_engine)
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_current_user_optional] = _override_current_user_optional
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    del app.dependency_overrides[get_session]
+    del app.dependency_overrides[get_current_user]
+    del app.dependency_overrides[get_current_user_optional]
+
+
+@pytest_asyncio.fixture
 async def unauth_client(test_engine):
     """
     Async HTTP client with NO auth — for testing unauthenticated access.

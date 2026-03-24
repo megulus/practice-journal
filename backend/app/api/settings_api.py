@@ -49,10 +49,9 @@ async def update_settings(
     """Partially update user's settings."""
     settings = await _get_or_create_settings(session, current_user.id)
 
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = body.model_dump(exclude_unset=True, mode="json")
     for field, value in update_data.items():
-        # Convert enum values to strings for storage
-        setattr(settings, field, value.value if hasattr(value, "value") else value)
+        setattr(settings, field, value)
 
     session.add(settings)
     await session.commit()
