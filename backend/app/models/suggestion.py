@@ -4,7 +4,8 @@ SuggestionDismissal and SuggestionInteraction models.
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
-from sqlalchemy import Index, UniqueConstraint
+from sqlalchemy import UniqueConstraint
+from app.enums import utcnow
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -31,7 +32,7 @@ class SuggestionDismissal(SQLModel, table=True):
     )
     suggestion_rule_id: str = Field(max_length=100)
     suggestion_tier: str = Field(max_length=30)
-    dismissed_at: datetime = Field(default_factory=datetime.utcnow)
+    dismissed_at: datetime = Field(default_factory=utcnow)
 
     # Relationships
     user: Optional["User"] = Relationship(
@@ -56,7 +57,7 @@ class SuggestionInteraction(SQLModel, table=True):
     suggestion_text: str
     interaction_type: str = Field(max_length=20)
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, index=True
+        default_factory=utcnow, index=True
     )
 
     # Relationships

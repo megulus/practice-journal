@@ -4,7 +4,8 @@ Template, TemplateSession, Section, and Block models.
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 
-from sqlalchemy import Index
+import sqlalchemy as sa
+from app.enums import utcnow
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -18,11 +19,11 @@ class Template(SQLModel, table=True):
     """Practice plan belonging to an instrument."""
     __tablename__ = "templates"
     __table_args__ = (
-        Index(
+        sa.Index(
             "ix_templates_one_active_per_instrument",
             "instrument_id",
             unique=True,
-            postgresql_where="is_active = true AND deleted_at IS NULL",
+            postgresql_where=sa.text("is_active = true AND deleted_at IS NULL"),
         ),
     )
 
@@ -33,9 +34,9 @@ class Template(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
     is_active: bool = Field(default=True)
     current_rotation_index: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
     deleted_at: Optional[datetime] = Field(default=None)
 
@@ -53,8 +54,7 @@ class TemplateSession(SQLModel, table=True):
     """Named rotation unit within a template."""
     __tablename__ = "template_sessions"
     __table_args__ = (
-        # Each session has a unique position within its template
-        Index(
+        sa.Index(
             "uq_template_sessions_template_order",
             "template_id",
             "display_order",
@@ -67,9 +67,9 @@ class TemplateSession(SQLModel, table=True):
     name: str = Field(max_length=200)
     focus_description: Optional[str] = Field(default=None)
     display_order: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
 
     # Relationships
@@ -95,9 +95,9 @@ class Section(SQLModel, table=True):
     section_type: str = Field(max_length=30)
     estimated_duration_minutes: int = Field(default=5)
     display_order: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
 
     # Relationships
@@ -126,9 +126,9 @@ class Block(SQLModel, table=True):
     key: Optional[str] = Field(default=None, max_length=50)
     difficulty_level: Optional[int] = Field(default=None)
     display_order: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
 
     # Relationships

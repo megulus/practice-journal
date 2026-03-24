@@ -4,6 +4,7 @@ Instrument model — user-owned instruments with practice frequency.
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 
+from app.enums import utcnow
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -24,9 +25,9 @@ class Instrument(SQLModel, table=True):
         default="few_times_a_week", max_length=30
     )
     display_order: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
     deleted_at: Optional[datetime] = Field(default=None)
 

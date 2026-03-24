@@ -69,11 +69,38 @@ async def _teardown_test_db():
     await engine.dispose()
 
 
-async def _create_tables():
-    """Create all SQLModel tables in the test database."""
-    engine = create_async_engine(_TEST_DB_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+async def _run_migrations():
+    """Run Alembic migrations against the test database.
+
+    Uses the real migration rather than SQLModel.metadata.create_all so that
+    column types (e.g. TIMESTAMPTZ), partial indexes, and SET NULL FKs match
+    what runs in production.
+    """
+    from alembic.config import Config
+    from alembic import command
+    from alembic.runtime.environment import EnvironmentContext
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import pool
+
+    alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    alembic_cfg.set_main_option("sqlalchemy.url", _TEST_DB_URL)
+
+    engine = create_async_engine(_TEST_DB_URL, poolclass=pool.NullPool)
+    script = ScriptDirectory.from_config(alembic_cfg)
+
+    def do_upgrade(rev, context):
+        return script._upgrade_revs("head", rev)
+
+    async with engine.connect() as connection:
+        context = EnvironmentContext(alembic_cfg, script, fn=do_upgrade)
+        await connection.run_sync(
+            lambda sync_conn: context.configure(
+                connection=sync_conn, target_metadata=SQLModel.metadata
+            )
+        )
+        await connection.run_sync(lambda sync_conn: context.run_migrations())
+        await connection.commit()
+
     await engine.dispose()
 
 
@@ -83,7 +110,7 @@ def setup_test_database():
     global _session_failed
 
     asyncio.run(_setup_test_db())
-    asyncio.run(_create_tables())
+    asyncio.run(_run_migrations())
 
     yield
 

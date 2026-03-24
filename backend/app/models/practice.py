@@ -5,6 +5,7 @@ from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime, date
 
 import sqlalchemy as sa
+from app.enums import utcnow
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -50,9 +51,9 @@ class PracticeLog(SQLModel, table=True):
     notes: Optional[str] = Field(default=None)
     reflection_prompt: Optional[str] = Field(default=None)
     reflection_response: Optional[str] = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
     deleted_at: Optional[datetime] = Field(default=None)
 
@@ -95,7 +96,7 @@ class SectionLog(SQLModel, table=True):
     actual_duration_minutes: int = Field(default=0)
     display_order: int = Field(default=0)
     completed: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
     # Relationships
     practice_log: Optional[PracticeLog] = Relationship(
@@ -124,11 +125,14 @@ class BlockLog(SQLModel, table=True):
         ),
     )
     block_name: str = Field(max_length=200)
-    rating: Optional[int] = Field(default=None)
+    rating: Optional[int] = Field(
+        default=None,
+        sa_column=sa.Column(sa.SmallInteger, nullable=True),
+    )
     notes: Optional[str] = Field(default=None)
     completed: bool = Field(default=True)
     display_order: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
     # Relationships
     section_log: Optional[SectionLog] = Relationship(

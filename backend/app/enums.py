@@ -1,7 +1,18 @@
 """
-Kantelo enums — shared across models, schemas, and business logic.
+Kantelo enums and shared utilities — used across models, schemas, and business logic.
 """
 from enum import Enum
+from datetime import datetime, timezone
+
+
+def utcnow() -> datetime:
+    """Return current UTC time as a naive datetime.
+
+    Naive (tzinfo=None) because asyncpg requires naive datetimes for
+    TIMESTAMP columns, and PostgreSQL TIMESTAMPTZ interprets naive values
+    as UTC. Avoids the deprecated datetime.utcnow().
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class PracticeFrequency(str, Enum):

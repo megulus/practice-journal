@@ -55,12 +55,12 @@ def upgrade() -> None:
         sa.Column("last_name", sa.String(255), nullable=True),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
-        sa.Column("deleted_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_users_clerk_user_id", "users", ["clerk_user_id"], unique=True)
 
@@ -89,11 +89,11 @@ def upgrade() -> None:
         ),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index(
         "ix_user_settings_user_id", "user_settings", ["user_id"], unique=True
@@ -114,14 +114,19 @@ def upgrade() -> None:
         sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
-        sa.Column("deleted_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_instruments_user_id", "instruments", ["user_id"])
+    op.create_index(
+        "ix_instruments_user_deleted",
+        "instruments",
+        ["user_id", "deleted_at"],
+    )
 
     # --- templates ---
     op.create_table(
@@ -145,12 +150,12 @@ def upgrade() -> None:
         ),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
-        sa.Column("deleted_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_templates_user_id", "templates", ["user_id"])
     op.create_index("ix_templates_instrument_id", "templates", ["instrument_id"])
@@ -178,11 +183,11 @@ def upgrade() -> None:
         sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index(
         "ix_template_sessions_template_id", "template_sessions", ["template_id"]
@@ -215,11 +220,11 @@ def upgrade() -> None:
         sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index(
         "ix_sections_template_session_id", "sections", ["template_session_id"]
@@ -242,7 +247,7 @@ def upgrade() -> None:
         sa.Column("usage_count", sa.Integer, nullable=False, server_default="0"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
@@ -283,11 +288,11 @@ def upgrade() -> None:
         sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_blocks_section_id", "blocks", ["section_id"])
 
@@ -332,12 +337,12 @@ def upgrade() -> None:
         sa.Column("reflection_response", sa.Text, nullable=True),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.Column("updated_at", sa.DateTime, nullable=True),
-        sa.Column("deleted_at", sa.DateTime, nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_practice_logs_user_id", "practice_logs", ["user_id"])
     op.create_index(
@@ -388,7 +393,7 @@ def upgrade() -> None:
         sa.Column("completed", sa.Boolean, nullable=False, server_default="true"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
@@ -420,7 +425,7 @@ def upgrade() -> None:
         sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
@@ -444,7 +449,7 @@ def upgrade() -> None:
         sa.Column("suggestion_tier", sa.String(30), nullable=False),
         sa.Column(
             "dismissed_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
@@ -473,7 +478,7 @@ def upgrade() -> None:
         sa.Column("interaction_type", sa.String(20), nullable=False),
         sa.Column(
             "created_at",
-            sa.DateTime,
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),

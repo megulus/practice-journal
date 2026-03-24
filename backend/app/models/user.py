@@ -6,6 +6,8 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel, Relationship
 
+from app.enums import utcnow
+
 if TYPE_CHECKING:
     from app.models.instrument import Instrument
     from app.models.template import Template
@@ -22,9 +24,9 @@ class User(SQLModel, table=True):
     email: str = Field(max_length=255)
     first_name: Optional[str] = Field(default=None, max_length=255)
     last_name: Optional[str] = Field(default=None, max_length=255)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
     deleted_at: Optional[datetime] = Field(default=None)
 
@@ -50,9 +52,9 @@ class UserSettings(SQLModel, table=True):
     suggestions_preference: str = Field(default="all", max_length=20)
     default_session_duration_minutes: int = Field(default=30)
     week_starts_on: str = Field(default="monday", max_length=10)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": datetime.utcnow}
+        default=None, sa_column_kwargs={"onupdate": utcnow}
     )
 
     # Relationships

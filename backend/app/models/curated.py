@@ -5,6 +5,7 @@ from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 
 from sqlalchemy import Index
+from app.enums import utcnow
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ class CuratedBlock(SQLModel, table=True):
     section_type: str = Field(max_length=30)
     default_duration_minutes: int = Field(default=5)
     usage_count: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
     # Relationships
     blocks: List["Block"] = Relationship(back_populates="curated_block")
