@@ -52,8 +52,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API routers — old routes disabled during Kantelo rebuild.
-# New routers will be registered as they are implemented in #99–#109.
+# Kantelo API routers
+from app.api import user_api, settings_api
+
+app.include_router(user_api.router, prefix="/api")
+app.include_router(settings_api.router, prefix="/api")
 
 
 @app.get("/")

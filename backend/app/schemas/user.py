@@ -2,7 +2,7 @@
 from typing import Optional
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.enums import SuggestionsPreference, WeekStart
 
@@ -27,5 +27,5 @@ class UserSettingsRead(BaseModel):
 
 class UserSettingsUpdate(BaseModel):
     suggestions_preference: Optional[SuggestionsPreference] = None
-    default_session_duration_minutes: Optional[int] = None
+    default_session_duration_minutes: Optional[int] = Field(default=None, ge=1)
     week_starts_on: Optional[WeekStart] = None
