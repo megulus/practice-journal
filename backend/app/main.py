@@ -4,8 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.config import get_settings
 from app.database import engine
-from app.api import instruments, templates, logs, analytics, user, block_types, suggestions, user_instruments
-from app.api import settings as settings_api
+
+# Old route modules are disabled during the Kantelo rebuild.
+# They will be replaced by new route modules in subsequent PRs (#99–#109)
+# and removed entirely in the cleanup PR (#110).
+# from app.api import instruments, templates, logs, analytics, user, block_types, suggestions, user_instruments
+# from app.api import settings as settings_api
 
 settings = get_settings()
 
@@ -48,21 +52,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers
-app.include_router(instruments.router, prefix="/api")
-app.include_router(templates.router, prefix="/api")
-app.include_router(logs.router, prefix="/api")
-app.include_router(analytics.router, prefix="/api")
-app.include_router(user.router, prefix="/api")
-app.include_router(block_types.router, prefix="/api")
-app.include_router(suggestions.router, prefix="/api")
-app.include_router(user_instruments.router, prefix="/api")
-app.include_router(settings_api.router, prefix="/api")
+# API routers — old routes disabled during Kantelo rebuild.
+# New routers will be registered as they are implemented in #99–#109.
 
 
 @app.get("/")
 def root():
-    return {"message": "Practice Journal API", "version": "0.1.0"}
+    return {"message": "Kantelo API", "version": "0.2.0"}
 
 
 @app.get("/health")

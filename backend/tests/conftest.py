@@ -237,16 +237,16 @@ async def unauth_client(test_engine):
 
 
 # ---------------------------------------------------------------------------
-# Factory fixtures for common data
+# Factory fixtures for common data (Kantelo schema)
 # ---------------------------------------------------------------------------
 
-from app.models import Instrument, UserInstrument, PracticeTemplate, PracticeDay, BlockType
+from app.models import Instrument, Template, TemplateSession, Section
 
 
 @pytest_asyncio.fixture
-async def test_instrument(db_session: AsyncSession) -> Instrument:
-    """A system instrument."""
-    instrument = Instrument(name="Violin", is_system=True)
+async def test_instrument(db_session: AsyncSession, test_user: User) -> Instrument:
+    """A user-owned instrument."""
+    instrument = Instrument(user_id=test_user.id, name="Violin")
     db_session.add(instrument)
     await db_session.commit()
     await db_session.refresh(instrument)
@@ -254,44 +254,36 @@ async def test_instrument(db_session: AsyncSession) -> Instrument:
 
 
 @pytest_asyncio.fixture
-async def test_user_instrument(
-    db_session: AsyncSession, test_user: User, test_instrument: Instrument
-) -> UserInstrument:
-    """Link the test user to the test instrument."""
-    ui = UserInstrument(user_id=test_user.id, instrument_id=test_instrument.id)
-    db_session.add(ui)
-    await db_session.commit()
-    await db_session.refresh(ui)
-    return ui
-
-
-@pytest_asyncio.fixture
-async def test_block_type(db_session: AsyncSession) -> BlockType:
-    """A system block type."""
-    bt = BlockType(slug="warm-up", label="Warm-Up", default_duration_minutes=10, is_system=True)
-    db_session.add(bt)
-    await db_session.commit()
-    await db_session.refresh(bt)
-    return bt
-
-
-@pytest_asyncio.fixture
 async def test_template(
-    db_session: AsyncSession, test_user: User, test_user_instrument: UserInstrument
-) -> PracticeTemplate:
-    """A practice template with one day."""
-    template = PracticeTemplate(
+    db_session: AsyncSession, test_user: User, test_instrument: Instrument
+) -> Template:
+    """A practice template with one session and one section."""
+    template = Template(
         user_id=test_user.id,
-        user_instrument_id=test_user_instrument.id,
-        name="Test Practice Rotation",
-        days_count=1,
+        instrument_id=test_instrument.id,
+        name="Test Practice Plan",
     )
     db_session.add(template)
     await db_session.commit()
     await db_session.refresh(template)
 
-    day = PracticeDay(template_id=template.id, day_number=1, title="Day 1")
-    db_session.add(day)
+    session = TemplateSession(
+        template_id=template.id,
+        name="Session 1",
+        display_order=0,
+    )
+    db_session.add(session)
+    await db_session.commit()
+    await db_session.refresh(session)
+
+    section = Section(
+        template_session_id=session.id,
+        name="Warm-up",
+        section_type="warmup",
+        estimated_duration_minutes=5,
+        display_order=0,
+    )
+    db_session.add(section)
     await db_session.commit()
 
     return template
