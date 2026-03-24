@@ -423,7 +423,7 @@ Key entities and their relationships (for developer reference, not a full schema
 
 - **User** — has many Instruments, has Settings
 - **Instrument** — belongs to User, has many Templates, has practice frequency setting
-- **Template** — belongs to Instrument, has many Sessions (rotation units), has name, description, active/archived status
+- **Template** — belongs to Instrument, has many Sessions (rotation units), has name, description, active/archived status. **At most one template per instrument can be active at a time.** Activating a template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
 - **Session (template unit)** — belongs to Template, has name (user-provided), focus description, order in rotation, has many Sections
 - **Section** — belongs to Session, has type (warm-up, scales, repertoire, etc.), has many Blocks, has estimated duration
 - **Block** — belongs to Section, has name, description, estimated duration, metadata (tempo, key, difficulty), order in section. May reference a curated block from the library.
