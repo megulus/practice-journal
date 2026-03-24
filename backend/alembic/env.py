@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from sqlmodel import SQLModel
 
-# Import all models so Alembic can detect them
-from app.models import *  # noqa
+# Import all models so Alembic can detect them via SQLModel.metadata
+from app.models import *  # noqa: F401, F403
 from app.config import get_settings
 
 # this is the Alembic Config object, which provides
