@@ -4,10 +4,12 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict
 
+from app.enums import PracticeFrequency
+
 
 class InstrumentCreate(BaseModel):
     name: str
-    practice_frequency: str = "few_times_a_week"
+    practice_frequency: PracticeFrequency = PracticeFrequency.few_times_a_week
 
 
 class InstrumentRead(BaseModel):
@@ -24,5 +26,5 @@ class InstrumentRead(BaseModel):
 
 class InstrumentUpdate(BaseModel):
     name: Optional[str] = None
-    practice_frequency: Optional[str] = None
+    practice_frequency: Optional[PracticeFrequency] = None
     display_order: Optional[int] = None

@@ -2,7 +2,9 @@
 from typing import Optional, List
 from datetime import datetime, date
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.enums import SectionType, SessionStatus
 
 
 # --- Block Logs ---
@@ -20,7 +22,7 @@ class BlockLogRead(BaseModel):
 
 
 class BlockLogUpdate(BaseModel):
-    rating: Optional[int] = None
+    rating: Optional[int] = Field(default=None, ge=-1, le=1)
     notes: Optional[str] = None
     completed: Optional[bool] = None
 
@@ -54,12 +56,18 @@ class SectionLogUpdate(BaseModel):
 class SectionLogCreate(BaseModel):
     """For adding a freeform section mid-session."""
     section_name: str
-    section_type: str
+    section_type: SectionType
 
 
 # --- Practice Logs ---
 
 class PracticeLogRead(BaseModel):
+    """Read schema for practice logs.
+
+    `instrument_name`, `template_name`, and `session_name` are denormalized
+    for display and must be populated by the route handler — they do not
+    exist on the ORM model.
+    """
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -74,6 +82,10 @@ class PracticeLogRead(BaseModel):
     reflection_prompt: Optional[str] = None
     reflection_response: Optional[str] = None
     created_at: datetime
+    # Denormalized names — populated by route handler from relationships
+    instrument_name: str = ""
+    template_name: Optional[str] = None
+    session_name: Optional[str] = None
     section_logs: List[SectionLogRead] = []
 
 
@@ -85,7 +97,7 @@ class PracticeStartRequest(BaseModel):
 
 class PracticeLogUpdate(BaseModel):
     notes: Optional[str] = None
-    status: Optional[str] = None  # For abandoning: "abandoned"
+    status: Optional[SessionStatus] = None
 
 
 class ReflectionUpdate(BaseModel):

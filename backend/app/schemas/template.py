@@ -1,7 +1,9 @@
 """Template, TemplateSession, Section, and Block schemas."""
 from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.enums import SectionType
 
 
 # --- Blocks ---
@@ -27,7 +29,7 @@ class BlockCreate(BaseModel):
     estimated_duration_minutes: Optional[int] = None
     tempo_bpm: Optional[int] = None
     key: Optional[str] = None
-    difficulty_level: Optional[int] = None
+    difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
 
 
 class BlockUpdate(BaseModel):
@@ -36,7 +38,7 @@ class BlockUpdate(BaseModel):
     estimated_duration_minutes: Optional[int] = None
     tempo_bpm: Optional[int] = None
     key: Optional[str] = None
-    difficulty_level: Optional[int] = None
+    difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
 
 
 # --- Sections ---
@@ -54,26 +56,32 @@ class SectionRead(BaseModel):
 
 class SectionCreate(BaseModel):
     name: str
-    section_type: str
+    section_type: SectionType
     estimated_duration_minutes: int = 5
 
 
 class SectionUpdate(BaseModel):
     name: Optional[str] = None
-    section_type: Optional[str] = None
+    section_type: Optional[SectionType] = None
     estimated_duration_minutes: Optional[int] = None
 
 
 # --- Template Sessions ---
 
 class TemplateSessionRead(BaseModel):
+    """Read schema for template sessions.
+
+    `estimated_duration_minutes` is computed (sum of section durations) and must
+    be populated by the route handler before serialization — it does not exist
+    on the ORM model.
+    """
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
     focus_description: Optional[str] = None
     display_order: int
-    estimated_duration_minutes: int = 0  # Computed: sum of section durations
+    estimated_duration_minutes: int = 0
     sections: List[SectionRead] = []
 
 

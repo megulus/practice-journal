@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.enums import SuggestionsPreference, WeekStart
+
 
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -24,6 +26,6 @@ class UserSettingsRead(BaseModel):
 
 
 class UserSettingsUpdate(BaseModel):
-    suggestions_preference: Optional[str] = None
+    suggestions_preference: Optional[SuggestionsPreference] = None
     default_session_duration_minutes: Optional[int] = None
-    week_starts_on: Optional[str] = None
+    week_starts_on: Optional[WeekStart] = None
