@@ -2,13 +2,13 @@
 from typing import Optional
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.enums import PracticeFrequency
 
 
 class InstrumentCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     practice_frequency: PracticeFrequency = PracticeFrequency.few_times_a_week
 
 
