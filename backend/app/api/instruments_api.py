@@ -85,6 +85,8 @@ async def list_instruments(
         .order_by(Instrument.display_order, Instrument.id)
     )
     instruments = result.all()
+    # N+1: 2 queries per instrument for computed fields. Fine for typical
+    # usage (1-5 instruments per user); optimize with subqueries if needed.
     return [await _enrich_instrument(session, i) for i in instruments]
 
 
