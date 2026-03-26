@@ -87,8 +87,17 @@ async def _build_template_read(
     session_reads = []
     for ts in sorted(loaded.sessions, key=lambda s: s.display_order):
         sorted_sections = sorted(ts.sections, key=lambda s: s.display_order)
+        section_reads = []
         for sec in sorted_sections:
-            sec.blocks = sorted(sec.blocks, key=lambda b: b.display_order)
+            sorted_blocks = sorted(sec.blocks, key=lambda b: b.display_order)
+            section_reads.append({
+                "id": sec.id,
+                "name": sec.name,
+                "section_type": sec.section_type,
+                "estimated_duration_minutes": sec.estimated_duration_minutes,
+                "display_order": sec.display_order,
+                "blocks": sorted_blocks,
+            })
 
         estimated = sum(s.estimated_duration_minutes for s in sorted_sections)
         ts_read = TemplateSessionRead(
@@ -97,7 +106,7 @@ async def _build_template_read(
             focus_description=ts.focus_description,
             display_order=ts.display_order,
             estimated_duration_minutes=estimated,
-            sections=sorted_sections,
+            sections=section_reads,
         )
         session_reads.append(ts_read)
 
@@ -133,7 +142,7 @@ async def _get_or_create_settings(
 
     settings = UserSettings(user_id=user_id)
     session.add(settings)
-    await session.commit()
+    await session.flush()
     await session.refresh(settings)
     return settings
 
@@ -218,13 +227,15 @@ async def create_template(
     total_minutes = user_settings.default_session_duration_minutes
     num_sections = len(_DEFAULT_SECTIONS)
     per_section = total_minutes // num_sections
+    remainder = total_minutes % num_sections
 
     for i, (name, section_type) in enumerate(_DEFAULT_SECTIONS):
+        duration = per_section + (1 if i < remainder else 0)
         section = Section(
             template_session_id=ts.id,
             name=name,
             section_type=section_type.value,
-            estimated_duration_minutes=per_section,
+            estimated_duration_minutes=duration,
             display_order=i,
         )
         session.add(section)
@@ -256,7 +267,7 @@ async def update_template(
     instrument's current active template first."""
     template = await _get_owned_template(session, template_id, current_user.id)
 
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = body.model_dump(exclude_unset=True, mode="json")
 
     # Handle is_active toggle: deactivate current active template first
     if update_data.get("is_active") is True and not template.is_active:

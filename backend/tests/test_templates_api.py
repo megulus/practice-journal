@@ -172,6 +172,34 @@ class TestCreateTemplate:
         )
         assert resp.status_code == 422
 
+    async def test_empty_name_returns_422(self, client: AsyncClient, test_instrument):
+        resp = await client.post(
+            f"/api/instruments/{test_instrument.id}/templates",
+            json={"name": ""},
+        )
+        assert resp.status_code == 422
+
+    async def test_section_duration_remainder_distributed(
+        self, client: AsyncClient, db_session: AsyncSession, test_user, test_instrument
+    ):
+        """With 30 min / 4 sections, first 2 get 8 min and last 2 get 7 min."""
+        settings = UserSettings(
+            user_id=test_user.id,
+            default_session_duration_minutes=30,
+        )
+        db_session.add(settings)
+        await db_session.commit()
+
+        resp = await client.post(
+            f"/api/instruments/{test_instrument.id}/templates",
+            json={"name": "Remainder Test"},
+        )
+        assert resp.status_code == 201
+        sections = resp.json()["sessions"][0]["sections"]
+        durations = [s["estimated_duration_minutes"] for s in sections]
+        assert durations == [8, 8, 7, 7]
+        assert sum(durations) == 30
+
 
 class TestGetTemplate:
     async def test_get_with_nested_data(
@@ -342,6 +370,13 @@ class TestUpdateTemplate:
         assert resp.status_code == 200
         assert resp.json()["is_active"] is True
 
+    async def test_empty_name_returns_422(self, client: AsyncClient, test_template):
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={"name": ""},
+        )
+        assert resp.status_code == 422
+
     async def test_not_found(self, client: AsyncClient):
         resp = await client.patch(
             "/api/templates/99999",
@@ -395,6 +430,15 @@ class TestDeleteTemplate:
     async def test_not_found(self, client: AsyncClient):
         resp = await client.delete("/api/templates/99999")
         assert resp.status_code == 404
+
+    async def test_delete_active_template_leaves_none_active(
+        self, client: AsyncClient, test_template, test_instrument
+    ):
+        """Deleting the active template means no template is active for the instrument."""
+        await client.delete(f"/api/templates/{test_template.id}")
+
+        resp = await client.get(f"/api/instruments/{test_instrument.id}/templates")
+        assert resp.json() == []
 
     async def test_cannot_delete_other_users_template(
         self, client: AsyncClient, db_session: AsyncSession, other_user

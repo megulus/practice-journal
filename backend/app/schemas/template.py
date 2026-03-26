@@ -122,12 +122,12 @@ class TemplateListItem(BaseModel):
 
 
 class TemplateCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     description: Optional[str] = None
 
 
 class TemplateUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
