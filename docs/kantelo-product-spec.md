@@ -114,7 +114,8 @@ The default landing screen. Answers: "What should I practice right now?"
    - **Plan source** (smaller, secondary text) — the plan name, session number, and estimated duration. Example: "Learn the Bruch concerto — session 3 of 7 · ~25 min"
    - **Section pills** — compact tags showing what the session includes (Warm-up, Scales, Repertoire, Cool-down).
 5. **"Start session" button** — primary action, full-width, prominent.
-6. **"Practice off-plan" link** — secondary, below the button. Opens an empty active session for freeform logging.
+6. **"Repeat last session" shortcut** — shown below the start button when the user's most recent session on this instrument used the same template session that's currently queued. Tapping starts a new log pre-populated from the same template session, skipping the Today tab entirely. This is a fast path for users in a daily routine. If the rotation has advanced to a different session, this shortcut does not appear.
+7. **"Practice off-plan" link** — secondary, below the button. Opens an empty active session for freeform logging.
 
 **Layout (user with no plan — first-run / quick-start wizard):**
 
@@ -138,9 +139,10 @@ Each section (warm-up, scales, repertoire, etc.) contains:
 
 - **Section header** with name and time stepper.
 - **Time stepper:** a compact +/- control pre-filled from the plan's estimated duration. Users can adjust in 1-minute increments if their actual time differed. Default case (plan times are roughly right) requires zero interaction.
+- **Section-level actions** in the header: "Mark all done" (checks all exercise checkboxes but does not set ratings — the user still rates individually if they choose) and "Skip section" (marks the entire section as skipped, sets completed=false on the section log and all its block logs). These save 3–5 taps per section in the common cases. Styled as small text links in `text-secondary`, not prominent buttons.
 - **Exercise rows** within the section, each containing:
   - Checkbox (tap to mark done)
-  - Exercise name and metadata (tempo, key, etc.)
+  - Exercise name and metadata (tempo, key, etc.). **Smart tempo defaults:** if the user practiced this specific block in a previous session, the tempo field pre-fills from their last logged tempo. The suggestions engine can also recommend bumping tempo (see section 7). Pre-filled tempos are shown as muted text and become primary-colored once confirmed or adjusted.
   - Rating indicator (see below)
 
 **Completed sections** fade back (reduced opacity) so visual focus falls on what's next. They show logged time vs. plan time as a quiet reference (e.g., "3 min (plan: 2)").
@@ -159,14 +161,20 @@ Directional shape encodes meaning independently of color (accessible to colorbli
 
 Each exercise row includes a small "add note" link that expands an inline text field below the exercise. Notes are scoped to a specific block (stored in BlockLog), not the whole session. This is where users write observations like "intonation still shaky in the top octave of mm. 24–28." The suggestions engine can surface these back in future sessions ("Last session you noted..."). The note field is optional and collapsed by default — zero friction for users who just want to tap ratings and move on.
 
+**Voice input:** Every text field in the active session — per-exercise notes, session notes, and the post-session reflection prompt — has a microphone button as the primary input affordance, more prominent than the text field itself. Tapping the mic activates the browser's speech recognition (Web Speech API) and transcribes directly into the field. This is critical for reducing friction: musicians have their hands full. Voice is the primary input path for notes; typing is the fallback. The mic button should use the `Mic` Lucide icon at 20px in `text-link` color, positioned to the right of the text field or as a floating button within it.
+
 **In-the-moment suggestions:**
 
 Small, expandable hint cards that appear inline below specific exercises. Drawn from the user's own history. Example: "Last session you noted intonation was shaky in the top octave." Styled as a subtle card in the secondary background color.
 
 **Bottom of screen:**
-- Notes textarea: "Notes — breakthroughs, challenges, ideas..."
+- Notes textarea: "Notes — breakthroughs, challenges, ideas..." (with voice input mic button)
 - "Finish session" button (primary)
 - "+ Add a section" link (freeform escape hatch — add unplanned work mid-session)
+
+**Quick-add block:**
+
+Each section includes a compact text input at the bottom of its block list: a single-line field with placeholder "Add something else..." and an enter-to-submit action. Typing a name (or dictating via mic) and submitting creates a new block inline with no metadata — just a name, a checkbox, and rating chevrons, ready to be used. This is the fast path for ad hoc additions mid-session (e.g., "I also ran through the cadenza"). The full block library is still accessible via a "Browse library" link next to the quick-add input. Quick-add blocks are saved to the session log as freeform blocks (block_id is null) and appear in session history like any other block.
 
 ### 5.3 Session summary
 
@@ -202,7 +210,7 @@ Prompt rotation pool (11 prompts):
 - *Awareness-building:* "What did you notice about your playing today?" / "Where did your attention go during the session?" / "Was there a moment you want to remember?"
 - *Honest check-in:* "What was the hardest part of today's session?" / "Did anything surprise you?" / "How does your body feel after playing?"
 
-Styled with a brief subtext: "Optional — a moment to notice what you might forget later." Placeholder text models a good answer (e.g., "Felt more relaxed in the left hand. Maybe the new warm-up is helping...").
+Styled with a brief subtext: "Optional — a moment to notice what you might forget later." Placeholder text models a good answer (e.g., "Felt more relaxed in the left hand. Maybe the new warm-up is helping..."). The reflection text field includes a mic button for voice input (same pattern as active session notes — see §5.2, Voice input).
 
 Rotation rules: the app should avoid showing the same prompt twice in a row and should not repeat any of the last 3 prompts shown. No sophisticated algorithm needed — a shuffle with recency exclusion is sufficient.
 
@@ -245,7 +253,8 @@ Opens when user taps "+ Add block" within a section. Context-aware — the heade
 - Popularity indicator (percentage of users with this instrument who include this block) — crowd-sourced social proof
 
 **Categories shown:**
-- "Popular for [instrument] [section type]" — the most relevant blocks
+- **"Recently used"** — blocks the user has practiced in their last few sessions on this instrument. Shown first, above curated categories. Includes both curated blocks and ad hoc quick-add blocks from previous sessions. This builds muscle memory — if you added "cadenza" as a quick-add block last session, it shows up at the top of the library next time, ready to be tapped rather than typed.
+- "Popular for [instrument] [section type]" — the most relevant curated blocks
 - "Technique and etudes" — standard exercise literature
 - "Other" — improvisation, sight-reading, ear training, etc.
 
@@ -423,7 +432,7 @@ Key entities and their relationships (for developer reference, not a full schema
 
 - **User** — has many Instruments, has Settings
 - **Instrument** — belongs to User, has many Templates, has practice frequency setting
-- **Template** — belongs to Instrument, has many Sessions (rotation units), has name, description, active/archived status. **At most one template per instrument can be active at a time.** Activating a template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
+- **Template** — belongs to Instrument, has many Sessions (rotation units), has name, description, active/archived status. **At most one template per instrument can be active at a time.** Activating a new template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
 - **Session (template unit)** — belongs to Template, has name (user-provided), focus description, order in rotation, has many Sections
 - **Section** — belongs to Session, has type (warm-up, scales, repertoire, etc.), has many Blocks, has estimated duration
 - **Block** — belongs to Section, has name, description, estimated duration, metadata (tempo, key, difficulty), order in section. May reference a curated block from the library.
