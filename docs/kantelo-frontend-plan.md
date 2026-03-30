@@ -1,6 +1,6 @@
 # Kantelo — Frontend Implementation Plan
 
-> Phased build plan for the Kantelo frontend. Each phase is independently shippable and testable.
+> Phased build plan for the Kantelo frontend. Each phase is independently shippable and testable. Hand this to Claude Code alongside the product spec, schema/API doc, and design tokens doc. The backend is built separately — see kantelo-schema-api.md for the full API contract that the frontend consumes.
 
 **Last updated:** March 2026
 **Stack:** Next.js 14 / React / TypeScript / Tailwind CSS (with CSS custom properties for design tokens) / Clerk
@@ -17,7 +17,7 @@ Each phase has:
 - **Acceptance criteria** — how to know it's done
 - **Notes** — gotchas, stubs, and decisions
 
-Each phase builds on the previous one's components and patterns.
+Work through the phases in order. Don't skip ahead — each phase builds on the previous one's components and patterns.
 
 ---
 
@@ -27,7 +27,7 @@ Each phase builds on the previous one's components and patterns.
 
 ### Tasks
 
-**0.1 — Project setup** (note: some of this is already complete)
+**0.1 — Project setup**
 - Initialize Next.js 14 with App Router and TypeScript (or reconfigure existing frontend)
 - Install and configure: Tailwind CSS, Clerk (Next.js SDK), any icon library (recommend Lucide React)
 - Set up the `/src` directory structure:
@@ -108,12 +108,14 @@ Build these shared components based on the design tokens doc (section 6). Every 
 | `StatCard` | label, value, unit? | For session summary and insights. |
 | `TextInput` | Standard input props + recessed variant | |
 | `TextArea` | Standard textarea props + recessed/italic variant | For notes fields. |
+| `VoiceInput` | onTranscript, attachedTo (ref to text field) | Mic button wrapping Web Speech API. Manages recording state, transcription, permissions. Hidden when API unavailable. See design tokens §6 for full spec. |
 
 ### Acceptance criteria
 - [ ] App runs locally, navigates between all four tabs
 - [ ] Clerk auth works — unauthenticated users see sign-in
 - [ ] Light/dark mode toggle works and persists
 - [ ] All UI primitives render correctly in both modes
+- [ ] VoiceInput component activates speech recognition, transcribes into a text field, and hides gracefully when Web Speech API is unavailable
 - [ ] API client successfully calls `GET /api/user/me` with auth token
 - [ ] Desktop layout shows side nav; mobile shows bottom tabs
 
@@ -131,6 +133,7 @@ Build these shared components based on the design tokens doc (section 6). Every 
 - Rotation bar and session label
 - Plan card (focus text, plan source, section type pills)
 - "Start session" button → calls `POST /api/practice/start`, navigates to active session
+- **"Repeat last session" shortcut** — shown when the user's most recent session on this instrument used the same template session that's currently queued. Tapping skips the Today tab and starts a new log immediately. Data for this comes from the `GET /api/today` response (which should include a `repeat_available` flag and the last session's template_session_id).
 - "Practice off-plan" link → calls `POST /api/practice/start` with no template, navigates to active session
 - **No-plan state:** if the selected instrument has no active template, show a simplified view with "Practice off-plan" as the primary action and a prompt to create a plan. (Quick-start wizard is Phase 4.)
 - Data source: `GET /api/today`
@@ -139,15 +142,18 @@ Build these shared components based on the design tokens doc (section 6). Every 
 - Top bar: session focus title + "End session" link
 - Progress indicator: text + progress bar + running total
 - Section cards with:
-  - Section header (pip, name, time stepper)
+  - Section header (pip, name, time stepper) + **section-level actions**: "Mark all done" (checks all boxes, doesn't set ratings) and "Skip section" (marks entire section as skipped). Styled as small text links in `text-secondary`.
   - Exercise rows (checkbox, name, metadata, rating chevrons)
-  - Per-exercise "add note" toggle → inline textarea
+  - **Smart tempo defaults:** if a block was practiced previously, pre-fill its tempo from the last session's logged value. Show pre-filled tempo as muted text, switching to primary color on confirm/adjust.
+  - Per-exercise "add note" toggle → inline textarea **with mic button for voice input** (Web Speech API). Mic button is more prominent than the text field — voice is the primary input path, typing is fallback.
   - In-the-moment suggestion hint cards — fetches from `GET /api/suggestions/in-session/{logId}`
+  - **Quick-add block:** compact text input at the bottom of each section ("Add something else...") with enter-to-submit and mic button. Creates a freeform block inline with no metadata. "Browse library" link next to it for the full library experience.
 - Completed sections: reduced opacity, logged vs. planned time reference
-- Bottom: session notes textarea, "Finish session" button, "+ Add a section" link
+- Bottom: session notes textarea (with mic button), "Finish session" button, "+ Add a section" link
 - State management: local React state for the session, synced to backend via:
   - `PUT /api/practice/{logId}/blocks/{blockLogId}` on rating/note changes
-  - `PUT /api/practice/{logId}/sections/{sectionLogId}` on time stepper changes
+  - `PUT /api/practice/{logId}/sections/{sectionLogId}` on time stepper changes / mark-all-done / skip
+  - `POST /api/practice/{logId}/sections/{sectionLogId}/blocks` for quick-add blocks
   - `POST /api/practice/{logId}/finish` on finish
 - Debounce writes — don't fire an API call on every keystroke in notes fields. Sync on blur or on a 1-second debounce.
 
@@ -155,7 +161,7 @@ Build these shared components based on the design tokens doc (section 6). Every 
 - Stat cards: minutes, exercises completed, day streak
 - "What you practiced" list with colored dots, rating labels, and per-exercise notes
 - Coaching suggestion card (from `POST /api/practice/{logId}/finish` response)
-- Guided reflection prompt (from finish response) with text field
+- Guided reflection prompt (from finish response) with text field **and mic button for voice input**
 - "Done" button → saves reflection via `PATCH /api/practice/{logId}/reflection`, navigates to Today tab
 - "Edit this session" link → navigates back to active session in edit mode
 
@@ -166,10 +172,12 @@ Build these shared components based on the design tokens doc (section 6). Every 
 | `InstrumentToggle` | Horizontal pill row, fetches instruments, controls selected instrument state |
 | `SuggestionCard` | Dismissible. Calls `POST /api/suggestions/dismiss` on dismiss. |
 | `PlanCard` | Focus text, source line, section pills, wraps data from Today endpoint |
-| `SectionCard` | Collapsible. Header + body. Handles completed state (opacity fade). |
-| `ExerciseRow` | Checkbox + name + meta + rating + note toggle. The most complex component. |
+| `SectionCard` | Collapsible. Header + body. Handles completed state (opacity fade). Includes "Mark all done" and "Skip section" actions. |
+| `ExerciseRow` | Checkbox + name + meta + rating + note toggle. The most complex component. Shows smart tempo default if available. |
+| `VoiceInput` | Reusable mic button component wrapping Web Speech API. Attaches to any text field. Manages recording state, transcription, and error handling (browser support, mic permissions). Falls back gracefully if speech recognition is unavailable. |
+| `QuickAddBlock` | Compact text input with enter-to-submit and mic button. Creates freeform blocks inline. |
 | `HintCard` | In-session suggestion, rendered below relevant exercise rows |
-| `ReflectionPrompt` | Rotating question + textarea + subtext |
+| `ReflectionPrompt` | Rotating question + textarea with mic button + subtext |
 | `SessionSummaryStats` | Horizontal row of StatCards |
 | `ExerciseResultRow` | Colored dot + name + rating label + optional note |
 
@@ -191,14 +199,21 @@ Build these shared components based on the design tokens doc (section 6). Every 
 - [ ] Today tab shows the correct plan for the selected instrument
 - [ ] Instrument toggle switches the displayed plan
 - [ ] Pre-session suggestion appears and is dismissible
+- [ ] "Repeat last session" shortcut appears when appropriate and starts a new log correctly
 - [ ] "Start session" creates a practice log and opens the active session with sections/blocks pre-populated from the template
 - [ ] Exercises can be checked off, rated, and annotated with notes
+- [ ] Voice input (mic button) works on all text fields — per-exercise notes, session notes, reflection prompt
+- [ ] Voice input falls back gracefully when Web Speech API is unavailable (mic button hidden or disabled)
+- [ ] Quick-add block creates a freeform block inline when a name is entered
+- [ ] "Mark all done" checks all exercise boxes in a section without setting ratings
+- [ ] "Skip section" marks the section and all its blocks as skipped
+- [ ] Smart tempo defaults pre-fill from the last session's logged tempo for repeat blocks
 - [ ] Time steppers adjust section duration
 - [ ] Completed sections fade and show logged vs. planned time
 - [ ] In-the-moment suggestions appear for relevant exercises
 - [ ] "Finish session" shows the summary with correct stats
 - [ ] Coaching suggestion appears on the summary
-- [ ] Reflection prompt appears with a rotating question; response saves correctly
+- [ ] Reflection prompt appears with a rotating question; voice and text input both work; response saves correctly
 - [ ] "Done" returns to Today tab with the rotation advanced
 - [ ] "Practice off-plan" opens an empty session where sections/blocks can be added
 - [ ] All screens work in both light and dark mode
@@ -236,6 +251,7 @@ Build these shared components based on the design tokens doc (section 6). Every 
 **2.3 — Block library** (product spec §5.5)
 - Opens as a sheet/modal when adding a block to a section
 - Context header: "Add to [section name]"
+- **"Recently used" section** at the top — blocks the user has practiced in their last few sessions on this instrument. Includes both curated blocks and ad hoc quick-add blocks from previous sessions. Data source: a `recent` param on the library endpoint, or a separate `GET /api/library/recent?instrument_id=X` endpoint.
 - Search box (filters curated library, doubles as custom block input)
 - Curated blocks organized by category, filtered by instrument + section type
 - Each block: name, description, usage percentage

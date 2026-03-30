@@ -350,6 +350,27 @@ Base unit: 4px. Use multiples.
 - Value: 22px/500, `text-primary`
 - Label: 11px/400, `text-secondary`
 
+### Voice input (mic button)
+
+The primary input affordance for all text fields in the active session, session notes, and reflection prompt. Voice-first, typing-fallback.
+
+- **Mic button:** 36×36px tap target, `Mic` Lucide icon at 20px in `text-link` color. Positioned to the right of the text field, inside the field's border or as a floating button overlapping the field's right edge.
+- **Recording state:** Mic icon switches to `MicOff` or a pulsing indicator. Background becomes `primary-subtle-bg`, icon becomes `primary`. A subtle pulsing animation (opacity 0.6–1.0, 1s cycle) indicates active recording. Respect `prefers-reduced-motion`.
+- **Transcription:** Text streams into the field as it's recognized. The user can edit the transcribed text afterward.
+- **Fallback:** If the Web Speech API is unavailable (Firefox, some mobile browsers), hide the mic button entirely — the text field works normally. Do not show a disabled mic button (it would confuse users who don't understand why it's grayed out).
+- **Error handling:** If mic permissions are denied, show a brief toast: "Microphone access is needed for voice input." Don't block the UI — the text field remains usable.
+
+### Quick-add block
+
+A compact inline input for adding ad hoc blocks mid-session, without opening the full block library.
+
+- **Layout:** Single-line text input at the bottom of each section's block list, below the last exercise row. Placeholder: "Add something else..."
+- **Input field:** Same styling as `TextInput` but slightly more compact — 36px height, 13px font, `input-bg-recessed` background.
+- **Mic button:** Inline, same as Voice input spec above.
+- **Submit:** Enter key or a submit icon (`Plus` at 16px, `text-secondary`) to the left of the mic button.
+- **"Browse library" link:** Small text link (`text-link`, 11px) below or beside the quick-add input. Opens the full block library sheet.
+- **On submit:** Creates a new freeform block inline — appears above the quick-add input with checkbox, name, and rating chevrons. No metadata (tempo, key, duration). The input clears and is ready for another entry.
+
 ---
 
 ## 7. Dark mode implementation
@@ -475,6 +496,7 @@ Used within screens for actions, affordances, and status indicators.
 | Search | `Search` | 16px | `text-tertiary` | Block library search input |
 | Edit | `Pencil` | 14px | `text-secondary` | Edit links on instrument cards, session history |
 | Trash / delete | `Trash2` | 14px | `danger-text` | Delete actions in template editor |
+| Voice input | `Mic` | 20px | `text-link` | Primary input affordance on all text fields in active session, session notes, and reflection prompt. More prominent than the text field itself. |
 
 ### Rating chevron icons
 

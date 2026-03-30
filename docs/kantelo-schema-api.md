@@ -38,7 +38,7 @@ User
 
 **Ratings are directional integers.** -1 (step back), 0 (steady), 1 (step forward). Stored as smallint. This makes aggregation simple (AVG > 0 = trending forward) and avoids enum overhead.
 
-**One active template per instrument.** Enforced by a unique partial index on `(instrument_id) WHERE is_active = true AND deleted_at IS NULL`. When a user activates a template (new or reactivated from archive), the backend deactivates the current active template for that instrument first. If the user deactivates their only template without activating another, the instrument has no active plan — the Today tab falls back to "Practice off-plan" for that instrument. This keeps the Today endpoint unambiguous: at most one `current_session` per instrument.
+**One active template per instrument.** Enforced by a unique partial index. The Today tab shows a single plan card per instrument — if multiple templates were active, the app would have to pick one or show all, creating exactly the decision fatigue Kantelo is designed to eliminate. Inactive templates are archived, not deleted, and can be reactivated at any time (which auto-deactivates the current one).
 
 ---
 
@@ -81,11 +81,6 @@ class InteractionType(str, Enum):
     shown = "shown"
     dismissed = "dismissed"
     acted_on = "acted_on"
-
-class SessionStatus(str, Enum):
-    in_progress = "in_progress"
-    completed = "completed"
-    abandoned = "abandoned"
 ```
 
 ---
@@ -140,12 +135,11 @@ Index: `(user_id, deleted_at)` — fetch active instruments for a user.
 
 ### templates
 
-Practice plan belonging to an instrument.
+Practice plan belonging to an instrument. **At most one template per instrument can be active at a time.** This is enforced by a unique partial index and by the API's activation logic.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | id | serial | PK | |
-| user_id | int | FK → users, not null, indexed | Denormalized for auth convenience |
 | instrument_id | int | FK → instruments, not null, indexed | |
 | name | varchar(200) | not null | e.g. "Learn the Bruch concerto" |
 | description | text | nullable | |
@@ -155,7 +149,11 @@ Practice plan belonging to an instrument.
 | updated_at | timestamptz | nullable, auto-update | |
 | deleted_at | timestamptz | nullable | Soft delete |
 
-Unique partial index: `(instrument_id) WHERE is_active = true AND deleted_at IS NULL` — enforces one active template per instrument.
+Unique partial index: `CREATE UNIQUE INDEX uq_one_active_template_per_instrument ON templates (instrument_id) WHERE is_active = true AND deleted_at IS NULL;`
+
+Activation logic (handled by `PATCH /api/templates/{id}` when `is_active` is set to `true`): the API auto-deactivates the currently active template for the same instrument before activating the new one. This ensures the constraint is never violated and the user doesn't have to manually deactivate the old plan.
+
+When a user deactivates their only template (or has no templates), the Today tab falls back to "Practice off-plan" for that instrument. Inactive templates remain visible and browsable in the Plans tab and can be reactivated at any time.
 
 ### template_sessions
 
@@ -236,8 +234,7 @@ A logged practice session. One row per practice event.
 | template_id | int | nullable, FK → templates | Null for freeform sessions |
 | template_session_id | int | nullable, FK → template_sessions | Which rotation session was practiced |
 | practice_date | date | not null | |
-| status | varchar(20) | not null, default 'in_progress' | SessionStatus enum |
-| total_duration_minutes | int | not null, default 0 | Summed from section logs at finish time |
+| total_duration_minutes | int | not null | Summed from section logs |
 | notes | text | nullable | Session-level freeform notes |
 | reflection_prompt | text | nullable | Which rotating question was shown |
 | reflection_response | text | nullable | User's answer |
@@ -248,7 +245,6 @@ A logged practice session. One row per practice event.
 Indexes:
 - `(user_id, instrument_id, practice_date)` — history queries, heatmap
 - `(user_id, practice_date)` — streak calculation, cross-instrument analytics
-- `(user_id, status)` — find in-progress sessions for resume/abandon flow
 
 ### section_logs
 
@@ -422,7 +418,7 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 | GET | `/api/instruments/{instrumentId}/templates` | List templates for an instrument |
 | POST | `/api/instruments/{instrumentId}/templates` | Create template (auto-creates one session + default sections based on user settings) |
 | GET | `/api/templates/{id}` | Full template with sessions → sections → blocks |
-| PATCH | `/api/templates/{id}` | Update template metadata (name, description, is_active). Setting `is_active: true` deactivates the instrument's current active template. |
+| PATCH | `/api/templates/{id}` | Update template metadata (name, description, is_active) |
 | DELETE | `/api/templates/{id}` | Soft-delete template |
 
 **GET /api/templates/{id} response:**
@@ -539,6 +535,7 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/library/blocks` | Browse curated blocks. Query params: `instrument` (required), `section_type` (optional), `q` (search). Sorted by usage_count desc. |
+| GET | `/api/library/recent` | Recently used blocks for the current user. Query params: `instrument_id` (required), `limit` (default 10). Returns blocks (both curated and freeform/quick-add) from the user's recent sessions, deduplicated by name, most recent first. |
 
 **Response:**
 ```json
@@ -571,18 +568,12 @@ The Today tab's data needs — which instruments are due, what's the current ses
 **GET /api/today response:**
 ```json
 {
-  "active_session": {
-    "practice_log_id": 99,
-    "instrument_id": 1,
-    "instrument_name": "Violin",
-    "session_name": "Technique focus",
-    "started_at": "2026-03-24T14:30:00Z"
-  },
   "instruments_due": [
     {
       "instrument": { "id": 1, "name": "Violin", "practice_frequency": "daily" },
       "last_practiced_at": "2026-03-22",
       "days_since_last": 1,
+      "repeat_available": true,
       "current_session": {
         "template_id": 1,
         "template_name": "Learn the Bruch concerto",
@@ -606,7 +597,8 @@ The Today tab's data needs — which instruments are due, what's the current ses
 }
 ```
 
-`active_session` is `null` if no in-progress session exists. When present, the frontend should prompt the user to resume or discard before starting a new session.
+`repeat_available` is true when the user's most recent session on this instrument used the same template_session_id that's currently queued. When true, the frontend shows a "Repeat last session" shortcut.
+```
 
 "Due" logic: compare `last_practiced_at` against `practice_frequency`. Daily = due every day. Few times a week = due if ≥ 2 days since last. Weekly = due if ≥ 5 days since last. Occasionally = never auto-surfaced, only shown in pill toggle.
 
@@ -635,6 +627,10 @@ The Today tab's data needs — which instruments are due, what's the current ses
 ```
 
 For freeform: omit `template_id` and `template_session_id`.
+
+**Smart tempo defaults:** When scaffolding block logs from a template, the `start` endpoint looks up the user's most recent BlockLog for each block_id and includes a `last_tempo_bpm` field on each block log in the response. The frontend uses this to pre-fill the tempo display. If no previous log exists for a block, `last_tempo_bpm` is null and the block's template-defined `tempo_bpm` is shown instead.
+
+**Section-level actions** (mark all done, skip section) are handled by `PUT /api/practice/{logId}/sections/{sectionLogId}` with body `{ "mark_all_done": true }` or `{ "completed": false }`. The backend updates all child block logs accordingly when `mark_all_done` is true (sets completed=true on all blocks without changing ratings) or when the section is skipped (sets completed=false on the section and all its blocks).
 
 **POST /api/practice/{logId}/finish response:**
 ```json
@@ -837,51 +833,7 @@ Pattern-level suggestions (Progress tab) are derived from the same data but with
 
 ---
 
-## 6. Cascade and deletion behavior
-
-### Soft-delete cascades
-
-When an **instrument** is soft-deleted (`deleted_at` set):
-- All its **templates** are soft-deleted.
-- **practice_logs** referencing the instrument are **not** deleted — they are historical records. The instrument_id FK remains valid (the row still exists, just marked deleted). History and insights queries filter on `practice_logs.deleted_at`, not the instrument's status.
-- In-progress sessions (status = `in_progress`) for the instrument are marked `abandoned`.
-
-When a **template** is soft-deleted:
-- **template_sessions**, **sections**, and **blocks** are left intact (they may be referenced by existing practice_logs via template_session_id, and by block_logs via block_id). They are simply unreachable through normal template queries, which filter on `deleted_at IS NULL`.
-- The template no longer appears in the Today tab rotation or the Plans list.
-
-### Hard deletes
-
-**Sections** and **blocks** within a template support hard delete (the user removes them from the editor). These use standard cascading foreign keys:
-- Deleting a section hard-deletes its blocks.
-- Deleting a template_session hard-deletes its sections (and transitively, blocks).
-
-Block_logs and section_logs that reference deleted blocks/sections retain the denormalized `block_name` and `section_name`, so historical display is unaffected. Their `block_id` / `section_id` FKs should be set to `SET NULL` on delete.
-
----
-
-## 7. Abandoned session handling
-
-A session is **abandoned** when a user starts a practice session (`POST /api/practice/start`) but never finishes it (`POST /api/practice/{logId}/finish`). This can happen if the user closes the browser, navigates away, or loses connectivity.
-
-### Detection
-
-The Today endpoint (`GET /api/today`) checks for any `practice_log` with `status = 'in_progress'` for the current user. If one exists:
-- The response includes an `active_session` field with the log ID and basic metadata.
-- The frontend can prompt: "You have an unfinished session from [date]. Resume or discard?"
-
-### Resolution
-
-- **Resume:** The frontend reopens the active session screen with the existing log. No backend action needed — the log and its section/block logs are already scaffolded.
-- **Discard:** `PATCH /api/practice/{logId}` with `{ "status": "abandoned" }`. The log is retained for data integrity but excluded from history, analytics, and streak calculations.
-
-### Cleanup
-
-No periodic cleanup job is needed for v1. Abandoned sessions are inert — they don't affect rotation index (which only advances on `finish`) and are filtered out of analytics by the `status = 'completed'` predicate. If abandoned sessions accumulate, a future cleanup job can hard-delete logs older than N days with `status = 'abandoned'` and zero meaningful data (no ratings, no notes).
-
----
-
-## 8. Migration notes
+## 6. Migration notes
 
 Since this is a greenfield rebuild:
 
