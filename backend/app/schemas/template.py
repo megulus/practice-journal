@@ -23,7 +23,7 @@ class BlockRead(BaseModel):
 
 
 class BlockCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     curated_block_id: Optional[int] = None
     description: Optional[str] = None
     estimated_duration_minutes: Optional[int] = None
@@ -33,7 +33,7 @@ class BlockCreate(BaseModel):
 
 
 class BlockUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
     estimated_duration_minutes: Optional[int] = None
     tempo_bpm: Optional[int] = None
@@ -55,13 +55,13 @@ class SectionRead(BaseModel):
 
 
 class SectionCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     section_type: SectionType
     estimated_duration_minutes: int = 5
 
 
 class SectionUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     section_type: Optional[SectionType] = None
     estimated_duration_minutes: Optional[int] = None
 
@@ -86,12 +86,12 @@ class TemplateSessionRead(BaseModel):
 
 
 class TemplateSessionCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     focus_description: Optional[str] = None
 
 
 class TemplateSessionUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     focus_description: Optional[str] = None
 
 
