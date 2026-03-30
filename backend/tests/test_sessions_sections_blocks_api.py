@@ -306,6 +306,78 @@ class TestDeleteSession:
         resp = await client.delete(f"/api/sessions/{ts.id}")
         assert resp.status_code == 404
 
+    async def test_adjusts_rotation_index_when_earlier_session_deleted(
+        self, client: AsyncClient, db_session: AsyncSession, template_with_session
+    ):
+        """Deleting a session before current_rotation_index decrements it."""
+        template, ts0 = template_with_session
+        ts1 = TemplateSession(
+            template_id=template.id, name="S2", display_order=1
+        )
+        ts2 = TemplateSession(
+            template_id=template.id, name="S3", display_order=2
+        )
+        db_session.add_all([ts1, ts2])
+        template.current_rotation_index = 2
+        db_session.add(template)
+        await db_session.commit()
+        await db_session.refresh(ts1)
+
+        # Delete session at index 0 — rotation should shift from 2 to 1
+        await client.delete(f"/api/sessions/{ts0.id}")
+
+        await db_session.refresh(template)
+        assert template.current_rotation_index == 1
+
+    async def test_adjusts_rotation_index_when_current_session_deleted_at_end(
+        self, client: AsyncClient, db_session: AsyncSession, template_with_session
+    ):
+        """Deleting the current rotation session at the end wraps to 0."""
+        template, ts0 = template_with_session
+        ts1 = TemplateSession(
+            template_id=template.id, name="S2", display_order=1
+        )
+        db_session.add(ts1)
+        template.current_rotation_index = 1
+        db_session.add(template)
+        await db_session.commit()
+        await db_session.refresh(ts1)
+
+        # Delete session at index 1 (the current) — should wrap to 0
+        await client.delete(f"/api/sessions/{ts1.id}")
+
+        await db_session.refresh(template)
+        assert template.current_rotation_index == 0
+
+    async def test_deleting_last_session_resets_rotation_index(
+        self, client: AsyncClient, db_session: AsyncSession, template_with_session
+    ):
+        """Deleting the only session resets rotation index to 0."""
+        template, ts = template_with_session
+        template.current_rotation_index = 0
+        db_session.add(template)
+        await db_session.commit()
+
+        await client.delete(f"/api/sessions/{ts.id}")
+
+        await db_session.refresh(template)
+        assert template.current_rotation_index == 0
+
+    async def test_cannot_create_session_on_deleted_template(
+        self, client: AsyncClient, db_session: AsyncSession, template_with_session
+    ):
+        from app.enums import utcnow
+        template, _ = template_with_session
+        template.deleted_at = utcnow()
+        db_session.add(template)
+        await db_session.commit()
+
+        resp = await client.post(
+            f"/api/templates/{template.id}/sessions",
+            json={"name": "Nope"},
+        )
+        assert resp.status_code == 404
+
 
 class TestReorderSessions:
     async def test_reorder(

@@ -27,44 +27,10 @@ router = APIRouter(tags=["templates"])
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _get_owned_instrument(
-    session: AsyncSession, instrument_id: int, user_id: int
-) -> Instrument:
-    """Fetch an instrument, verifying ownership and not deleted."""
-    result = await session.exec(
-        select(Instrument).where(
-            Instrument.id == instrument_id,
-            Instrument.user_id == user_id,
-            Instrument.deleted_at == None,  # noqa: E711
-        )
-    )
-    instrument = result.first()
-    if not instrument:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instrument not found",
-        )
-    return instrument
-
-
-async def _get_owned_template(
-    session: AsyncSession, template_id: int, user_id: int
-) -> Template:
-    """Fetch a template, verifying ownership and not deleted."""
-    result = await session.exec(
-        select(Template).where(
-            Template.id == template_id,
-            Template.user_id == user_id,
-            Template.deleted_at == None,  # noqa: E711
-        )
-    )
-    template = result.first()
-    if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Template not found",
-        )
-    return template
+from app.api.ownership import (
+    get_owned_instrument as _get_owned_instrument,
+    get_owned_template as _get_owned_template,
+)
 
 
 async def _build_template_read(

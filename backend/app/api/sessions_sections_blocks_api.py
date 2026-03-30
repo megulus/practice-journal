@@ -14,6 +14,12 @@ from sqlalchemy.orm import selectinload
 from app.database import get_session
 from app.models import User, Template, TemplateSession, Section, Block
 from app.auth import get_current_user
+from app.api.ownership import (
+    get_owned_template as _get_owned_template,
+    get_owned_session as _get_owned_session,
+    get_owned_section as _get_owned_section,
+    get_owned_block as _get_owned_block,
+)
 from app.schemas.template import (
     BlockCreate,
     BlockRead,
@@ -28,99 +34,6 @@ from app.schemas.template import (
 )
 
 router = APIRouter(tags=["sessions-sections-blocks"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-async def _get_owned_template(
-    session: AsyncSession, template_id: int, user_id: int
-) -> Template:
-    """Fetch a template, verifying ownership and not deleted."""
-    result = await session.exec(
-        select(Template).where(
-            Template.id == template_id,
-            Template.user_id == user_id,
-            Template.deleted_at == None,  # noqa: E711
-        )
-    )
-    template = result.first()
-    if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Template not found",
-        )
-    return template
-
-
-async def _get_owned_session(
-    session: AsyncSession, session_id: int, user_id: int
-) -> TemplateSession:
-    """Fetch a template session, verifying ownership through the template."""
-    result = await session.exec(
-        select(TemplateSession)
-        .join(Template, TemplateSession.template_id == Template.id)
-        .where(
-            TemplateSession.id == session_id,
-            Template.user_id == user_id,
-            Template.deleted_at == None,  # noqa: E711
-        )
-    )
-    ts = result.first()
-    if not ts:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-    return ts
-
-
-async def _get_owned_section(
-    session: AsyncSession, section_id: int, user_id: int
-) -> Section:
-    """Fetch a section, verifying ownership through the template chain."""
-    result = await session.exec(
-        select(Section)
-        .join(TemplateSession, Section.template_session_id == TemplateSession.id)
-        .join(Template, TemplateSession.template_id == Template.id)
-        .where(
-            Section.id == section_id,
-            Template.user_id == user_id,
-            Template.deleted_at == None,  # noqa: E711
-        )
-    )
-    sec = result.first()
-    if not sec:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Section not found",
-        )
-    return sec
-
-
-async def _get_owned_block(
-    session: AsyncSession, block_id: int, user_id: int
-) -> Block:
-    """Fetch a block, verifying ownership through the template chain."""
-    result = await session.exec(
-        select(Block)
-        .join(Section, Block.section_id == Section.id)
-        .join(TemplateSession, Section.template_session_id == TemplateSession.id)
-        .join(Template, TemplateSession.template_id == Template.id)
-        .where(
-            Block.id == block_id,
-            Template.user_id == user_id,
-            Template.deleted_at == None,  # noqa: E711
-        )
-    )
-    block = result.first()
-    if not block:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Block not found",
-        )
-    return block
 
 
 async def _next_display_order(
@@ -276,7 +189,7 @@ async def update_session(
     """Update a session's name or focus description."""
     ts = await _get_owned_session(session, session_id, current_user.id)
 
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = body.model_dump(exclude_unset=True, mode="json")
     for field, value in update_data.items():
         setattr(ts, field, value)
 
@@ -292,7 +205,7 @@ async def delete_session(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a session and reorder remaining sessions."""
+    """Delete a session, reorder remaining sessions, and adjust rotation index."""
     ts = await _get_owned_session(session, session_id, current_user.id)
     template_id = ts.template_id
     deleted_order = ts.display_order
@@ -310,6 +223,25 @@ async def delete_session(
         remaining.display_order -= 1
         session.add(remaining)
 
+    # Adjust current_rotation_index on the template
+    template = await _get_owned_template(session, template_id, current_user.id)
+    remaining_count_result = await session.exec(
+        select(func.count(TemplateSession.id)).where(
+            TemplateSession.template_id == template_id,
+        )
+    )
+    remaining_count = remaining_count_result.one()
+
+    if remaining_count == 0:
+        template.current_rotation_index = 0
+    elif deleted_order < template.current_rotation_index:
+        template.current_rotation_index -= 1
+    elif deleted_order == template.current_rotation_index:
+        # Wrap to 0 if we were at the end, otherwise stay (now points to next)
+        if template.current_rotation_index >= remaining_count:
+            template.current_rotation_index = 0
+
+    session.add(template)
     await session.commit()
 
 
@@ -486,7 +418,7 @@ async def update_block(
     """Update a block's name, tempo, key, duration, etc."""
     block = await _get_owned_block(session, block_id, current_user.id)
 
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = body.model_dump(exclude_unset=True, mode="json")
     for field, value in update_data.items():
         setattr(block, field, value)
 
