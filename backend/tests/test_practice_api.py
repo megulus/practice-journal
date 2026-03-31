@@ -295,6 +295,88 @@ class TestStartPractice:
         d_minor = [b for b in scales_section["block_logs"] if b["block_name"] == "D minor scale"][0]
         assert d_minor["last_tempo_bpm"] is None
 
+    async def test_cannot_start_with_other_users_template(
+        self, client: AsyncClient, db_session: AsyncSession,
+        test_instrument, other_user
+    ):
+        """Starting a session with another user's template returns 404."""
+        other_inst = Instrument(user_id=other_user.id, name="Piano")
+        db_session.add(other_inst)
+        await db_session.commit()
+        await db_session.refresh(other_inst)
+
+        other_template = Template(
+            user_id=other_user.id,
+            instrument_id=other_inst.id,
+            name="Not mine",
+        )
+        db_session.add(other_template)
+        await db_session.commit()
+        await db_session.refresh(other_template)
+
+        other_ts = TemplateSession(
+            template_id=other_template.id,
+            name="S1",
+            display_order=0,
+        )
+        db_session.add(other_ts)
+        await db_session.commit()
+        await db_session.refresh(other_ts)
+
+        resp = await client.post(
+            "/api/practice/start",
+            json={
+                "instrument_id": test_instrument.id,
+                "template_id": other_template.id,
+                "template_session_id": other_ts.id,
+            },
+        )
+        assert resp.status_code == 404
+
+    async def test_template_instrument_mismatch(
+        self, client: AsyncClient, db_session: AsyncSession,
+        template_with_blocks, test_user
+    ):
+        """Template must belong to the specified instrument."""
+        template, ts, _, _ = template_with_blocks
+        other_inst = Instrument(user_id=test_user.id, name="Viola")
+        db_session.add(other_inst)
+        await db_session.commit()
+        await db_session.refresh(other_inst)
+
+        resp = await client.post(
+            "/api/practice/start",
+            json={
+                "instrument_id": other_inst.id,
+                "template_id": template.id,
+                "template_session_id": ts.id,
+            },
+        )
+        assert resp.status_code == 404
+
+    async def test_partial_template_ids_returns_422(
+        self, client: AsyncClient, template_with_blocks
+    ):
+        """Providing template_id without template_session_id is rejected."""
+        template, ts, _, _ = template_with_blocks
+        resp = await client.post(
+            "/api/practice/start",
+            json={
+                "instrument_id": template.instrument_id,
+                "template_id": template.id,
+            },
+        )
+        assert resp.status_code == 422
+
+        resp = await client.post(
+            "/api/practice/start",
+            json={
+                "instrument_id": template.instrument_id,
+                "template_session_id": ts.id,
+            },
+        )
+        assert resp.status_code == 422
+
     async def test_practice_date_is_today(
         self, client: AsyncClient, test_instrument
     ):
@@ -385,6 +467,17 @@ class TestUpdatePractice:
         resp = await client.patch(
             f"/api/practice/{data['id']}",
             json={"status": "invalid_status"},
+        )
+        assert resp.status_code == 422
+
+    async def test_completed_status_returns_422(
+        self, client: AsyncClient, started_session
+    ):
+        """Cannot set status=completed via PATCH — must use finish endpoint."""
+        data, _, _, _, _ = started_session
+        resp = await client.patch(
+            f"/api/practice/{data['id']}",
+            json={"status": "completed"},
         )
         assert resp.status_code == 422
 
@@ -499,6 +592,18 @@ class TestUpdateSectionLog:
         resp = await client.put(
             f"/api/practice/{data['id']}/sections/{sl_id}",
             json={"actual_duration_minutes": -1},
+        )
+        assert resp.status_code == 422
+
+    async def test_mark_all_done_and_skip_conflict_returns_422(
+        self, client: AsyncClient, started_session
+    ):
+        """Cannot mark_all_done and skip in the same request."""
+        data, _, _, _, _ = started_session
+        sl_id = data["section_logs"][0]["id"]
+        resp = await client.put(
+            f"/api/practice/{data['id']}/sections/{sl_id}",
+            json={"mark_all_done": True, "completed": False},
         )
         assert resp.status_code == 422
 

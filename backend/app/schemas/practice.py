@@ -99,7 +99,11 @@ class PracticeStartRequest(BaseModel):
 
 class PracticeLogUpdate(BaseModel):
     notes: Optional[str] = None
-    status: Optional[SessionStatus] = None
+    status: Optional[str] = Field(
+        default=None,
+        pattern=f"^{SessionStatus.abandoned.value}$",
+        description="Only 'abandoned' is allowed via PATCH. Use the finish endpoint for 'completed'.",
+    )
 
 
 class ReflectionUpdate(BaseModel):

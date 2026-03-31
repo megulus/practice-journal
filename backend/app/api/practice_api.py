@@ -5,7 +5,7 @@ Start, read, and update practice sessions. Handles scaffolding from
 templates, smart tempo defaults, section-level actions (mark all done,
 skip section), and freeform sessions.
 """
-from datetime import date
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select, col
@@ -25,7 +25,7 @@ from app.models import (
     BlockLog,
 )
 from app.auth import get_current_user
-from app.api.ownership import get_owned_instrument
+from app.api.ownership import get_owned_instrument, get_owned_template
 from app.enums import SessionStatus, utcnow
 from app.schemas.practice import (
     BlockLogRead,
@@ -249,9 +249,19 @@ async def start_practice(
     # Verify instrument ownership
     await get_owned_instrument(session, body.instrument_id, current_user.id)
 
-    # If template-based, validate and load the template session up front
+    # If template-based, verify ownership and load the template session
     ts = None
     if body.template_id and body.template_session_id:
+        # Verify template belongs to this user and instrument
+        template = await get_owned_template(
+            session, body.template_id, current_user.id
+        )
+        if template.instrument_id != body.instrument_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Template not found",
+            )
+
         result = await session.exec(
             select(TemplateSession)
             .where(
@@ -269,6 +279,12 @@ async def start_practice(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Template session not found",
             )
+    elif body.template_id or body.template_session_id:
+        # One provided without the other — reject
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Both template_id and template_session_id must be provided together, or neither",
+        )
 
     # Create the practice log
     log = PracticeLog(
@@ -276,7 +292,7 @@ async def start_practice(
         instrument_id=body.instrument_id,
         template_id=body.template_id,
         template_session_id=body.template_session_id,
-        practice_date=date.today(),
+        practice_date=datetime.now(timezone.utc).date(),
         status=SessionStatus.in_progress.value,
     )
     session.add(log)
@@ -373,6 +389,13 @@ async def update_section_log(
     )
 
     update_data = body.model_dump(exclude_unset=True, mode="json")
+
+    # Reject conflicting mark_all_done + skip
+    if update_data.get("mark_all_done") is True and update_data.get("completed") is False:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Cannot mark_all_done and skip the section in the same request",
+        )
 
     # Handle mark_all_done: set completed=true on all child block logs
     if update_data.pop("mark_all_done", None) is True:
