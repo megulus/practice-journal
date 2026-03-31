@@ -50,24 +50,7 @@ async def _enrich_instrument(
     )
 
 
-async def _get_owned_instrument(
-    session: AsyncSession, instrument_id: int, user_id: int
-) -> Instrument:
-    """Fetch an instrument, verifying ownership and not deleted."""
-    result = await session.exec(
-        select(Instrument).where(
-            Instrument.id == instrument_id,
-            Instrument.user_id == user_id,
-            Instrument.deleted_at == None,  # noqa: E711
-        )
-    )
-    instrument = result.first()
-    if not instrument:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instrument not found",
-        )
-    return instrument
+from app.api.ownership import get_owned_instrument as _get_owned_instrument
 
 
 @router.get("", response_model=List[InstrumentRead])

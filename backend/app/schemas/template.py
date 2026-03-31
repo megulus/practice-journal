@@ -23,20 +23,20 @@ class BlockRead(BaseModel):
 
 
 class BlockCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     curated_block_id: Optional[int] = None
     description: Optional[str] = None
-    estimated_duration_minutes: Optional[int] = None
-    tempo_bpm: Optional[int] = None
+    estimated_duration_minutes: Optional[int] = Field(default=None, ge=1)
+    tempo_bpm: Optional[int] = Field(default=None, ge=1, le=999)
     key: Optional[str] = None
     difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
 
 
 class BlockUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
-    estimated_duration_minutes: Optional[int] = None
-    tempo_bpm: Optional[int] = None
+    estimated_duration_minutes: Optional[int] = Field(default=None, ge=1)
+    tempo_bpm: Optional[int] = Field(default=None, ge=1, le=999)
     key: Optional[str] = None
     difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
 
@@ -55,15 +55,15 @@ class SectionRead(BaseModel):
 
 
 class SectionCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     section_type: SectionType
-    estimated_duration_minutes: int = 5
+    estimated_duration_minutes: int = Field(default=5, ge=1)
 
 
 class SectionUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     section_type: Optional[SectionType] = None
-    estimated_duration_minutes: Optional[int] = None
+    estimated_duration_minutes: Optional[int] = Field(default=None, ge=1)
 
 
 # --- Template Sessions ---
@@ -86,12 +86,12 @@ class TemplateSessionRead(BaseModel):
 
 
 class TemplateSessionCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     focus_description: Optional[str] = None
 
 
 class TemplateSessionUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     focus_description: Optional[str] = None
 
 
