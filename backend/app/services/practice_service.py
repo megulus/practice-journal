@@ -83,12 +83,14 @@ async def calculate_day_streak(
     """
     today = datetime.now(timezone.utc).date()
 
+    cutoff = today - timedelta(days=90)
     result = await session.exec(
         select(PracticeLog.practice_date)
         .where(
             PracticeLog.user_id == user_id,
             PracticeLog.status == SessionStatus.completed.value,
             PracticeLog.deleted_at == None,  # noqa: E711
+            PracticeLog.practice_date >= cutoff,
         )
         .distinct()
         .order_by(col(PracticeLog.practice_date).desc())
@@ -130,17 +132,17 @@ async def generate_coaching_suggestion(
         return None
 
     today = datetime.now(timezone.utc).date()
-    # Get the start of the current week (Monday-based for counting)
-    days_since_monday = today.weekday()
-    week_start = today - timedelta(days=days_since_monday)
+    # Rolling 7-day window (matches spec example text)
+    window_start = today - timedelta(days=6)
 
     result = await session.exec(
         select(func.count(func.distinct(PracticeLog.practice_date)))
         .where(
             PracticeLog.user_id == user_id,
+            PracticeLog.instrument_id == instrument_id,
             PracticeLog.status == SessionStatus.completed.value,
             PracticeLog.deleted_at == None,  # noqa: E711
-            PracticeLog.practice_date >= week_start,
+            PracticeLog.practice_date >= window_start,
             PracticeLog.practice_date <= today,
         )
     )

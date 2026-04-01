@@ -401,7 +401,11 @@ async def update_section_log(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a section log. Supports mark_all_done and skip section."""
+    """Update a section log. Supports mark_all_done and skip section.
+
+    No status guard: editing after completion is allowed (spec's
+    "Edit this session" button on the summary screen).
+    """
     sl = await _get_section_log_in_practice(
         session, log_id, section_log_id, current_user.id
     )
@@ -472,7 +476,11 @@ async def update_block_log(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a block log (rating, notes, completed)."""
+    """Update a block log (rating, notes, completed).
+
+    No status guard: editing after completion is allowed (spec's
+    "Edit this session" button on the summary screen).
+    """
     bl = await _get_block_log_in_practice(
         session, log_id, block_log_id, current_user.id
     )
@@ -525,6 +533,10 @@ async def finish_practice(
     log.total_duration_minutes = total
     log.status = SessionStatus.completed.value
 
+    # Compute summary before commit — async session expires loaded
+    # objects after commit, making lazy access impossible
+    pre_summary = compute_session_summary(loaded.section_logs, day_streak=0)
+
     # Advance rotation index on the template (if template-based)
     if log.template_id is not None:
         tmpl_result = await session.exec(
@@ -552,8 +564,10 @@ async def finish_practice(
     await session.commit()
     await session.refresh(log)
 
-    # Build response — summary stats
+    # Post-commit: streak needs this session counted
     streak = await calculate_day_streak(session, current_user.id)
+    # Patch in the streak (computed after commit so this session counts)
+    summary = pre_summary.model_copy(update={"day_streak": streak})
 
     # Get user's suggestions preference
     settings_result = await session.exec(
@@ -568,10 +582,8 @@ async def finish_practice(
         session, current_user.id, log.instrument_id, suggestions_pref
     )
 
-    # Re-load with nested data for _build_log_read
+    # Re-load with nested data for response
     log_read = await _build_log_read(session, log)
-
-    summary = compute_session_summary(loaded.section_logs, streak)
 
     return FinishResponse(
         practice_log=log_read,
