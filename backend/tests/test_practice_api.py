@@ -1,4 +1,4 @@
-"""Tests for Practice session lifecycle — core API endpoints."""
+"""Tests for Practice session lifecycle API endpoints."""
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -13,10 +13,12 @@ from app.models import (
     PracticeLog,
     SectionLog,
     BlockLog,
+    UserSettings,
 )
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 
 from app.enums import SessionStatus
+from app.services.practice_service import REFLECTION_PROMPTS
 
 
 # ---------------------------------------------------------------------------
@@ -737,3 +739,455 @@ class TestUpdateBlockLog:
         assert resp.status_code == 200
         assert resp.json()["rating"] is None
         assert resp.json()["completed"] is False
+
+
+# ===========================================================================
+# POST /api/practice/{logId}/finish
+# ===========================================================================
+
+class TestFinishPractice:
+    async def test_finish_basic(
+        self, client: AsyncClient, started_session
+    ):
+        """Finishing a session returns summary stats and reflection prompt."""
+        data, _, _, _, _ = started_session
+        log_id = data["id"]
+
+        # Rate some blocks before finishing
+        blocks = data["section_logs"][0]["block_logs"]
+        await client.put(
+            f"/api/practice/{log_id}/blocks/{blocks[0]['id']}",
+            json={"rating": 1, "completed": True},
+        )
+
+        resp = await client.post(f"/api/practice/{log_id}/finish")
+        assert resp.status_code == 200
+        result = resp.json()
+
+        # Status is completed
+        assert result["practice_log"]["status"] == "completed"
+
+        # Summary present
+        summary = result["summary"]
+        assert summary["total_duration_minutes"] == 15  # 5 + 10
+        assert summary["exercises_total"] == 3
+        assert summary["exercises_completed"] == 1
+        assert summary["day_streak"] >= 1
+
+        # Ratings breakdown
+        assert summary["ratings"]["step_forward"] == 1
+        assert summary["ratings"]["skipped"] == 2  # 2 uncompleted blocks
+
+        # Reflection prompt is from the pool
+        assert result["reflection_prompt"] in REFLECTION_PROMPTS
+
+        # Coaching suggestion present
+        assert result["coaching_suggestion"] is not None
+        assert result["coaching_suggestion"]["rule_id"] == "weekly_consistency"
+
+    async def test_finish_advances_rotation_index(
+        self, client: AsyncClient, db_session: AsyncSession,
+        started_session
+    ):
+        """Finishing advances the template's current_rotation_index."""
+        data, template, _, _, _ = started_session
+
+        # Add a second session to the template so we can see rotation advance
+        ts2 = TemplateSession(
+            template_id=template.id,
+            name="Day 2",
+            display_order=1,
+        )
+        db_session.add(ts2)
+        await db_session.commit()
+
+        resp = await client.post(f"/api/practice/{data['id']}/finish")
+        assert resp.status_code == 200
+
+        # Check the template's rotation index advanced
+        await db_session.refresh(template)
+        assert template.current_rotation_index == 1
+
+    async def test_finish_rotation_wraps_around(
+        self, client: AsyncClient, db_session: AsyncSession,
+        started_session
+    ):
+        """Rotation index wraps around when it reaches the end."""
+        data, template, _, _, _ = started_session
+        # Template has 1 session → index wraps from 0 back to 0
+        resp = await client.post(f"/api/practice/{data['id']}/finish")
+        assert resp.status_code == 200
+
+        await db_session.refresh(template)
+        assert template.current_rotation_index == 0
+
+    async def test_finish_freeform_session(
+        self, client: AsyncClient, test_instrument
+    ):
+        """Finishing a freeform session works without rotation advancement."""
+        start_resp = await client.post(
+            "/api/practice/start",
+            json={"instrument_id": test_instrument.id},
+        )
+        assert start_resp.status_code == 201
+        log_id = start_resp.json()["id"]
+
+        resp = await client.post(f"/api/practice/{log_id}/finish")
+        assert resp.status_code == 200
+        result = resp.json()
+        assert result["practice_log"]["status"] == "completed"
+        assert result["summary"]["total_duration_minutes"] == 0
+        assert result["reflection_prompt"] in REFLECTION_PROMPTS
+
+    async def test_finish_already_completed_returns_409(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        await client.post(f"/api/practice/{data['id']}/finish")
+
+        resp = await client.post(f"/api/practice/{data['id']}/finish")
+        assert resp.status_code == 409
+
+    async def test_finish_abandoned_returns_409(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        await client.patch(
+            f"/api/practice/{data['id']}",
+            json={"status": "abandoned"},
+        )
+
+        resp = await client.post(f"/api/practice/{data['id']}/finish")
+        assert resp.status_code == 409
+
+    async def test_finish_not_found(self, client: AsyncClient):
+        resp = await client.post("/api/practice/99999/finish")
+        assert resp.status_code == 404
+
+    async def test_finish_other_users_log_returns_404(
+        self, client: AsyncClient, other_user_log
+    ):
+        log, _, _ = other_user_log
+        resp = await client.post(f"/api/practice/{log.id}/finish")
+        assert resp.status_code == 404
+
+    async def test_reflection_prompt_excludes_recent(
+        self, client: AsyncClient, db_session: AsyncSession,
+        test_user, test_instrument
+    ):
+        """Reflection prompt should not repeat any of the last 3 shown."""
+        today = date_type.today()
+        used_prompts = set()
+
+        # Create 3 completed sessions with specific reflection prompts
+        for i in range(3):
+            log = PracticeLog(
+                user_id=test_user.id,
+                instrument_id=test_instrument.id,
+                practice_date=today - timedelta(days=i + 1),
+                status=SessionStatus.completed.value,
+                reflection_prompt=REFLECTION_PROMPTS[i],
+            )
+            db_session.add(log)
+            used_prompts.add(REFLECTION_PROMPTS[i])
+
+        await db_session.commit()
+
+        # Start and finish a new session
+        start_resp = await client.post(
+            "/api/practice/start",
+            json={"instrument_id": test_instrument.id},
+        )
+        log_id = start_resp.json()["id"]
+        finish_resp = await client.post(f"/api/practice/{log_id}/finish")
+        assert finish_resp.status_code == 200
+
+        prompt = finish_resp.json()["reflection_prompt"]
+        assert prompt not in used_prompts
+
+    async def test_coaching_suggestion_off(
+        self, client: AsyncClient, db_session: AsyncSession,
+        test_user, test_instrument
+    ):
+        """When suggestions_preference is 'off', no coaching suggestion."""
+        settings = UserSettings(
+            user_id=test_user.id,
+            suggestions_preference="off",
+        )
+        db_session.add(settings)
+        await db_session.commit()
+
+        start_resp = await client.post(
+            "/api/practice/start",
+            json={"instrument_id": test_instrument.id},
+        )
+        log_id = start_resp.json()["id"]
+        finish_resp = await client.post(f"/api/practice/{log_id}/finish")
+        assert finish_resp.status_code == 200
+        assert finish_resp.json()["coaching_suggestion"] is None
+
+    async def test_finish_ratings_breakdown(
+        self, client: AsyncClient, started_session
+    ):
+        """Verify ratings are correctly categorized."""
+        data, _, _, _, _ = started_session
+        log_id = data["id"]
+        blocks_sec1 = data["section_logs"][0]["block_logs"]
+        blocks_sec2 = data["section_logs"][1]["block_logs"]
+
+        # Block 1: step forward
+        await client.put(
+            f"/api/practice/{log_id}/blocks/{blocks_sec1[0]['id']}",
+            json={"rating": 1, "completed": True},
+        )
+        # Block 2: step back
+        await client.put(
+            f"/api/practice/{log_id}/blocks/{blocks_sec2[0]['id']}",
+            json={"rating": -1, "completed": True},
+        )
+        # Block 3: steady
+        await client.put(
+            f"/api/practice/{log_id}/blocks/{blocks_sec2[1]['id']}",
+            json={"rating": 0, "completed": True},
+        )
+
+        resp = await client.post(f"/api/practice/{log_id}/finish")
+        ratings = resp.json()["summary"]["ratings"]
+        assert ratings["step_forward"] == 1
+        assert ratings["step_back"] == 1
+        assert ratings["steady"] == 1
+        assert ratings["skipped"] == 0
+
+    async def test_finish_day_streak(
+        self, client: AsyncClient, db_session: AsyncSession,
+        test_user, test_instrument
+    ):
+        """Day streak counts consecutive days of completed sessions."""
+        today = date_type.today()
+
+        # Create completed sessions for the past 3 days
+        for i in range(1, 4):
+            log = PracticeLog(
+                user_id=test_user.id,
+                instrument_id=test_instrument.id,
+                practice_date=today - timedelta(days=i),
+                status=SessionStatus.completed.value,
+            )
+            db_session.add(log)
+        await db_session.commit()
+
+        # Finish today's session
+        start_resp = await client.post(
+            "/api/practice/start",
+            json={"instrument_id": test_instrument.id},
+        )
+        finish_resp = await client.post(
+            f"/api/practice/{start_resp.json()['id']}/finish"
+        )
+        assert finish_resp.status_code == 200
+        assert finish_resp.json()["summary"]["day_streak"] == 4
+
+
+# ===========================================================================
+# PATCH /api/practice/{logId}/reflection
+# ===========================================================================
+
+class TestReflection:
+    async def test_save_reflection(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        log_id = data["id"]
+
+        # Finish first
+        await client.post(f"/api/practice/{log_id}/finish")
+
+        resp = await client.patch(
+            f"/api/practice/{log_id}/reflection",
+            json={
+                "reflection_response": "Felt more relaxed in the left hand."
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["reflection_response"] == (
+            "Felt more relaxed in the left hand."
+        )
+
+    async def test_reflection_on_in_progress_returns_409(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        resp = await client.patch(
+            f"/api/practice/{data['id']}/reflection",
+            json={"reflection_response": "test"},
+        )
+        assert resp.status_code == 409
+
+    async def test_reflection_not_found(self, client: AsyncClient):
+        resp = await client.patch(
+            "/api/practice/99999/reflection",
+            json={"reflection_response": "test"},
+        )
+        assert resp.status_code == 404
+
+    async def test_reflection_other_user_returns_404(
+        self, client: AsyncClient, other_user_log
+    ):
+        log, _, _ = other_user_log
+        resp = await client.patch(
+            f"/api/practice/{log.id}/reflection",
+            json={"reflection_response": "test"},
+        )
+        assert resp.status_code == 404
+
+
+# ===========================================================================
+# POST /api/practice/{logId}/sections  (freeform)
+# ===========================================================================
+
+class TestAddFreeformSection:
+    async def test_add_section(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        resp = await client.post(
+            f"/api/practice/{data['id']}/sections",
+            json={"section_name": "Sight reading", "section_type": "sight_reading"},
+        )
+        assert resp.status_code == 201
+        result = resp.json()
+        assert result["section_name"] == "Sight reading"
+        assert result["section_type"] == "sight_reading"
+        assert result["section_id"] is None
+        assert result["completed"] is True
+        assert result["block_logs"] == []
+
+    async def test_add_section_display_order(
+        self, client: AsyncClient, started_session
+    ):
+        """Freeform sections get sequential display_order after existing."""
+        data, _, _, _, _ = started_session
+        # Template scaffolded 2 sections (orders 0, 1)
+        resp1 = await client.post(
+            f"/api/practice/{data['id']}/sections",
+            json={"section_name": "Extra 1", "section_type": "other"},
+        )
+        resp2 = await client.post(
+            f"/api/practice/{data['id']}/sections",
+            json={"section_name": "Extra 2", "section_type": "other"},
+        )
+        assert resp1.json()["display_order"] == 2
+        assert resp2.json()["display_order"] == 3
+
+    async def test_add_section_completed_session_returns_409(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        await client.post(f"/api/practice/{data['id']}/finish")
+
+        resp = await client.post(
+            f"/api/practice/{data['id']}/sections",
+            json={"section_name": "Nope", "section_type": "other"},
+        )
+        assert resp.status_code == 409
+
+    async def test_add_section_not_found(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/practice/99999/sections",
+            json={"section_name": "X", "section_type": "other"},
+        )
+        assert resp.status_code == 404
+
+    async def test_add_section_other_user_returns_404(
+        self, client: AsyncClient, other_user_log
+    ):
+        log, _, _ = other_user_log
+        resp = await client.post(
+            f"/api/practice/{log.id}/sections",
+            json={"section_name": "X", "section_type": "other"},
+        )
+        assert resp.status_code == 404
+
+    async def test_add_section_to_freeform_session(
+        self, client: AsyncClient, test_instrument
+    ):
+        """Can add sections to a freeform (no-template) session."""
+        start_resp = await client.post(
+            "/api/practice/start",
+            json={"instrument_id": test_instrument.id},
+        )
+        log_id = start_resp.json()["id"]
+
+        resp = await client.post(
+            f"/api/practice/{log_id}/sections",
+            json={"section_name": "Warm-up", "section_type": "warmup"},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["display_order"] == 0
+
+
+# ===========================================================================
+# POST /api/practice/{logId}/sections/{sectionLogId}/blocks  (freeform)
+# ===========================================================================
+
+class TestAddFreeformBlock:
+    async def test_add_block(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        sl_id = data["section_logs"][0]["id"]
+        resp = await client.post(
+            f"/api/practice/{data['id']}/sections/{sl_id}/blocks",
+            json={"block_name": "Cadenza run-through"},
+        )
+        assert resp.status_code == 201
+        result = resp.json()
+        assert result["block_name"] == "Cadenza run-through"
+        assert result["block_id"] is None
+        assert result["completed"] is False
+
+    async def test_add_block_display_order(
+        self, client: AsyncClient, started_session
+    ):
+        """Freeform blocks get sequential display_order after existing."""
+        data, _, _, _, _ = started_session
+        # Scales section has 2 blocks (orders 0, 1)
+        sl_id = data["section_logs"][1]["id"]
+        resp = await client.post(
+            f"/api/practice/{data['id']}/sections/{sl_id}/blocks",
+            json={"block_name": "A minor scale"},
+        )
+        assert resp.json()["display_order"] == 2
+
+    async def test_add_block_completed_session_returns_409(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        sl_id = data["section_logs"][0]["id"]
+        await client.post(f"/api/practice/{data['id']}/finish")
+
+        resp = await client.post(
+            f"/api/practice/{data['id']}/sections/{sl_id}/blocks",
+            json={"block_name": "Nope"},
+        )
+        assert resp.status_code == 409
+
+    async def test_add_block_section_not_found(
+        self, client: AsyncClient, started_session
+    ):
+        data, _, _, _, _ = started_session
+        resp = await client.post(
+            f"/api/practice/{data['id']}/sections/99999/blocks",
+            json={"block_name": "X"},
+        )
+        assert resp.status_code == 404
+
+    async def test_add_block_other_user_returns_404(
+        self, client: AsyncClient, other_user_log
+    ):
+        log, sl, _ = other_user_log
+        resp = await client.post(
+            f"/api/practice/{log.id}/sections/{sl.id}/blocks",
+            json={"block_name": "X"},
+        )
+        assert resp.status_code == 404

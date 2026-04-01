@@ -1,9 +1,9 @@
 """
-Practice session lifecycle API — core.
+Practice session lifecycle API.
 
-Start, read, and update practice sessions. Handles scaffolding from
-templates, smart tempo defaults, section-level actions (mark all done,
-skip section), and freeform sessions.
+Start, read, update, and finish practice sessions. Handles scaffolding
+from templates, smart tempo defaults, section-level actions, freeform
+additions, session finishing with summary stats, and reflection prompts.
 """
 from datetime import datetime, timezone
 
@@ -12,9 +12,12 @@ from sqlmodel import select, col
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import func
+
 from app.database import get_session
 from app.models import (
     User,
+    UserSettings,
     Instrument,
     Template,
     TemplateSession,
@@ -28,13 +31,23 @@ from app.auth import get_current_user
 from app.api.ownership import get_owned_instrument, get_owned_template
 from app.enums import SessionStatus, utcnow
 from app.schemas.practice import (
+    BlockLogCreate,
     BlockLogRead,
     BlockLogUpdate,
+    FinishResponse,
     PracticeLogRead,
     PracticeLogUpdate,
     PracticeStartRequest,
+    ReflectionUpdate,
+    SectionLogCreate,
     SectionLogRead,
     SectionLogUpdate,
+)
+from app.services.practice_service import (
+    calculate_day_streak,
+    compute_session_summary,
+    generate_coaching_suggestion,
+    select_reflection_prompt,
 )
 
 router = APIRouter(tags=["practice"])
@@ -109,6 +122,15 @@ async def _get_block_log_in_practice(
             detail="Block log not found",
         )
     return bl
+
+
+def _require_status(log: PracticeLog, expected: str, action: str) -> None:
+    """Raise 409 Conflict if the log is not in the expected status."""
+    if log.status != expected:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot {action}: session is {log.status}",
+        )
 
 
 async def _build_log_read(
@@ -192,11 +214,7 @@ async def _lookup_last_tempos(
     if not block_ids:
         return {}
 
-    # Use a lateral join / correlated subquery to get the most recent
-    # block log per block_id that has tempo data.
-    # Simpler approach: query all recent block logs and deduplicate in Python.
-    from sqlalchemy import func, and_
-
+    # Query all recent block logs and deduplicate in Python.
     # Get the max practice_log.created_at for each block_id where the
     # block was part of a completed session and has a non-null block_id
     result = await session.exec(
@@ -463,6 +481,214 @@ async def update_block_log(
     for field, value in update_data.items():
         setattr(bl, field, value)
 
+    session.add(bl)
+    await session.commit()
+    await session.refresh(bl)
+    return bl
+
+
+# ---------------------------------------------------------------------------
+# Finish, reflection, freeform additions
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/practice/{log_id}/finish",
+    response_model=FinishResponse,
+)
+async def finish_practice(
+    log_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Finish a practice session.
+
+    Sums section durations, sets status to completed, advances rotation
+    index on the template, picks a reflection prompt, generates a
+    coaching suggestion, and returns full summary stats.
+    """
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.in_progress.value, "finish")
+
+    # Eagerly load section_logs with block_logs
+    result = await session.exec(
+        select(PracticeLog)
+        .where(PracticeLog.id == log.id)
+        .options(
+            selectinload(PracticeLog.section_logs)  # type: ignore[arg-type]
+            .selectinload(SectionLog.block_logs),  # type: ignore[arg-type]
+        )
+    )
+    loaded = result.one()
+
+    # Sum durations and complete
+    total = sum(sl.actual_duration_minutes for sl in loaded.section_logs)
+    log.total_duration_minutes = total
+    log.status = SessionStatus.completed.value
+
+    # Advance rotation index on the template (if template-based)
+    if log.template_id is not None:
+        tmpl_result = await session.exec(
+            select(Template).where(Template.id == log.template_id)
+        )
+        tmpl = tmpl_result.first()
+        if tmpl:
+            session_count_result = await session.exec(
+                select(func.count()).where(
+                    TemplateSession.template_id == tmpl.id
+                )
+            )
+            session_count = session_count_result.one()
+            if session_count > 0:
+                tmpl.current_rotation_index = (
+                    (tmpl.current_rotation_index + 1) % session_count
+                )
+                session.add(tmpl)
+
+    # Pick reflection prompt
+    prompt = await select_reflection_prompt(session, current_user.id)
+    log.reflection_prompt = prompt
+
+    session.add(log)
+    await session.commit()
+    await session.refresh(log)
+
+    # Build response — summary stats
+    streak = await calculate_day_streak(session, current_user.id)
+
+    # Get user's suggestions preference
+    settings_result = await session.exec(
+        select(UserSettings).where(UserSettings.user_id == current_user.id)
+    )
+    user_settings = settings_result.first()
+    suggestions_pref = (
+        user_settings.suggestions_preference if user_settings else "all"
+    )
+
+    suggestion = await generate_coaching_suggestion(
+        session, current_user.id, log.instrument_id, suggestions_pref
+    )
+
+    # Re-load with nested data for _build_log_read
+    log_read = await _build_log_read(session, log)
+
+    summary = compute_session_summary(loaded.section_logs, streak)
+
+    return FinishResponse(
+        practice_log=log_read,
+        summary=summary,
+        coaching_suggestion=suggestion,
+        reflection_prompt=prompt,
+    )
+
+
+@router.patch(
+    "/practice/{log_id}/reflection",
+    response_model=PracticeLogRead,
+)
+async def save_reflection(
+    log_id: int,
+    body: ReflectionUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Save the reflection response on a completed session."""
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.completed.value, "save reflection")
+
+    log.reflection_response = body.reflection_response
+    session.add(log)
+    await session.commit()
+    await session.refresh(log)
+    return await _build_log_read(session, log)
+
+
+@router.post(
+    "/practice/{log_id}/sections",
+    response_model=SectionLogRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_freeform_section(
+    log_id: int,
+    body: SectionLogCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a freeform section to an in-progress session."""
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.in_progress.value, "add section")
+
+    # Determine next display_order
+    max_order_result = await session.exec(
+        select(func.max(SectionLog.display_order)).where(
+            SectionLog.practice_log_id == log.id
+        )
+    )
+    max_order = max_order_result.one()
+    next_order = (max_order + 1) if max_order is not None else 0
+
+    sl = SectionLog(
+        practice_log_id=log.id,
+        section_id=None,
+        section_type=body.section_type.value,
+        section_name=body.section_name,
+        planned_duration_minutes=None,
+        actual_duration_minutes=0,
+        display_order=next_order,
+        completed=True,
+    )
+    session.add(sl)
+    await session.commit()
+    await session.refresh(sl)
+
+    return SectionLogRead(
+        id=sl.id,
+        section_id=sl.section_id,
+        section_type=sl.section_type,
+        section_name=sl.section_name,
+        planned_duration_minutes=sl.planned_duration_minutes,
+        actual_duration_minutes=sl.actual_duration_minutes,
+        display_order=sl.display_order,
+        completed=sl.completed,
+        block_logs=[],
+    )
+
+
+@router.post(
+    "/practice/{log_id}/sections/{section_log_id}/blocks",
+    response_model=BlockLogRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_freeform_block(
+    log_id: int,
+    section_log_id: int,
+    body: BlockLogCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a freeform block to a section in an in-progress session."""
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.in_progress.value, "add block")
+
+    sl = await _get_section_log_in_practice(
+        session, log_id, section_log_id, current_user.id
+    )
+
+    # Determine next display_order
+    max_order_result = await session.exec(
+        select(func.max(BlockLog.display_order)).where(
+            BlockLog.section_log_id == sl.id
+        )
+    )
+    max_order = max_order_result.one()
+    next_order = (max_order + 1) if max_order is not None else 0
+
+    bl = BlockLog(
+        section_log_id=sl.id,
+        block_id=None,
+        block_name=body.block_name,
+        display_order=next_order,
+        completed=False,
+    )
     session.add(bl)
     await session.commit()
     await session.refresh(bl)
