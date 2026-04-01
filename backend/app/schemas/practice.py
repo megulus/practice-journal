@@ -19,6 +19,7 @@ class BlockLogRead(BaseModel):
     notes: Optional[str] = None
     completed: bool
     display_order: int
+    last_tempo_bpm: Optional[int] = None
 
 
 class BlockLogUpdate(BaseModel):
@@ -49,8 +50,9 @@ class SectionLogRead(BaseModel):
 
 
 class SectionLogUpdate(BaseModel):
-    actual_duration_minutes: Optional[int] = None
+    actual_duration_minutes: Optional[int] = Field(default=None, ge=0)
     completed: Optional[bool] = None
+    mark_all_done: Optional[bool] = None
 
 
 class SectionLogCreate(BaseModel):
@@ -97,7 +99,11 @@ class PracticeStartRequest(BaseModel):
 
 class PracticeLogUpdate(BaseModel):
     notes: Optional[str] = None
-    status: Optional[SessionStatus] = None
+    status: Optional[str] = Field(
+        default=None,
+        pattern=f"^{SessionStatus.abandoned.value}$",
+        description="Only 'abandoned' is allowed via PATCH. Use the finish endpoint for 'completed'.",
+    )
 
 
 class ReflectionUpdate(BaseModel):
