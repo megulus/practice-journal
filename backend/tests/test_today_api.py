@@ -1,6 +1,6 @@
 """Tests for /api/today endpoints."""
 import pytest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -12,7 +12,7 @@ from app.models import Instrument, Template, TemplateSession, Section, PracticeL
 # ---------------------------------------------------------------------------
 
 def _days_ago(n: int) -> date:
-    return date.today() - timedelta(days=n)
+    return datetime.now(timezone.utc).date() - timedelta(days=n)
 
 
 async def _make_instrument(db, user, *, name="Violin", frequency="few_times_a_week", **kw):
@@ -225,6 +225,33 @@ class TestActiveSession:
         assert data["active_session"] is not None
         assert data["active_session"]["session_name"] == "Session 1"
 
+    async def test_active_session_returns_most_recent(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        """When multiple in-progress logs exist, return the most recent."""
+        inst = await _make_instrument(db_session, test_user)
+        await _make_log(db_session, test_user, inst, status="in_progress", days_ago=1)
+        await _make_log(db_session, test_user, inst, status="in_progress", days_ago=0)
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        assert data["active_session"] is not None
+        # Should be the most recently created one
+        assert data["active_session"]["practice_log_id"] is not None
+
+    async def test_single_instrument_scopes_active_session(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        """GET /api/today/{id} only shows active session for that instrument."""
+        violin = await _make_instrument(db_session, test_user, name="Violin", frequency="daily")
+        piano = await _make_instrument(db_session, test_user, name="Piano", frequency="daily")
+        await _make_log(db_session, test_user, piano, status="in_progress", days_ago=0)
+
+        resp = await client.get(f"/api/today/{violin.id}")
+        data = resp.json()
+        # Piano's active session should NOT appear when scoped to violin
+        assert data["active_session"] is None
+
     async def test_no_active_session(
         self, client: AsyncClient, db_session: AsyncSession, test_user
     ):
@@ -276,6 +303,25 @@ class TestCurrentSession:
         cs = data["instruments_due"][0]["current_session"]
         assert cs["session_name"] == "C"
         assert cs["rotation_position"] == "session 3 of 3"
+
+    async def test_template_with_zero_sessions(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        """Active template with no sessions → current_session is null."""
+        inst = await _make_instrument(db_session, test_user, frequency="daily")
+        # Create template directly without sessions
+        tmpl = Template(
+            user_id=test_user.id, instrument_id=inst.id,
+            name="Empty Plan", is_active=True,
+        )
+        db_session.add(tmpl)
+        await db_session.commit()
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        due = data["instruments_due"][0]
+        assert due["current_session"] is None
+        assert due["all_sessions"] == []
 
     async def test_no_template_fallback(
         self, client: AsyncClient, db_session: AsyncSession, test_user
@@ -349,6 +395,45 @@ class TestRepeatSession:
         due = data["instruments_due"][0]
         assert due["repeat_session"] is None
 
+    async def test_repeat_session_null_after_template_switch(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        """Last session used old template's session → repeat_session is null."""
+        inst = await _make_instrument(db_session, test_user, frequency="daily")
+
+        # Old template (now inactive)
+        old_tmpl = Template(
+            user_id=test_user.id, instrument_id=inst.id,
+            name="Old Plan", is_active=False,
+        )
+        db_session.add(old_tmpl)
+        await db_session.commit()
+        await db_session.refresh(old_tmpl)
+
+        old_ts = TemplateSession(
+            template_id=old_tmpl.id, name="Old Session", display_order=0
+        )
+        db_session.add(old_ts)
+        await db_session.commit()
+        await db_session.refresh(old_ts)
+
+        # Log from old template
+        await _make_log(
+            db_session, test_user, inst, days_ago=1,
+            template=old_tmpl, template_session=old_ts,
+        )
+
+        # New active template
+        await _make_template_with_sessions(
+            db_session, test_user, inst, session_names=["New Session"]
+        )
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        due = data["instruments_due"][0]
+        # Old session not in new template's sessions → null
+        assert due["repeat_session"] is None
+
 
 # ===========================================================================
 # All sessions tests
@@ -417,4 +502,10 @@ class TestSingleInstrument:
 class TestAuth:
     async def test_unauthenticated_returns_401(self, unauth_client: AsyncClient):
         resp = await unauth_client.get("/api/today")
+        assert resp.status_code == 401
+
+    async def test_unauthenticated_single_instrument_returns_401(
+        self, unauth_client: AsyncClient
+    ):
+        resp = await unauth_client.get("/api/today/1")
         assert resp.status_code == 401

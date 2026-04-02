@@ -1,6 +1,6 @@
 """Today tab API — surfaces which instruments are due and what to practice next."""
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
@@ -75,10 +75,15 @@ def _next_due_description(frequency: str, days_since_last: Optional[int]) -> Opt
 # ---------------------------------------------------------------------------
 
 async def _get_active_session(
-    session: AsyncSession, user_id: int
+    session: AsyncSession,
+    user_id: int,
+    instrument_id: Optional[int] = None,
 ) -> Optional[ActiveSessionInfo]:
-    """Find any in-progress PracticeLog for the user."""
-    result = await session.exec(
+    """Find any in-progress PracticeLog for the user.
+
+    When instrument_id is provided, scopes to that instrument only.
+    """
+    query = (
         select(PracticeLog)
         .where(
             PracticeLog.user_id == user_id,
@@ -92,6 +97,9 @@ async def _get_active_session(
         .order_by(PracticeLog.created_at.desc())
         .limit(1)
     )
+    if instrument_id is not None:
+        query = query.where(PracticeLog.instrument_id == instrument_id)
+    result = await session.exec(query)
     log = result.first()
     if not log:
         return None
@@ -122,7 +130,7 @@ async def _build_current_session(
     )
     sections = result.all()
 
-    estimated_duration = sum(s.estimated_duration_minutes for s in sections)
+    estimated_duration = sum(s.estimated_duration_minutes for s in sections) or None
     section_types = list(dict.fromkeys(s.section_type for s in sections))
 
     return CurrentSessionInfo(
@@ -180,8 +188,12 @@ async def _build_instrument_entry(
     instrument: Instrument,
     user_id: int,
     today: date,
-):
-    """Build a due/not-due entry for a single instrument."""
+) -> Union[InstrumentDue, InstrumentNotDue]:
+    """Build a due/not-due entry for a single instrument.
+
+    N+1: runs 1-5 queries per instrument (last_practiced, template, sessions,
+    sections, repeat log). Fine for typical usage (1-5 instruments per user).
+    """
     # Last practiced date
     result = await session.exec(
         select(func.max(PracticeLog.practice_date)).where(
@@ -318,7 +330,9 @@ async def get_today_instrument(
     instrument = await get_owned_instrument(session, instrument_id, current_user.id)
     today = datetime.now(timezone.utc).date()
 
-    active_session = await _get_active_session(session, current_user.id)
+    active_session = await _get_active_session(
+        session, current_user.id, instrument_id=instrument.id
+    )
 
     entry = await _build_instrument_entry(
         session, instrument, current_user.id, today

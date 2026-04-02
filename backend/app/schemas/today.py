@@ -26,7 +26,7 @@ class CurrentSessionInfo(BaseModel):
     session_name: str
     focus_description: Optional[str] = None
     rotation_position: str  # e.g. "session 3 of 7"
-    estimated_duration_minutes: int
+    estimated_duration_minutes: Optional[int] = None
     section_types: List[str]
 
 
