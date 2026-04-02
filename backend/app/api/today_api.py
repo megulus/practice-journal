@@ -1,5 +1,5 @@
 """Today tab API — surfaces which instruments are due and what to practice next."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends
@@ -85,7 +85,10 @@ async def _get_active_session(
             PracticeLog.status == "in_progress",
             PracticeLog.deleted_at == None,  # noqa: E711
         )
-        .options(selectinload(PracticeLog.instrument))
+        .options(
+            selectinload(PracticeLog.instrument),
+            selectinload(PracticeLog.template_session),
+        )
         .order_by(PracticeLog.created_at.desc())
         .limit(1)
     )
@@ -139,6 +142,7 @@ async def _build_repeat_session(
     instrument_id: int,
     user_id: int,
     current_session_id: Optional[int],
+    template_sessions: list[TemplateSession],
 ) -> Optional[RepeatSessionInfo]:
     """Find the most recent completed session for repeat shortcut."""
     result = await session.exec(
@@ -160,11 +164,8 @@ async def _build_repeat_session(
     if log.template_session_id == current_session_id:
         return None
 
-    # Look up the session name
-    ts_result = await session.exec(
-        select(TemplateSession).where(TemplateSession.id == log.template_session_id)
-    )
-    ts = ts_result.first()
+    # Look up the session name from the already-loaded list
+    ts = next((s for s in template_sessions if s.id == log.template_session_id), None)
     if not ts:
         return None
 
@@ -242,7 +243,7 @@ async def _build_instrument_entry(
 
         current_session_id = current_session.session_id if current_session else None
         repeat_session = await _build_repeat_session(
-            session, instrument.id, user_id, current_session_id
+            session, instrument.id, user_id, current_session_id, template_sessions
         )
 
         all_sessions = [
@@ -274,7 +275,7 @@ async def get_today(
     current_user: User = Depends(get_current_user),
 ):
     """Today context for all user instruments."""
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
 
     active_session = await _get_active_session(session, current_user.id)
 
@@ -315,7 +316,7 @@ async def get_today_instrument(
 ):
     """Today context scoped to a single instrument."""
     instrument = await get_owned_instrument(session, instrument_id, current_user.id)
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
 
     active_session = await _get_active_session(session, current_user.id)
 

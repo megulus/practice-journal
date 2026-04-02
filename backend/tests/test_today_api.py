@@ -160,6 +160,36 @@ class TestDueLogic:
         assert len(data["instruments_not_due"]) == 1
         assert data["instruments_not_due"][0]["next_due_description"] == "due tomorrow"
 
+    async def test_deleted_instrument_excluded(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        from app.enums import utcnow
+        inst = Instrument(
+            user_id=test_user.id, name="Deleted", practice_frequency="daily",
+            deleted_at=utcnow(),
+        )
+        db_session.add(inst)
+        await db_session.commit()
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        assert len(data["instruments_due"]) == 0
+        assert len(data["instruments_not_due"]) == 0
+
+    async def test_mixed_due_and_not_due(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        daily = await _make_instrument(db_session, test_user, name="Violin", frequency="daily")
+        weekly = await _make_instrument(db_session, test_user, name="Piano", frequency="weekly")
+        await _make_log(db_session, test_user, weekly, days_ago=1)  # not due yet
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        assert len(data["instruments_due"]) == 1
+        assert data["instruments_due"][0]["instrument"]["name"] == "Violin"
+        assert len(data["instruments_not_due"]) == 1
+        assert data["instruments_not_due"][0]["instrument"]["name"] == "Piano"
+
 
 # ===========================================================================
 # Active session tests
@@ -176,6 +206,24 @@ class TestActiveSession:
         data = resp.json()
         assert data["active_session"] is not None
         assert data["active_session"]["instrument_name"] == "Violin"
+
+    async def test_active_session_with_template(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        inst = await _make_instrument(db_session, test_user)
+        tmpl, sessions = await _make_template_with_sessions(
+            db_session, test_user, inst
+        )
+        await _make_log(
+            db_session, test_user, inst,
+            status="in_progress", days_ago=0,
+            template=tmpl, template_session=sessions[0],
+        )
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        assert data["active_session"] is not None
+        assert data["active_session"]["session_name"] == "Session 1"
 
     async def test_no_active_session(
         self, client: AsyncClient, db_session: AsyncSession, test_user
@@ -212,6 +260,22 @@ class TestCurrentSession:
         assert cs["rotation_position"] == "session 2 of 3"
         assert cs["estimated_duration_minutes"] == 10
         assert cs["section_types"] == ["warmup"]
+
+    async def test_rotation_index_wraps_around(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        inst = await _make_instrument(db_session, test_user, frequency="daily")
+        await _make_template_with_sessions(
+            db_session, test_user, inst,
+            session_names=["A", "B", "C"],
+            rotation_index=5,  # 5 % 3 = 2 → session C
+        )
+
+        resp = await client.get("/api/today")
+        data = resp.json()
+        cs = data["instruments_due"][0]["current_session"]
+        assert cs["session_name"] == "C"
+        assert cs["rotation_position"] == "session 3 of 3"
 
     async def test_no_template_fallback(
         self, client: AsyncClient, db_session: AsyncSession, test_user
