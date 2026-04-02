@@ -133,7 +133,8 @@ Build these shared components based on the design tokens doc (section 6). Every 
 - Rotation bar and session label
 - Plan card (focus text, plan source, section type pills)
 - "Start session" button → calls `POST /api/practice/start`, navigates to active session
-- **"Repeat last session" shortcut** — shown when the user's most recent session on this instrument used the same template session that's currently queued. Tapping skips the Today tab and starts a new log immediately. Data for this comes from the `GET /api/today` response (which should include a `repeat_available` flag and the last session's template_session_id).
+- **"Repeat last session" shortcut** — shown when `repeat_session` is non-null in the `GET /api/today` response (i.e., the user's most recent completed session differs from the current rotation pick). Tapping starts a new log with that session's `template_session_id`.
+- **"Choose a different session" picker** — expandable list from `all_sessions` in the Today response, letting users pick any session in the rotation (not just the next one up).
 - "Practice off-plan" link → calls `POST /api/practice/start` with no template, navigates to active session
 - **No-plan state:** if the selected instrument has no active template, show a simplified view with "Practice off-plan" as the primary action and a prompt to create a plan. (Quick-start wizard is Phase 4.)
 - Data source: `GET /api/today`
