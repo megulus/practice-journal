@@ -270,6 +270,28 @@ class TestHistoryList:
         dates = [i["practice_date"] for i in data["items"]]
         assert dates == sorted(dates, reverse=True)
 
+    async def test_invalid_cursor_returns_400(self, client: AsyncClient):
+        resp = await client.get("/api/progress/history?cursor=garbage")
+        assert resp.status_code == 400
+
+    async def test_invalid_period_returns_422(self, client: AsyncClient):
+        resp = await client.get("/api/progress/history?period=year")
+        assert resp.status_code == 422
+
+    async def test_soft_deleted_excluded(
+        self, client: AsyncClient, db_session, test_user
+    ):
+        from app.enums import utcnow
+        inst = await _make_instrument(db_session, test_user)
+        log = await _make_completed_log(db_session, test_user, inst)
+        log.deleted_at = utcnow()
+        db_session.add(log)
+        await db_session.commit()
+
+        resp = await client.get("/api/progress/history")
+        data = resp.json()
+        assert len(data["items"]) == 0
+
 
 # ===========================================================================
 # History detail tests
@@ -294,6 +316,28 @@ class TestHistoryDetail:
 
     async def test_not_found(self, client: AsyncClient):
         resp = await client.get("/api/progress/history/99999")
+        assert resp.status_code == 404
+
+    async def test_other_user_log_returns_404(
+        self, client: AsyncClient, db_session, test_user, other_user
+    ):
+        other_inst = Instrument(
+            user_id=other_user.id, name="Guitar", practice_frequency="daily"
+        )
+        db_session.add(other_inst)
+        await db_session.commit()
+        await db_session.refresh(other_inst)
+
+        log = PracticeLog(
+            user_id=other_user.id, instrument_id=other_inst.id,
+            status="completed", practice_date=_days_ago(1),
+            total_duration_minutes=20,
+        )
+        db_session.add(log)
+        await db_session.commit()
+        await db_session.refresh(log)
+
+        resp = await client.get(f"/api/progress/history/{log.id}")
         assert resp.status_code == 404
 
     async def test_excludes_non_completed(

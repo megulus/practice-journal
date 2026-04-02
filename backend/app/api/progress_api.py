@@ -1,9 +1,10 @@
 """Progress API — history and insights endpoints."""
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import date as date_type, datetime, timedelta, timezone
+from enum import Enum
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -41,7 +42,10 @@ async def _compute_rotation_label(
     # Get the session's display_order and total count in one pass
     result = await session.exec(
         select(TemplateSession.display_order)
-        .where(TemplateSession.id == template_session_id)
+        .where(
+            TemplateSession.id == template_session_id,
+            TemplateSession.template_id == template_id,
+        )
     )
     display_order = result.first()
     if display_order is None:
@@ -86,7 +90,7 @@ def _build_history_item(
 @router.get("/history", response_model=HistoryResponse)
 async def list_history(
     instrument_id: Optional[int] = Query(default=None),
-    period: str = Query(default="all"),
+    period: Literal["all", "week", "month"] = Query(default="all"),
     cursor: Optional[str] = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
@@ -121,21 +125,29 @@ async def list_history(
 
     if cursor:
         decoded = decode_cursor(cursor)
-        if decoded and "date" in decoded and "id" in decoded:
-            from sqlalchemy import or_, and_
-            from datetime import date as date_type
-            cursor_date = date_type.fromisoformat(decoded["date"])
-            cursor_id = decoded["id"]
-            # Composite cursor: (practice_date, id) < (cursor_date, cursor_id)
-            query = query.where(
-                or_(
-                    PracticeLog.practice_date < cursor_date,
-                    and_(
-                        PracticeLog.practice_date == cursor_date,
-                        PracticeLog.id < cursor_id,
-                    ),
-                )
+        if not decoded or "date" not in decoded or "id" not in decoded:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid cursor",
             )
+        try:
+            cursor_date = date_type.fromisoformat(decoded["date"])
+            cursor_id = int(decoded["id"])
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid cursor",
+            )
+        # Composite cursor: (practice_date, id) < (cursor_date, cursor_id)
+        query = query.where(
+            or_(
+                PracticeLog.practice_date < cursor_date,
+                and_(
+                    PracticeLog.practice_date == cursor_date,
+                    PracticeLog.id < cursor_id,
+                ),
+            )
+        )
 
     query = query.order_by(
         col(PracticeLog.practice_date).desc(),
