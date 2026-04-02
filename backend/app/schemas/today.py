@@ -30,11 +30,24 @@ class CurrentSessionInfo(BaseModel):
     section_types: List[str]
 
 
+class RepeatSessionInfo(BaseModel):
+    session_id: int
+    session_name: str
+
+
+class SessionBrief(BaseModel):
+    session_id: int
+    session_name: str
+    display_order: int
+
+
 class InstrumentDue(BaseModel):
     instrument: InstrumentBrief
     last_practiced_at: Optional[date] = None
     days_since_last: Optional[int] = None
     current_session: Optional[CurrentSessionInfo] = None
+    repeat_session: Optional[RepeatSessionInfo] = None
+    all_sessions: List[SessionBrief] = []
 
 
 class InstrumentNotDue(BaseModel):

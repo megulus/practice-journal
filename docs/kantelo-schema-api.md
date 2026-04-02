@@ -568,22 +568,38 @@ The Today tab's data needs — which instruments are due, what's the current ses
 **GET /api/today response:**
 ```json
 {
+  "active_session": {
+    "practice_log_id": 42,
+    "instrument_id": 1,
+    "instrument_name": "Violin",
+    "session_name": "Technique focus",
+    "started_at": "2026-03-23T14:30:00"
+  },
   "instruments_due": [
     {
       "instrument": { "id": 1, "name": "Violin", "practice_frequency": "daily" },
       "last_practiced_at": "2026-03-22",
       "days_since_last": 1,
-      "repeat_available": true,
       "current_session": {
         "template_id": 1,
         "template_name": "Learn the Bruch concerto",
-        "session_id": 3,
-        "session_name": "Technique focus",
-        "focus_description": "Slow practice on mvt. II",
-        "rotation_position": "session 3 of 7",
+        "session_id": 4,
+        "session_name": "Sight reading",
+        "focus_description": null,
+        "rotation_position": "session 4 of 7",
         "estimated_duration_minutes": 25,
         "section_types": ["warmup", "scales", "repertoire", "cooldown"]
-      }
+      },
+      "repeat_session": {
+        "session_id": 3,
+        "session_name": "Technique focus"
+      },
+      "all_sessions": [
+        { "session_id": 1, "session_name": "Fundamentals", "display_order": 0 },
+        { "session_id": 2, "session_name": "Repertoire", "display_order": 1 },
+        { "session_id": 3, "session_name": "Technique focus", "display_order": 2 },
+        { "session_id": 4, "session_name": "Sight reading", "display_order": 3 }
+      ]
     }
   ],
   "instruments_not_due": [
@@ -597,8 +613,7 @@ The Today tab's data needs — which instruments are due, what's the current ses
 }
 ```
 
-`repeat_available` is true when the user's most recent session on this instrument used the same template_session_id that's currently queued. When true, the frontend shows a "Repeat last session" shortcut.
-```
+Session flexibility: instead of a simple `repeat_available` boolean, the response includes `repeat_session` (the user's most recent completed session, shown as a quick shortcut when it differs from `current_session`) and `all_sessions` (every session in the active template, so users can pick any session in the rotation). The `practice/start` endpoint already accepts any `template_session_id`, so users are not locked into the rotation order.
 
 "Due" logic: compare `last_practiced_at` against `practice_frequency`. Daily = due every day. Few times a week = due if ≥ 2 days since last. Weekly = due if ≥ 5 days since last. Occasionally = never auto-surfaced, only shown in pill toggle.
 
