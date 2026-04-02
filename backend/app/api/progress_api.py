@@ -9,8 +9,6 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from sqlalchemy import case
-
 from app.auth import get_current_user
 from app.database import get_session
 from app.models import (
@@ -21,6 +19,7 @@ from app.models import (
     BlockLog,
     TemplateSession,
 )
+from app.api.ownership import get_owned_instrument
 from app.api.practice_api import _get_owned_log, _build_log_read
 from app.api.settings_api import _get_or_create_settings
 from app.schemas.practice import PracticeLogRead
@@ -82,17 +81,16 @@ def _week_start_date(d: date_type, week_starts_on: str) -> date_type:
     return d - timedelta(days=d.weekday())
 
 
-def _build_week_summary(
-    logs: list[PracticeLog],
+def _build_week_summary_from_rows(
+    rows: list[tuple],
     week_start: date_type,
 ) -> WeekSummary:
-    """Build a WeekSummary from logs falling within a 7-day window."""
-    # Initialize daily minutes
+    """Build a WeekSummary from (practice_date, duration) rows."""
     daily_minutes: dict[str, int] = {day: 0 for day in _WEEKDAY_NAMES}
-    for log in logs:
-        if week_start <= log.practice_date < week_start + timedelta(days=7):
-            day_name = _WEEKDAY_NAMES[log.practice_date.weekday()]
-            daily_minutes[day_name] += log.total_duration_minutes
+    for practice_date, duration in rows:
+        if week_start <= practice_date < week_start + timedelta(days=7):
+            day_name = _WEEKDAY_NAMES[practice_date.weekday()]
+            daily_minutes[day_name] += duration
 
     daily = [DailyBreakdown(day=d, minutes=m) for d, m in daily_minutes.items()]
     days_practiced = sum(1 for m in daily_minutes.values() if m > 0)
@@ -253,6 +251,8 @@ async def get_heatmap(
     current_user: User = Depends(get_current_user),
 ):
     """Practice calendar heatmap data."""
+    if instrument_id is not None:
+        await get_owned_instrument(session, instrument_id, current_user.id)
     if year is None:
         year = datetime.now(timezone.utc).year
 
@@ -292,6 +292,8 @@ async def get_comparison(
     current_user: User = Depends(get_current_user),
 ):
     """This week vs. last week comparison."""
+    if instrument_id is not None:
+        await get_owned_instrument(session, instrument_id, current_user.id)
     today = datetime.now(timezone.utc).date()
     settings = await _get_or_create_settings(session, current_user.id)
     week_starts_on = settings.week_starts_on
@@ -300,7 +302,10 @@ async def get_comparison(
     last_week_start = this_week_start - timedelta(days=7)
 
     query = (
-        select(PracticeLog)
+        select(
+            PracticeLog.practice_date,
+            PracticeLog.total_duration_minutes,
+        )
         .where(
             PracticeLog.user_id == current_user.id,
             PracticeLog.status == "completed",
@@ -314,10 +319,10 @@ async def get_comparison(
         query = query.where(PracticeLog.instrument_id == instrument_id)
 
     result = await session.exec(query)
-    logs = list(result.all())
+    rows = result.all()
 
-    this_week = _build_week_summary(logs, this_week_start)
-    last_week = _build_week_summary(logs, last_week_start)
+    this_week = _build_week_summary_from_rows(rows, this_week_start)
+    last_week = _build_week_summary_from_rows(rows, last_week_start)
 
     return ComparisonResponse(
         this_week=this_week,
@@ -335,6 +340,7 @@ async def get_ratings(
     current_user: User = Depends(get_current_user),
 ):
     """Rating trend over recent weeks."""
+    await get_owned_instrument(session, instrument_id, current_user.id)
     today = datetime.now(timezone.utc).date()
     settings = await _get_or_create_settings(session, current_user.id)
     week_starts_on = settings.week_starts_on

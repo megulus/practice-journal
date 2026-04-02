@@ -154,6 +154,46 @@ class TestHeatmap:
         # Combined duration
         assert data["days"][0]["duration_minutes"] == 50
 
+    async def test_excludes_non_completed_and_deleted(
+        self, client: AsyncClient, db_session, test_user
+    ):
+        from app.enums import utcnow
+        inst = await _make_instrument(db_session, test_user)
+        # In-progress — should be excluded
+        db_session.add(PracticeLog(
+            user_id=test_user.id, instrument_id=inst.id,
+            status="in_progress", practice_date=_days_ago(1),
+            total_duration_minutes=10,
+        ))
+        # Soft-deleted — should be excluded
+        db_session.add(PracticeLog(
+            user_id=test_user.id, instrument_id=inst.id,
+            status="completed", practice_date=_days_ago(2),
+            total_duration_minutes=20, deleted_at=utcnow(),
+        ))
+        await db_session.commit()
+
+        resp = await client.get(
+            f"/api/progress/insights/heatmap?instrument_id={inst.id}"
+        )
+        data = resp.json()
+        assert len(data["days"]) == 0
+
+    async def test_other_user_instrument_returns_404(
+        self, client: AsyncClient, db_session, test_user, other_user
+    ):
+        other_inst = Instrument(
+            user_id=other_user.id, name="Guitar", practice_frequency="daily"
+        )
+        db_session.add(other_inst)
+        await db_session.commit()
+        await db_session.refresh(other_inst)
+
+        resp = await client.get(
+            f"/api/progress/insights/heatmap?instrument_id={other_inst.id}"
+        )
+        assert resp.status_code == 404
+
 
 # ===========================================================================
 # Comparison tests
