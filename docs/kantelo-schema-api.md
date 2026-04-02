@@ -726,8 +726,8 @@ History items are the collapsed card view. Expanding a card fetches the full det
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/progress/insights/heatmap` | Practice calendar heatmap data. Query params: `instrument_id` (required), `year` (default: current). Returns daily practice duration. |
-| GET | `/api/progress/insights/comparison` | This week vs. last. Query params: `instrument_id` (required). Returns days practiced, total time, and daily breakdown for both weeks. |
+| GET | `/api/progress/insights/heatmap` | Practice calendar heatmap data. Query params: `instrument_id` (optional — omit for all instruments), `year` (default: current). Returns daily practice duration. |
+| GET | `/api/progress/insights/comparison` | This week vs. last. Query params: `instrument_id` (optional — omit for all instruments). Returns days practiced, total time, and daily breakdown for both weeks. |
 | GET | `/api/progress/insights/ratings` | Rating trend. Query params: `instrument_id` (required), `weeks` (default: 4). Returns step_back/steady/step_forward counts per week. |
 
 **GET /api/progress/insights/heatmap response:**
