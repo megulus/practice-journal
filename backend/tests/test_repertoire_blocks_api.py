@@ -212,6 +212,73 @@ class TestCreateRepertoireBlock:
         )
         assert resp.status_code == 422
 
+    async def test_rejects_duplicate_default_spot_ids(
+        self, client: AsyncClient, hierarchy_with_piece
+    ):
+        template, ts, section, piece, spots = hierarchy_with_piece
+        resp = await client.post(
+            f"/api/sections/{section.id}/blocks",
+            json={
+                "piece_id": piece.id,
+                "default_spot_ids": [spots[0].id, spots[0].id],
+            },
+        )
+        assert resp.status_code == 422
+
+    async def test_rejects_default_spot_ids_without_piece_id(
+        self, client: AsyncClient, hierarchy_with_piece
+    ):
+        template, ts, section, piece, spots = hierarchy_with_piece
+        resp = await client.post(
+            f"/api/sections/{section.id}/blocks",
+            json={"name": "Scales", "default_spot_ids": [spots[0].id]},
+        )
+        assert resp.status_code == 422
+
+    async def test_empty_default_spot_ids_is_fine(
+        self, client: AsyncClient, hierarchy_with_piece
+    ):
+        template, ts, section, piece, spots = hierarchy_with_piece
+        resp = await client.post(
+            f"/api/sections/{section.id}/blocks",
+            json={"piece_id": piece.id, "default_spot_ids": []},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["default_spots"] == []
+
+    async def test_rejects_deleted_piece(
+        self, client: AsyncClient, db_session, hierarchy_with_piece
+    ):
+        template, ts, section, piece, spots = hierarchy_with_piece
+        from app.enums import utcnow
+        piece.deleted_at = utcnow()
+        db_session.add(piece)
+        await db_session.commit()
+
+        resp = await client.post(
+            f"/api/sections/{section.id}/blocks",
+            json={"piece_id": piece.id},
+        )
+        assert resp.status_code == 404
+
+    async def test_rejects_deleted_spot_in_default_list(
+        self, client: AsyncClient, db_session, hierarchy_with_piece
+    ):
+        template, ts, section, piece, spots = hierarchy_with_piece
+        from app.enums import utcnow
+        spots[0].deleted_at = utcnow()
+        db_session.add(spots[0])
+        await db_session.commit()
+
+        resp = await client.post(
+            f"/api/sections/{section.id}/blocks",
+            json={
+                "piece_id": piece.id,
+                "default_spot_ids": [spots[0].id],
+            },
+        )
+        assert resp.status_code == 400
+
 
 # ===================================================================
 # DEFAULT SPOT MANAGEMENT

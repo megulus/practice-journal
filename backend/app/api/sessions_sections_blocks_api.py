@@ -22,7 +22,6 @@ from app.api.ownership import (
     get_owned_session as _get_owned_session,
     get_owned_section as _get_owned_section,
     get_owned_block as _get_owned_block,
-    get_owned_piece,
 )
 from app.schemas.template import (
     BlockCreate,
@@ -112,13 +111,14 @@ async def _build_session_read(
     section_reads = []
     for sec in sorted_sections:
         sorted_blocks = sorted(sec.blocks, key=lambda b: b.display_order)
+        block_reads = [await _build_block_read(session, b) for b in sorted_blocks]
         section_reads.append({
             "id": sec.id,
             "name": sec.name,
             "section_type": sec.section_type,
             "estimated_duration_minutes": sec.estimated_duration_minutes,
             "display_order": sec.display_order,
-            "blocks": sorted_blocks,
+            "blocks": block_reads,
         })
 
     estimated = sum(s.estimated_duration_minutes for s in sorted_sections)
@@ -143,13 +143,14 @@ async def _build_section_read(
     )
     loaded = result.one()
     sorted_blocks = sorted(loaded.blocks, key=lambda b: b.display_order)
+    block_reads = [await _build_block_read(session, b) for b in sorted_blocks]
     return SectionRead(
         id=loaded.id,
         name=loaded.name,
         section_type=loaded.section_type,
         estimated_duration_minutes=loaded.estimated_duration_minutes,
         display_order=loaded.display_order,
-        blocks=sorted_blocks,
+        blocks=block_reads,
     )
 
 
@@ -382,7 +383,11 @@ async def reorder_sections(
 # ---------------------------------------------------------------------------
 
 async def _build_block_read(session: AsyncSession, block: Block) -> BlockRead:
-    """Build a BlockRead, enriching repertoire blocks with piece_name and default_spots."""
+    """Build a BlockRead, enriching repertoire blocks with piece_name and default_spots.
+
+    Single-block path (2 queries for repertoire blocks). For batch loading in
+    template detail responses, see _build_template_read in templates_api.py.
+    """
     data = {
         "id": block.id,
         "name": block.name,
@@ -462,18 +467,10 @@ async def create_block(
                 detail="Piece not found or does not belong to this instrument",
             )
 
-        block = Block(
-            section_id=section_id,
-            piece_id=piece.id,
-            display_order=display_order,
-        )
-        session.add(block)
-        await session.commit()
-        await session.refresh(block)
-
-        # Create default spot entries
+        # Validate ALL spots up front before creating anything, so a
+        # validation failure doesn't leave an orphaned block.
         if body.default_spot_ids:
-            for i, spot_id in enumerate(body.default_spot_ids):
+            for spot_id in body.default_spot_ids:
                 result = await session.exec(
                     select(Spot).where(
                         Spot.id == spot_id,
@@ -481,17 +478,29 @@ async def create_block(
                         Spot.deleted_at == None,  # noqa: E711
                     )
                 )
-                spot = result.first()
-                if not spot:
+                if not result.first():
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Spot {spot_id} not found or does not belong to this piece",
                     )
+
+        block = Block(
+            section_id=section_id,
+            piece_id=piece.id,
+            display_order=display_order,
+        )
+        session.add(block)
+        await session.flush()  # get block.id without committing
+
+        if body.default_spot_ids:
+            for i, spot_id in enumerate(body.default_spot_ids):
                 tbs = TemplateBlockSpot(
                     block_id=block.id, spot_id=spot_id, display_order=i
                 )
                 session.add(tbs)
-            await session.commit()
+
+        await session.commit()
+        await session.refresh(block)
     else:
         # Standard block
         block = Block(

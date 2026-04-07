@@ -1,7 +1,7 @@
 """Template, TemplateSession, Section, and Block schemas."""
 from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.enums import SectionType
 
@@ -57,6 +57,13 @@ class BlockCreate(BaseModel):
     piece_id: Optional[int] = None
     default_spot_ids: Optional[List[int]] = None
 
+    @field_validator("default_spot_ids")
+    @classmethod
+    def no_duplicate_spots(cls, v: Optional[List[int]]) -> Optional[List[int]]:
+        if v and len(v) != len(set(v)):
+            raise ValueError("default_spot_ids must not contain duplicates")
+        return v
+
     @model_validator(mode="after")
     def validate_block_flavor(self):
         if self.piece_id is not None:
@@ -69,6 +76,8 @@ class BlockCreate(BaseModel):
             # Standard block — name is required
             if not self.name:
                 raise ValueError("name is required for standard blocks")
+            if self.default_spot_ids:
+                raise ValueError("default_spot_ids requires piece_id")
         return self
 
 
