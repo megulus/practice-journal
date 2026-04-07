@@ -2,7 +2,7 @@
 
 > Technical reference for implementing the Kantelo backend. Designed from the product spec (kantelo-product-spec.md) as a greenfield schema.
 
-**Last updated:** March 2026
+**Last updated:** April 2026
 **Stack:** FastAPI / SQLModel / PostgreSQL / Alembic / Clerk
 
 ---
@@ -15,13 +15,18 @@
 User
 ├── UserSettings (1:1)
 ├── Instrument (1:many)
+│   ├── Piece (1:many)
+│   │   └── Spot (1:many)
 │   ├── Template (1:many)
 │   │   └── TemplateSession (1:many, rotation units)
 │   │       └── Section (1:many)
 │   │           └── Block (1:many)
+│   │               └── TemplateBlockSpot (1:many, repertoire blocks only)
+│   │                   → Spot
 │   └── PracticeLog (1:many)
 │       └── SectionLog (1:many)
 │           └── BlockLog (1:many)
+│               → Spot (nullable, repertoire blocks only)
 ├── SuggestionDismissal (1:many)
 └── (CuratedBlock — global library, not user-owned)
 ```
@@ -39,6 +44,16 @@ User
 **Ratings are directional integers.** -1 (step back), 0 (steady), 1 (step forward). Stored as smallint. This makes aggregation simple (AVG > 0 = trending forward) and avoids enum overhead.
 
 **One active template per instrument.** Enforced by a unique partial index. The Today tab shows a single plan card per instrument — if multiple templates were active, the app would have to pick one or show all, creating exactly the decision fatigue Kantelo is designed to eliminate. Inactive templates are archived, not deleted, and can be reactivated at any time (which auto-deactivates the current one).
+
+**Repertoire is per-instrument.** Pieces belong to a single instrument. The same piece practiced on two instruments is two distinct Piece rows with independent spot lists and histories. This matches how musicians actually experience repertoire — fingerings, bowings, and trouble spots don't transfer across instruments.
+
+**Pieces and spots persist independently of templates.** The repertoire library is owned by the instrument, not by any template. Templates reference pieces (and their spots) through repertoire-flavored blocks. This means a piece's history survives template archival, deletion, and rebuilding.
+
+**Blocks come in two flavors, sharing one table.** A standard block has a name, optional tempo/key/etc., and optionally references a CuratedBlock. A repertoire block has a `piece_id` and an associated default spot list (via the `template_block_spots` join table) and inherits its display name from the piece. The two flavors live in the same `blocks` table, distinguished by whether `piece_id` is set. This avoids a polymorphic mess and keeps section ordering simple. A check constraint enforces that a block cannot be both a curated standard block and a repertoire block simultaneously.
+
+**BlockLog gains a nullable spot_id.** When a session is logged against a repertoire block, each spot practiced gets its own BlockLog row with `spot_id` set. A "logged against the whole piece without picking spots" entry is a single BlockLog with `spot_id = null`. This lets pressed-for-time logging coexist with granular spot tracking.
+
+**Spots have a `retired_at` timestamp**, not a boolean. Retired spots are filtered out of default views by `retired_at IS NULL`. Un-retiring sets it back to null. This preserves the retirement timestamp for analytics and possible coaching ("you retired this spot 6 weeks ago").
 
 ---
 
@@ -133,6 +148,42 @@ User-owned instruments with practice frequency.
 
 Index: `(user_id, deleted_at)` — fetch active instruments for a user.
 
+### pieces
+
+Per-instrument repertoire library entries. Created lazily — typically the first time a user adds a repertoire block to a template or starts logging against a piece.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | serial | PK | |
+| instrument_id | int | FK → instruments, not null, indexed | |
+| name | varchar(300) | not null | e.g. "Bruch Violin Concerto in G minor, Op. 26" |
+| composer_or_source | varchar(200) | nullable | e.g. "Max Bruch" or "trad." |
+| created_at | timestamptz | not null, default now() | |
+| updated_at | timestamptz | nullable, auto-update | |
+| deleted_at | timestamptz | nullable | Soft delete |
+
+Index: `(instrument_id, deleted_at)` — fetch active pieces for an instrument.
+
+### spots
+
+Sub-units of a piece that the user actually practices. Named in the user's own vocabulary ("first page," "trouble spots mm. 24–28," "the B section").
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | serial | PK | |
+| piece_id | int | FK → pieces, not null, indexed | |
+| name | varchar(200) | not null | e.g. "first page", "trouble spots mm. 24–28" |
+| location | varchar(300) | nullable | Free-text, no parsing. e.g. "mm. 24–28", "page 3", "letter C to E" |
+| display_order | int | not null, default 0 | For ordering within the piece |
+| retired_at | timestamptz | nullable | Set when retired; null when active. Distinct from deleted_at. |
+| created_at | timestamptz | not null, default now() | |
+| updated_at | timestamptz | nullable, auto-update | |
+| deleted_at | timestamptz | nullable | Soft delete (distinct from retire) |
+
+Indexes:
+- `(piece_id, deleted_at, retired_at)` — fetch active spots for a piece
+- `(piece_id, retired_at)` — fetch all spots including retired
+
 ### templates
 
 Practice plan belonging to an instrument. **At most one template per instrument can be active at a time.** This is enforced by a unique partial index and by the API's activation logic.
@@ -188,14 +239,18 @@ Groups of blocks within a template session (warm-up, scales, repertoire, etc.).
 
 ### blocks
 
-Individual exercises within a section. This is the atomic unit that gets a checkbox and a rating.
+Individual exercises within a section. This is the atomic unit that gets a checkbox and a rating. Comes in two flavors:
+
+- **Standard block:** has name, description, optional tempo/key/difficulty, optionally references a CuratedBlock. `piece_id` is null.
+- **Repertoire block:** has `piece_id` set; inherits its display name from the referenced Piece. The `name`, `tempo_bpm`, `key`, `difficulty_level`, and `curated_block_id` fields are ignored for repertoire blocks (the API does not surface them). The repertoire block's default spot list is fetched via the `template_block_spots` join table.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | id | serial | PK | |
 | section_id | int | FK → sections, not null, indexed | |
 | curated_block_id | int | nullable, FK → curated_blocks | If sourced from library |
-| name | varchar(200) | not null | e.g. "G major scale, 3 octaves" |
+| piece_id | int | nullable, FK → pieces | If set, this is a repertoire block |
+| name | varchar(200) | nullable for repertoire blocks, otherwise not null | e.g. "G major scale, 3 octaves" |
 | description | text | nullable | |
 | estimated_duration_minutes | int | nullable | Per-block duration (optional; section duration is primary) |
 | tempo_bpm | int | nullable | e.g. 72 |
@@ -204,6 +259,24 @@ Individual exercises within a section. This is the atomic unit that gets a check
 | display_order | int | not null, default 0 | |
 | created_at | timestamptz | not null, default now() | |
 | updated_at | timestamptz | nullable, auto-update | |
+
+Check constraint: `CHECK ((piece_id IS NULL) OR (curated_block_id IS NULL))` — a block cannot simultaneously be a curated standard block and a repertoire block.
+
+### template_block_spots
+
+Join table linking a repertoire Block to its default Spots. The "default spot list" pre-selected when starting a session from the parent template.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | serial | PK | |
+| block_id | int | FK → blocks, not null, indexed | The repertoire block |
+| spot_id | int | FK → spots, not null, indexed | Default spot for this block |
+| display_order | int | not null, default 0 | |
+| created_at | timestamptz | not null, default now() | |
+
+Unique constraint: `(block_id, spot_id)` — a spot can't be in the same block's default list twice.
+
+When a spot is hard-deleted, rows in this table are cascade-deleted. When a spot is retired, this table is unaffected (the join still exists; the active session UI filters retired spots out of the pre-selected list but they remain accessible via "show retired").
 
 ### curated_blocks
 
@@ -265,21 +338,26 @@ Logged section within a practice session. Captures the per-section time stepper 
 
 ### block_logs
 
-Logged block within a section. The atomic rated unit.
+Logged block within a section. The atomic rated unit. For repertoire blocks, each spot practiced gets its own row; logging against a piece without picking spots produces a single row with `spot_id = null`.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | id | serial | PK | |
 | section_log_id | int | FK → section_logs, not null, indexed | |
 | block_id | int | nullable, FK → blocks | Null for freeform blocks |
-| block_name | varchar(200) | not null | Denormalized for display |
+| spot_id | int | nullable, FK → spots, ON DELETE SET NULL | Set for repertoire-block logs scoped to a specific spot |
+| block_name | varchar(300) | not null | Denormalized for display. For repertoire: piece name, or "{piece} — {spot}" |
 | rating | smallint | nullable | -1 = step back, 0 = steady, 1 = step forward. Null if skipped. |
-| notes | text | nullable | Per-exercise note |
+| notes | text | nullable | Per-exercise (or per-spot) note |
 | completed | bool | not null, default true | False if skipped |
 | display_order | int | not null, default 0 | |
 | created_at | timestamptz | not null, default now() | |
 
-Index: `(section_log_id)` — fetch all blocks for a section log.
+Indexes:
+- `(section_log_id)` — fetch all blocks for a section log
+- `(spot_id, created_at)` — spot-level history queries and rating trends
+
+When a spot is hard-deleted, BlockLogs referencing it have their `spot_id` set to null (via `ON DELETE SET NULL`), and `block_name` is preserved as the historical record. Retiring a spot does not affect its BlockLogs.
 
 ### suggestion_dismissals
 
@@ -402,12 +480,100 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
     "practice_frequency": "daily",
     "display_order": 0,
     "active_template_count": 1,
+    "piece_count": 3,
     "last_practiced_at": "2026-03-23"
   }
 ]
 ```
 
-`active_template_count` and `last_practiced_at` are computed fields — derived from templates and practice_logs respectively.
+`active_template_count`, `piece_count`, and `last_practiced_at` are computed fields.
+
+---
+
+### Pieces
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/instruments/{instrumentId}/pieces` | List pieces for an instrument. Query params: `include_retired_spots` (default false) |
+| POST | `/api/instruments/{instrumentId}/pieces` | Create a piece |
+| GET | `/api/pieces/{id}` | Full piece detail with spots |
+| PATCH | `/api/pieces/{id}` | Update piece (name, composer_or_source) |
+| DELETE | `/api/pieces/{id}` | Soft-delete piece (cascades to spots; preserves block_logs with denormalized names) |
+
+**POST body:**
+```json
+{ "name": "Bruch Violin Concerto in G minor, Op. 26", "composer_or_source": "Max Bruch" }
+```
+
+**GET /api/pieces/{id} response:**
+```json
+{
+  "id": 7,
+  "instrument_id": 1,
+  "name": "Bruch Violin Concerto in G minor, Op. 26",
+  "composer_or_source": "Max Bruch",
+  "spots": [
+    {
+      "id": 12,
+      "name": "first page",
+      "location": "mm. 1–32",
+      "display_order": 0,
+      "retired_at": null,
+      "session_count": 8,
+      "last_practiced_at": "2026-03-23"
+    },
+    {
+      "id": 13,
+      "name": "trouble spots",
+      "location": "mm. 24–28",
+      "display_order": 1,
+      "retired_at": "2026-02-10T...",
+      "session_count": 6,
+      "last_practiced_at": "2026-02-09"
+    }
+  ]
+}
+```
+
+`session_count` and `last_practiced_at` are computed from block_logs.
+
+---
+
+### Spots
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pieces/{pieceId}/spots` | Create a spot |
+| PATCH | `/api/spots/{id}` | Update spot (name, location, display_order) |
+| POST | `/api/spots/{id}/retire` | Retire (sets retired_at = now) |
+| POST | `/api/spots/{id}/unretire` | Un-retire (sets retired_at = null) |
+| DELETE | `/api/spots/{id}` | Soft-delete (distinct from retire; sets deleted_at) |
+| PUT | `/api/pieces/{pieceId}/spots/reorder` | Reorder spots within a piece |
+| GET | `/api/spots/{id}/history` | Spot's practice history — block logs over time, with rating trend |
+
+**POST /api/pieces/{pieceId}/spots body:**
+```json
+{ "name": "first page", "location": "mm. 1–32" }
+```
+
+`location` is optional and free-text.
+
+**GET /api/spots/{id}/history response:**
+```json
+{
+  "spot": { "id": 12, "name": "first page", "location": "mm. 1–32", "retired_at": null },
+  "logs": [
+    {
+      "block_log_id": 482,
+      "practice_date": "2026-03-23",
+      "rating": 1,
+      "notes": "Felt smoother through the bowing change at m. 16",
+      "session_id": 91
+    }
+  ],
+  "rating_trend": { "step_back": 1, "steady": 3, "step_forward": 4, "skipped": 0 }
+}
+```
 
 ---
 
@@ -420,6 +586,7 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 | GET | `/api/templates/{id}` | Full template with sessions → sections → blocks |
 | PATCH | `/api/templates/{id}` | Update template metadata (name, description, is_active) |
 | DELETE | `/api/templates/{id}` | Soft-delete template |
+| POST | `/api/templates/{id}/duplicate` | Duplicate template. Body: `{ "copy_default_spots": true }` (defaults to true) |
 
 **GET /api/templates/{id} response:**
 ```json
@@ -448,6 +615,7 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
             {
               "id": 1,
               "name": "Open string warm-up",
+              "piece_id": null,
               "description": null,
               "estimated_duration_minutes": null,
               "tempo_bpm": null,
@@ -463,7 +631,11 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 }
 ```
 
-`estimated_duration_minutes` on sessions is computed (sum of section durations).
+`estimated_duration_minutes` on sessions is computed (sum of section durations). For repertoire blocks, the response also includes `piece_name` and a `default_spots` array (see "Blocks" section below).
+
+**Template duplication.** When `copy_default_spots` is true, the new template's repertoire blocks reference the same Pieces and the same Spot entities — the spots themselves are not duplicated. Both templates contribute to the same spot histories. When false, repertoire blocks are created with an empty default spot list; the user populates them in the editor.
+
+The frontend shows a confirmation dialog: "Copy spots from the original plan? You can always edit them later." with default "Yes, copy spots."
 
 ---
 
@@ -510,12 +682,15 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/sections/{sectionId}/blocks` | Add block to a section |
+| POST | `/api/sections/{sectionId}/blocks` | Add block to a section (standard or repertoire flavor) |
 | PATCH | `/api/blocks/{id}` | Update block (name, tempo, key, duration, etc.) |
 | DELETE | `/api/blocks/{id}` | Delete block |
 | PUT | `/api/sections/{sectionId}/blocks/reorder` | Reorder blocks |
+| POST | `/api/blocks/{blockId}/default-spots` | Add a spot to a repertoire block's default list |
+| DELETE | `/api/blocks/{blockId}/default-spots/{spotId}` | Remove a spot from the default list (does not retire or delete the spot) |
+| PUT | `/api/blocks/{blockId}/default-spots/reorder` | Reorder the default spot list |
 
-**POST body:**
+**POST body (standard block):**
 ```json
 {
   "name": "G major scale, 3 octaves",
@@ -528,6 +703,37 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 
 `curated_block_id` is optional — if provided, the block was sourced from the library. The name and other fields can still be customized.
 
+**POST body (repertoire block):**
+```json
+{
+  "piece_id": 7,
+  "default_spot_ids": [12, 14, 15]
+}
+```
+
+When `piece_id` is set, `name`, `tempo_bpm`, `key`, `difficulty_level`, and `curated_block_id` are ignored. The check constraint enforces that a block cannot simultaneously be a curated standard block and a repertoire block.
+
+**Response (repertoire block):**
+```json
+{
+  "id": 203,
+  "section_id": 41,
+  "piece_id": 7,
+  "piece_name": "Bruch Violin Concerto in G minor, Op. 26",
+  "default_spots": [
+    { "id": 12, "name": "first page", "location": "mm. 1–32", "display_order": 0 },
+    { "id": 14, "name": "development", "location": null, "display_order": 1 },
+    { "id": 15, "name": "trouble spots", "location": "mm. 24–28", "display_order": 2 }
+  ],
+  "display_order": 3
+}
+```
+
+**POST /api/blocks/{blockId}/default-spots body:**
+```json
+{ "spot_id": 16 }
+```
+
 ---
 
 ### Curated block library
@@ -536,8 +742,9 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 |--------|------|-------------|
 | GET | `/api/library/blocks` | Browse curated blocks. Query params: `instrument` (required), `section_type` (optional), `q` (search). Sorted by usage_count desc. |
 | GET | `/api/library/recent` | Recently used blocks for the current user. Query params: `instrument_id` (required), `limit` (default 10). Returns blocks (both curated and freeform/quick-add) from the user's recent sessions, deduplicated by name, most recent first. |
+| GET | `/api/library/repertoire` | Pieces from the user's repertoire library, formatted for the block library "Your repertoire" tab. Query params: `instrument_id` (required), `include_retired` (default false) |
 
-**Response:**
+**GET /api/library/blocks response:**
 ```json
 [
   {
@@ -554,6 +761,28 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 
 `usage_percentage` is computed: what percentage of users with this instrument include this block in a template.
 
+**GET /api/library/repertoire response:**
+```json
+{
+  "pieces": [
+    {
+      "id": 7,
+      "name": "Bruch Violin Concerto in G minor, Op. 26",
+      "composer_or_source": "Max Bruch",
+      "active_spot_count": 3,
+      "last_practiced_at": "2026-03-23",
+      "spots": [
+        { "id": 12, "name": "first page", "location": "mm. 1–32" },
+        { "id": 14, "name": "development", "location": null },
+        { "id": 15, "name": "trouble spots", "location": "mm. 24–28" }
+      ]
+    }
+  ]
+}
+```
+
+Only active (non-retired, non-deleted) spots are returned by default. A `?include_retired=true` param surfaces retired spots as well, for cases where the user wants to re-add a retired spot to a template block.
+
 ---
 
 ### Today
@@ -568,38 +797,22 @@ The Today tab's data needs — which instruments are due, what's the current ses
 **GET /api/today response:**
 ```json
 {
-  "active_session": {
-    "practice_log_id": 42,
-    "instrument_id": 1,
-    "instrument_name": "Violin",
-    "session_name": "Technique focus",
-    "started_at": "2026-03-23T14:30:00"
-  },
   "instruments_due": [
     {
       "instrument": { "id": 1, "name": "Violin", "practice_frequency": "daily" },
       "last_practiced_at": "2026-03-22",
       "days_since_last": 1,
+      "repeat_available": true,
       "current_session": {
         "template_id": 1,
         "template_name": "Learn the Bruch concerto",
-        "session_id": 4,
-        "session_name": "Sight reading",
-        "focus_description": null,
-        "rotation_position": "session 4 of 7",
+        "session_id": 3,
+        "session_name": "Technique focus",
+        "focus_description": "Slow practice on mvt. II",
+        "rotation_position": "session 3 of 7",
         "estimated_duration_minutes": 25,
         "section_types": ["warmup", "scales", "repertoire", "cooldown"]
-      },
-      "repeat_session": {
-        "session_id": 3,
-        "session_name": "Technique focus"
-      },
-      "all_sessions": [
-        { "session_id": 1, "session_name": "Fundamentals", "display_order": 0 },
-        { "session_id": 2, "session_name": "Repertoire", "display_order": 1 },
-        { "session_id": 3, "session_name": "Technique focus", "display_order": 2 },
-        { "session_id": 4, "session_name": "Sight reading", "display_order": 3 }
-      ]
+      }
     }
   ],
   "instruments_not_due": [
@@ -613,7 +826,7 @@ The Today tab's data needs — which instruments are due, what's the current ses
 }
 ```
 
-Session flexibility: instead of a simple `repeat_available` boolean, the response includes `repeat_session` (the user's most recent completed session, shown as a quick shortcut when it differs from `current_session`) and `all_sessions` (every session in the active template, so users can pick any session in the rotation). The `practice/start` endpoint already accepts any `template_session_id`, so users are not locked into the rotation order.
+`repeat_available` is true when the user's most recent session on this instrument used the same template_session_id that's currently queued. When true, the frontend shows a "Repeat last session" shortcut.
 
 "Due" logic: compare `last_practiced_at` against `practice_frequency`. Daily = due every day. Few times a week = due if ≥ 2 days since last. Weekly = due if ≥ 5 days since last. Occasionally = never auto-surfaced, only shown in pill toggle.
 
@@ -630,6 +843,9 @@ Session flexibility: instead of a simple `repeat_available` boolean, the respons
 | PUT | `/api/practice/{logId}/blocks/{blockLogId}` | Update a block log (rating, notes, completed) |
 | POST | `/api/practice/{logId}/sections` | Add a freeform section mid-session |
 | POST | `/api/practice/{logId}/sections/{sectionLogId}/blocks` | Add a freeform block to a section |
+| POST | `/api/practice/{logId}/blocks/{blockLogId}/spots` | Create a new spot on the parent piece and add a BlockLog for it to this session |
+| PUT | `/api/practice/{logId}/blocks/{blockLogId}/collapse-to-piece` | Collapse per-spot logs of a repertoire block into a single piece-level log |
+| PUT | `/api/practice/{logId}/blocks/{blockLogId}/expand-to-spots` | Reverse of collapse — restore per-spot block logs from the block's default spot list |
 | POST | `/api/practice/{logId}/finish` | Finish session — calculates totals, advances rotation, returns summary |
 
 **POST /api/practice/start body:**
@@ -645,7 +861,31 @@ For freeform: omit `template_id` and `template_session_id`.
 
 **Smart tempo defaults:** When scaffolding block logs from a template, the `start` endpoint looks up the user's most recent BlockLog for each block_id and includes a `last_tempo_bpm` field on each block log in the response. The frontend uses this to pre-fill the tempo display. If no previous log exists for a block, `last_tempo_bpm` is null and the block's template-defined `tempo_bpm` is shown instead.
 
+**Repertoire block scaffolding.** When the start endpoint scaffolds SectionLogs and BlockLogs from a template, repertoire blocks are expanded into one BlockLog per default spot. Each BlockLog has `spot_id` set, `block_name` denormalized to `"{piece_name} — {spot_name}"`, and starts with `completed = false` and `rating = null`.
+
+If a repertoire block has zero default spots, the start endpoint creates a single placeholder BlockLog with `spot_id = null` and `block_name = piece_name`. The user can then add spots inline via the active session UI, which converts the placeholder into per-spot logs (or leaves it as a piece-level log if they choose to log against the whole piece).
+
 **Section-level actions** (mark all done, skip section) are handled by `PUT /api/practice/{logId}/sections/{sectionLogId}` with body `{ "mark_all_done": true }` or `{ "completed": false }`. The backend updates all child block logs accordingly when `mark_all_done` is true (sets completed=true on all blocks without changing ratings) or when the section is skipped (sets completed=false on the section and all its blocks).
+
+**Adding a spot mid-session.** `POST /api/practice/{logId}/blocks/{blockLogId}/spots` body:
+
+```json
+{
+  "name": "cadenza",
+  "location": null,
+  "add_to_rotation": true
+}
+```
+
+`add_to_rotation` defaults to true and controls whether the new spot is also added to the source repertoire block's `template_block_spots`. When false, the spot is created on the piece but not added to the template's defaults. The endpoint resolves the parent piece via the BlockLog → SectionLog → PracticeLog → (template_session_id → ... → block.piece_id) chain. For freeform sessions, the caller must also provide the piece_id explicitly.
+
+**Logging against the whole piece (pressed-for-time path).** `PUT /api/practice/{logId}/blocks/{blockLogId}/collapse-to-piece` body:
+
+```json
+{ "rating": 0, "notes": null }
+```
+
+This deletes the per-spot BlockLogs for that block in this session and creates a single BlockLog with `spot_id = null` and `block_name` = piece name. The reverse operation (`expand-to-spots`) restores per-spot BlockLogs from the block's default spot list. In practice, the frontend may prefer to track this state locally and only commit the chosen flavor on finish, rather than round-tripping. Either approach is supported.
 
 **POST /api/practice/{logId}/finish response:**
 ```json
@@ -726,8 +966,8 @@ History items are the collapsed card view. Expanding a card fetches the full det
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/progress/insights/heatmap` | Practice calendar heatmap data. Query params: `instrument_id` (optional — omit for all instruments), `year` (default: current). Returns daily practice duration. |
-| GET | `/api/progress/insights/comparison` | This week vs. last. Query params: `instrument_id` (optional — omit for all instruments). Returns days practiced, total time, and daily breakdown for both weeks. |
+| GET | `/api/progress/insights/heatmap` | Practice calendar heatmap data. Query params: `instrument_id` (required), `year` (default: current). Returns daily practice duration. |
+| GET | `/api/progress/insights/comparison` | This week vs. last. Query params: `instrument_id` (required). Returns days practiced, total time, and daily breakdown for both weeks. |
 | GET | `/api/progress/insights/ratings` | Rating trend. Query params: `instrument_id` (required), `weeks` (default: 4). Returns step_back/steady/step_forward counts per week. |
 
 **GET /api/progress/insights/heatmap response:**
@@ -834,7 +1074,7 @@ Keys are block_log_ids. Only includes blocks where a suggestion applies.
 
 ## 5. Suggestion rules (v1)
 
-The five rules referenced in the product spec. Each rule has an ID, a tier, and query logic.
+The five core rules referenced in the product spec, plus four spot-level rules enabled by the repertoire model. Each rule has an ID, a tier, and query logic.
 
 | Rule ID | Tier | Logic |
 |---------|------|-------|
@@ -843,8 +1083,12 @@ The five rules referenced in the product spec. Each rule has an ID, a tier, and 
 | `previous_block_note` | in_the_moment | Surfaces the user's own note from the last time they practiced this specific block. |
 | `tempo_progression` | in_the_moment | Suggests increasing tempo when the last 2+ sessions on a block were rated "step forward." |
 | `weekly_consistency` | post_session | Compares days practiced this week to the user's effective goal (derived from frequency setting). Also surfaces block-level trends (step forward streaks, step back patterns). |
+| `spot_step_forward_streak` | in_the_moment | Fires when a spot's last 3+ block_logs are all rated step_forward. Suggests advancing — next page, faster tempo, or new section. |
+| `spot_plateau` | post_session | Fires when a spot's last 5+ block_logs are predominantly steady with no step_forward in 2+ weeks. Suggests changing approach. |
+| `retired_spot_check` | pattern_level | Fires when a spot has been retired for 4+ weeks. Suggests a quick check-in to verify it's still solid. |
+| `whole_piece_overuse` | pattern_level | Fires when the user has logged against a piece's piece-level (no spot) more than 5 times in a row, suggesting they might benefit from picking spots. |
 
-Pattern-level suggestions (Progress tab) are derived from the same data but with longer time horizons. These can share rule infrastructure but fire on different triggers (page view rather than session lifecycle).
+Pattern-level suggestions (Progress tab) are derived from the same data but with longer time horizons. These can share rule infrastructure but fire on different triggers (page view rather than session lifecycle). Spot-level rules use the same dismissal and opt-out mechanism as the core rules.
 
 ---
 
