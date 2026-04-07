@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.template import Template
     from app.models.practice import PracticeLog
+    from app.models.piece import Piece
     from app.models.suggestion import SuggestionDismissal, SuggestionInteraction
 
 
@@ -34,6 +35,7 @@ class Instrument(SQLModel, table=True):
     # Relationships
     user: Optional["User"] = Relationship(back_populates="instruments")
     templates: List["Template"] = Relationship(back_populates="instrument")
+    pieces: List["Piece"] = Relationship(back_populates="instrument")
     practice_logs: List["PracticeLog"] = Relationship(back_populates="instrument")
     suggestion_dismissals: List["SuggestionDismissal"] = Relationship(
         back_populates="instrument"
