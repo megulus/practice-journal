@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.instrument import Instrument
     from app.models.practice import PracticeLog
     from app.models.curated import CuratedBlock
+    from app.models.piece import Piece, TemplateBlockSpot
 
 
 class Template(SQLModel, table=True):
@@ -111,15 +112,29 @@ class Section(SQLModel, table=True):
 
 
 class Block(SQLModel, table=True):
-    """Individual exercise within a section — the atomic rated unit."""
+    """Individual exercise within a section — the atomic rated unit.
+
+    Two flavors: standard (has name, optionally references CuratedBlock)
+    or repertoire (has piece_id, inherits display name from Piece).
+    A check constraint enforces mutual exclusivity.
+    """
     __tablename__ = "blocks"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "(piece_id IS NULL) OR (curated_block_id IS NULL)",
+            name="ck_blocks_piece_or_curated",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     section_id: int = Field(foreign_key="sections.id", index=True)
     curated_block_id: Optional[int] = Field(
         default=None, foreign_key="curated_blocks.id"
     )
-    name: str = Field(max_length=200)
+    piece_id: Optional[int] = Field(
+        default=None, foreign_key="pieces.id"
+    )
+    name: Optional[str] = Field(default=None, max_length=200)
     description: Optional[str] = Field(default=None)
     estimated_duration_minutes: Optional[int] = Field(default=None)
     tempo_bpm: Optional[int] = Field(default=None)
@@ -135,4 +150,9 @@ class Block(SQLModel, table=True):
     section: Optional[Section] = Relationship(back_populates="blocks")
     curated_block: Optional["CuratedBlock"] = Relationship(
         back_populates="blocks"
+    )
+    piece: Optional["Piece"] = Relationship(back_populates="blocks")
+    template_block_spots: List["TemplateBlockSpot"] = Relationship(
+        back_populates="block",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

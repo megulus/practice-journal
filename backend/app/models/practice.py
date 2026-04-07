@@ -109,8 +109,17 @@ class SectionLog(SQLModel, table=True):
 
 
 class BlockLog(SQLModel, table=True):
-    """Logged block within a section — the atomic rated unit."""
+    """Logged block within a section — the atomic rated unit.
+
+    For repertoire blocks, each spot practiced gets its own row with spot_id
+    set. spot_id uses ON DELETE SET NULL deliberately (not CASCADE) so that
+    historical logs survive spot deletion — block_name is denormalized for
+    this reason.
+    """
     __tablename__ = "block_logs"
+    __table_args__ = (
+        sa.Index("ix_block_logs_spot_created", "spot_id", "created_at"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     section_log_id: int = Field(
@@ -124,7 +133,15 @@ class BlockLog(SQLModel, table=True):
             nullable=True,
         ),
     )
-    block_name: str = Field(max_length=200)
+    spot_id: Optional[int] = Field(
+        default=None,
+        sa_column=sa.Column(
+            sa.Integer,
+            sa.ForeignKey("spots.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    block_name: str = Field(max_length=300)
     rating: Optional[int] = Field(
         default=None,
         sa_column=sa.Column(sa.SmallInteger, nullable=True),

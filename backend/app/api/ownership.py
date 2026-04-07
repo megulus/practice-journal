@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import Instrument, Template, TemplateSession, Section, Block
+from app.models import Instrument, Template, TemplateSession, Section, Block, Piece, Spot
 
 
 async def get_owned_instrument(
@@ -119,3 +119,51 @@ async def get_owned_block(
             detail="Block not found",
         )
     return block
+
+
+async def get_owned_piece(
+    session: AsyncSession, piece_id: int, user_id: int
+) -> Piece:
+    """Fetch a piece, verifying ownership through the instrument."""
+    result = await session.exec(
+        select(Piece)
+        .join(Instrument, Piece.instrument_id == Instrument.id)
+        .where(
+            Piece.id == piece_id,
+            Instrument.user_id == user_id,
+            Piece.deleted_at == None,  # noqa: E711
+            Instrument.deleted_at == None,  # noqa: E711
+        )
+    )
+    piece = result.first()
+    if not piece:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Piece not found",
+        )
+    return piece
+
+
+async def get_owned_spot(
+    session: AsyncSession, spot_id: int, user_id: int
+) -> Spot:
+    """Fetch a spot, verifying ownership through piece -> instrument."""
+    result = await session.exec(
+        select(Spot)
+        .join(Piece, Spot.piece_id == Piece.id)
+        .join(Instrument, Piece.instrument_id == Instrument.id)
+        .where(
+            Spot.id == spot_id,
+            Instrument.user_id == user_id,
+            Spot.deleted_at == None,  # noqa: E711
+            Piece.deleted_at == None,  # noqa: E711
+            Instrument.deleted_at == None,  # noqa: E711
+        )
+    )
+    spot = result.first()
+    if not spot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Spot not found",
+        )
+    return spot
