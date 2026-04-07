@@ -1,9 +1,27 @@
 """Template, TemplateSession, Section, and Block schemas."""
 from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.enums import SectionType
+
+
+# --- Block default spots ---
+
+class DefaultSpotRead(BaseModel):
+    """A spot in a repertoire block's default list."""
+    id: int
+    name: str
+    location: Optional[str] = None
+    display_order: int
+
+
+class DefaultSpotAdd(BaseModel):
+    spot_id: int
+
+
+class DefaultSpotReorder(BaseModel):
+    spot_ids: List[int]
 
 
 # --- Blocks ---
@@ -12,7 +30,7 @@ class BlockRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     estimated_duration_minutes: Optional[int] = None
     tempo_bpm: Optional[int] = None
@@ -20,16 +38,38 @@ class BlockRead(BaseModel):
     difficulty_level: Optional[int] = None
     display_order: int
     curated_block_id: Optional[int] = None
+    # Repertoire block fields
+    piece_id: Optional[int] = None
+    piece_name: Optional[str] = None
+    default_spots: Optional[List[DefaultSpotRead]] = None
 
 
 class BlockCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
+    # Standard block fields
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     curated_block_id: Optional[int] = None
     description: Optional[str] = None
     estimated_duration_minutes: Optional[int] = Field(default=None, ge=1)
     tempo_bpm: Optional[int] = Field(default=None, ge=1, le=999)
     key: Optional[str] = None
     difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
+    # Repertoire block fields
+    piece_id: Optional[int] = None
+    default_spot_ids: Optional[List[int]] = None
+
+    @model_validator(mode="after")
+    def validate_block_flavor(self):
+        if self.piece_id is not None:
+            # Repertoire block — name is optional (inherited from piece)
+            if self.curated_block_id is not None:
+                raise ValueError(
+                    "A block cannot have both piece_id and curated_block_id"
+                )
+        else:
+            # Standard block — name is required
+            if not self.name:
+                raise ValueError("name is required for standard blocks")
+        return self
 
 
 class BlockUpdate(BaseModel):
