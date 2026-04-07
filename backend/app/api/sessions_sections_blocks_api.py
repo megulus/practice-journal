@@ -12,7 +12,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_session
-from app.models import User, Template, TemplateSession, Section, Block
+from app.models import (
+    User, Template, TemplateSession, Section, Block,
+    Piece, Spot, TemplateBlockSpot,
+)
 from app.auth import get_current_user
 from app.api.ownership import (
     get_owned_template as _get_owned_template,
@@ -24,6 +27,9 @@ from app.schemas.template import (
     BlockCreate,
     BlockRead,
     BlockUpdate,
+    DefaultSpotAdd,
+    DefaultSpotRead,
+    DefaultSpotReorder,
     ReorderRequest,
     SectionCreate,
     SectionRead,
@@ -105,13 +111,14 @@ async def _build_session_read(
     section_reads = []
     for sec in sorted_sections:
         sorted_blocks = sorted(sec.blocks, key=lambda b: b.display_order)
+        block_reads = [await _build_block_read(session, b) for b in sorted_blocks]
         section_reads.append({
             "id": sec.id,
             "name": sec.name,
             "section_type": sec.section_type,
             "estimated_duration_minutes": sec.estimated_duration_minutes,
             "display_order": sec.display_order,
-            "blocks": sorted_blocks,
+            "blocks": block_reads,
         })
 
     estimated = sum(s.estimated_duration_minutes for s in sorted_sections)
@@ -136,13 +143,14 @@ async def _build_section_read(
     )
     loaded = result.one()
     sorted_blocks = sorted(loaded.blocks, key=lambda b: b.display_order)
+    block_reads = [await _build_block_read(session, b) for b in sorted_blocks]
     return SectionRead(
         id=loaded.id,
         name=loaded.name,
         section_type=loaded.section_type,
         estimated_duration_minutes=loaded.estimated_duration_minutes,
         display_order=loaded.display_order,
-        blocks=sorted_blocks,
+        blocks=block_reads,
     )
 
 
@@ -374,6 +382,45 @@ async def reorder_sections(
 # Block endpoints
 # ---------------------------------------------------------------------------
 
+async def _build_block_read(session: AsyncSession, block: Block) -> BlockRead:
+    """Build a BlockRead, enriching repertoire blocks with piece_name and default_spots.
+
+    Single-block path (2 queries for repertoire blocks). For batch loading in
+    template detail responses, see _build_template_read in templates_api.py.
+    """
+    data = {
+        "id": block.id,
+        "name": block.name,
+        "description": block.description,
+        "estimated_duration_minutes": block.estimated_duration_minutes,
+        "tempo_bpm": block.tempo_bpm,
+        "key": block.key,
+        "difficulty_level": block.difficulty_level,
+        "display_order": block.display_order,
+        "curated_block_id": block.curated_block_id,
+        "piece_id": block.piece_id,
+    }
+    if block.piece_id is not None:
+        # Fetch piece name
+        result = await session.exec(
+            select(Piece.name).where(Piece.id == block.piece_id)
+        )
+        data["piece_name"] = result.one()
+
+        # Fetch default spots
+        result = await session.exec(
+            select(Spot.id, Spot.name, Spot.location, TemplateBlockSpot.display_order)
+            .join(TemplateBlockSpot, TemplateBlockSpot.spot_id == Spot.id)
+            .where(TemplateBlockSpot.block_id == block.id)
+            .order_by(TemplateBlockSpot.display_order)
+        )
+        data["default_spots"] = [
+            DefaultSpotRead(id=r[0], name=r[1], location=r[2], display_order=r[3])
+            for r in result.all()
+        ]
+    return BlockRead(**data)
+
+
 @router.post(
     "/sections/{section_id}/blocks",
     response_model=BlockRead,
@@ -385,27 +432,93 @@ async def create_block(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Add a block to a section."""
-    await _get_owned_section(session, section_id, current_user.id)
+    """Add a block to a section (standard or repertoire flavor)."""
+    section = await _get_owned_section(session, section_id, current_user.id)
 
     display_order = await _next_display_order(
         session, Block, Block.section_id, section_id
     )
-    block = Block(
-        section_id=section_id,
-        name=body.name,
-        curated_block_id=body.curated_block_id,
-        description=body.description,
-        estimated_duration_minutes=body.estimated_duration_minutes,
-        tempo_bpm=body.tempo_bpm,
-        key=body.key,
-        difficulty_level=body.difficulty_level,
-        display_order=display_order,
-    )
-    session.add(block)
-    await session.commit()
-    await session.refresh(block)
-    return block
+
+    if body.piece_id is not None:
+        # Repertoire block — validate piece ownership through the template chain
+        # The section belongs to a template which belongs to an instrument;
+        # the piece must belong to the same instrument.
+        result = await session.exec(
+            select(TemplateSession)
+            .where(TemplateSession.id == section.template_session_id)
+        )
+        ts = result.one()
+        result = await session.exec(
+            select(Template).where(Template.id == ts.template_id)
+        )
+        template = result.one()
+
+        result = await session.exec(
+            select(Piece).where(
+                Piece.id == body.piece_id,
+                Piece.instrument_id == template.instrument_id,
+                Piece.deleted_at == None,  # noqa: E711
+            )
+        )
+        piece = result.first()
+        if not piece:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Piece not found or does not belong to this instrument",
+            )
+
+        # Validate ALL spots up front before creating anything, so a
+        # validation failure doesn't leave an orphaned block.
+        if body.default_spot_ids:
+            for spot_id in body.default_spot_ids:
+                result = await session.exec(
+                    select(Spot).where(
+                        Spot.id == spot_id,
+                        Spot.piece_id == piece.id,
+                        Spot.deleted_at == None,  # noqa: E711
+                    )
+                )
+                if not result.first():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Spot {spot_id} not found or does not belong to this piece",
+                    )
+
+        block = Block(
+            section_id=section_id,
+            piece_id=piece.id,
+            display_order=display_order,
+        )
+        session.add(block)
+        await session.flush()  # get block.id without committing
+
+        if body.default_spot_ids:
+            for i, spot_id in enumerate(body.default_spot_ids):
+                tbs = TemplateBlockSpot(
+                    block_id=block.id, spot_id=spot_id, display_order=i
+                )
+                session.add(tbs)
+
+        await session.commit()
+        await session.refresh(block)
+    else:
+        # Standard block
+        block = Block(
+            section_id=section_id,
+            name=body.name,
+            curated_block_id=body.curated_block_id,
+            description=body.description,
+            estimated_duration_minutes=body.estimated_duration_minutes,
+            tempo_bpm=body.tempo_bpm,
+            key=body.key,
+            difficulty_level=body.difficulty_level,
+            display_order=display_order,
+        )
+        session.add(block)
+        await session.commit()
+        await session.refresh(block)
+
+    return await _build_block_read(session, block)
 
 
 @router.patch("/blocks/{block_id}", response_model=BlockRead)
@@ -425,7 +538,7 @@ async def update_block(
     session.add(block)
     await session.commit()
     await session.refresh(block)
-    return block
+    return await _build_block_read(session, block)
 
 
 @router.delete("/blocks/{block_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -475,3 +588,155 @@ async def reorder_blocks(
         body.ordered_ids,
         "blocks",
     )
+
+
+# ---------------------------------------------------------------------------
+# Default spots — manage the spot list on a repertoire block
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/blocks/{block_id}/default-spots",
+    response_model=BlockRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_default_spot(
+    block_id: int,
+    body: DefaultSpotAdd,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a spot to a repertoire block's default list."""
+    block = await _get_owned_block(session, block_id, current_user.id)
+
+    if block.piece_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Block is not a repertoire block",
+        )
+
+    # Validate spot belongs to the same piece
+    result = await session.exec(
+        select(Spot).where(
+            Spot.id == body.spot_id,
+            Spot.piece_id == block.piece_id,
+            Spot.deleted_at == None,  # noqa: E711
+        )
+    )
+    spot = result.first()
+    if not spot:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Spot not found or does not belong to this block's piece",
+        )
+
+    # Check for duplicate
+    result = await session.exec(
+        select(TemplateBlockSpot).where(
+            TemplateBlockSpot.block_id == block.id,
+            TemplateBlockSpot.spot_id == body.spot_id,
+        )
+    )
+    if result.first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Spot is already in this block's default list",
+        )
+
+    # Next display_order
+    next_order = await _next_display_order(
+        session, TemplateBlockSpot, TemplateBlockSpot.block_id, block.id
+    )
+    tbs = TemplateBlockSpot(
+        block_id=block.id, spot_id=body.spot_id, display_order=next_order
+    )
+    session.add(tbs)
+    await session.commit()
+
+    return await _build_block_read(session, block)
+
+
+@router.delete(
+    "/blocks/{block_id}/default-spots/{spot_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_default_spot(
+    block_id: int,
+    spot_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a spot from a repertoire block's default list.
+
+    Does NOT retire or delete the spot itself.
+    """
+    block = await _get_owned_block(session, block_id, current_user.id)
+
+    result = await session.exec(
+        select(TemplateBlockSpot).where(
+            TemplateBlockSpot.block_id == block.id,
+            TemplateBlockSpot.spot_id == spot_id,
+        )
+    )
+    tbs = result.first()
+    if not tbs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Spot not in this block's default list",
+        )
+
+    deleted_order = tbs.display_order
+    await session.delete(tbs)
+
+    # Reorder remaining spots
+    result = await session.exec(
+        select(TemplateBlockSpot).where(
+            TemplateBlockSpot.block_id == block.id,
+            TemplateBlockSpot.display_order > deleted_order,
+        )
+    )
+    for remaining in result.all():
+        remaining.display_order -= 1
+        session.add(remaining)
+
+    await session.commit()
+
+
+@router.put(
+    "/blocks/{block_id}/default-spots/reorder",
+    response_model=BlockRead,
+)
+async def reorder_default_spots(
+    block_id: int,
+    body: DefaultSpotReorder,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Reorder the default spot list on a repertoire block."""
+    block = await _get_owned_block(session, block_id, current_user.id)
+
+    if block.piece_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Block is not a repertoire block",
+        )
+
+    # Fetch existing default spots
+    result = await session.exec(
+        select(TemplateBlockSpot).where(
+            TemplateBlockSpot.block_id == block.id
+        )
+    )
+    tbs_by_spot = {t.spot_id: t for t in result.all()}
+
+    if set(body.spot_ids) != set(tbs_by_spot.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="spot_ids must contain exactly the spots in this block's default list",
+        )
+
+    for i, sid in enumerate(body.spot_ids):
+        tbs_by_spot[sid].display_order = i
+        session.add(tbs_by_spot[sid])
+
+    await session.commit()
+    return await _build_block_read(session, block)

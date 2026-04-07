@@ -9,10 +9,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_session
-from app.models import User, Instrument, Template, TemplateSession, Section, UserSettings
+from app.models import (
+    User, Instrument, Template, TemplateSession, Section, Block,
+    UserSettings, Piece, Spot, TemplateBlockSpot,
+)
 from app.auth import get_current_user
 from app.enums import SectionType, utcnow
 from app.schemas.template import (
+    BlockRead,
+    DefaultSpotRead,
     TemplateCreate,
     TemplateListItem,
     TemplateRead,
@@ -37,7 +42,10 @@ async def _build_template_read(
     session: AsyncSession, template: Template
 ) -> TemplateRead:
     """Load a template with full nested sessions → sections → blocks
-    and compute estimated_duration_minutes on each session."""
+    and compute estimated_duration_minutes on each session.
+
+    Repertoire blocks are enriched with piece_name and default_spots.
+    """
     result = await session.exec(
         select(Template)
         .where(Template.id == template.id)
@@ -45,9 +53,26 @@ async def _build_template_read(
             selectinload(Template.sessions)  # type: ignore[arg-type]
             .selectinload(TemplateSession.sections)  # type: ignore[arg-type]
             .selectinload(Section.blocks)  # type: ignore[arg-type]
+            .selectinload(Block.template_block_spots)  # type: ignore[arg-type]
+            .selectinload(TemplateBlockSpot.spot)  # type: ignore[arg-type]
         )
     )
     loaded = result.one()
+
+    # Collect piece_ids for repertoire blocks so we can batch-fetch names
+    piece_ids = set()
+    for ts in loaded.sessions:
+        for sec in ts.sections:
+            for blk in sec.blocks:
+                if blk.piece_id is not None:
+                    piece_ids.add(blk.piece_id)
+
+    piece_names: dict[int, str] = {}
+    if piece_ids:
+        result = await session.exec(
+            select(Piece.id, Piece.name).where(Piece.id.in_(piece_ids))  # type: ignore[attr-defined]
+        )
+        piece_names = {r[0]: r[1] for r in result.all()}
 
     # Sort and compute estimated_duration_minutes per session
     session_reads = []
@@ -56,13 +81,44 @@ async def _build_template_read(
         section_reads = []
         for sec in sorted_sections:
             sorted_blocks = sorted(sec.blocks, key=lambda b: b.display_order)
+            block_reads = []
+            for blk in sorted_blocks:
+                br = BlockRead(
+                    id=blk.id,
+                    name=blk.name,
+                    description=blk.description,
+                    estimated_duration_minutes=blk.estimated_duration_minutes,
+                    tempo_bpm=blk.tempo_bpm,
+                    key=blk.key,
+                    difficulty_level=blk.difficulty_level,
+                    display_order=blk.display_order,
+                    curated_block_id=blk.curated_block_id,
+                    piece_id=blk.piece_id,
+                )
+                if blk.piece_id is not None:
+                    br.piece_name = piece_names.get(blk.piece_id)
+                    br.default_spots = sorted(
+                        [
+                            DefaultSpotRead(
+                                id=tbs.spot.id,
+                                name=tbs.spot.name,
+                                location=tbs.spot.location,
+                                display_order=tbs.display_order,
+                            )
+                            for tbs in blk.template_block_spots
+                            if tbs.spot is not None
+                        ],
+                        key=lambda s: s.display_order,
+                    )
+                block_reads.append(br)
+
             section_reads.append({
                 "id": sec.id,
                 "name": sec.name,
                 "section_type": sec.section_type,
                 "estimated_duration_minutes": sec.estimated_duration_minutes,
                 "display_order": sec.display_order,
-                "blocks": sorted_blocks,
+                "blocks": block_reads,
             })
 
         estimated = sum(s.estimated_duration_minutes for s in sorted_sections)
