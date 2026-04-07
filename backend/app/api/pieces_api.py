@@ -75,7 +75,11 @@ async def _enrich_piece(session: AsyncSession, piece: Piece) -> PieceRead:
 
 
 async def _enrich_spot(session: AsyncSession, spot: Spot) -> SpotRead:
-    """Build SpotRead with computed fields."""
+    """Build SpotRead with computed fields.
+
+    TODO: Consolidate these two queries into one (like _enrich_piece) for
+    a minor performance win. No correctness issue — spots are single-path.
+    """
     # session_count: distinct practice_logs with a block_log for this spot
     result = await session.exec(
         select(func.count(func.distinct(PracticeLog.id)))
