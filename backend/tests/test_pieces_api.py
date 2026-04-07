@@ -464,6 +464,16 @@ class TestUpdateSpot:
         assert resp.status_code == 200
         assert resp.json()["location"] == "mm. 1-16"
 
+    async def test_location_too_long_returns_422(
+        self, client: AsyncClient, db_session, test_instrument
+    ):
+        piece = await _make_piece(db_session, test_instrument)
+        spot = await _make_spot(db_session, piece)
+        resp = await client.patch(
+            f"/api/spots/{spot.id}", json={"location": "x" * 301}
+        )
+        assert resp.status_code == 422
+
     async def test_not_found(self, client: AsyncClient):
         resp = await client.patch("/api/spots/99999", json={"name": "X"})
         assert resp.status_code == 404
@@ -665,6 +675,18 @@ class TestReorderSpots:
             json={"spot_ids": [s1.id, 99999]},
         )
         assert resp.status_code == 400
+
+    async def test_reorder_duplicate_ids_returns_422(
+        self, client: AsyncClient, db_session, test_instrument
+    ):
+        piece = await _make_piece(db_session, test_instrument)
+        s1 = await _make_spot(db_session, piece, "A")
+
+        resp = await client.put(
+            f"/api/pieces/{piece.id}/spots/reorder",
+            json={"spot_ids": [s1.id, s1.id]},
+        )
+        assert resp.status_code == 422
 
     async def test_cannot_reorder_other_users_piece(
         self, client: AsyncClient, db_session, other_user

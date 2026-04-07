@@ -2,7 +2,7 @@
 from typing import Optional, List
 from datetime import datetime, date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -16,7 +16,7 @@ class SpotCreate(BaseModel):
 
 class SpotUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    location: Optional[str] = None
+    location: Optional[str] = Field(default=None, max_length=300)
     display_order: Optional[int] = None
 
 
@@ -49,6 +49,13 @@ class SpotHistoryRead(BaseModel):
 
 class SpotReorder(BaseModel):
     spot_ids: List[int]
+
+    @field_validator("spot_ids")
+    @classmethod
+    def no_duplicates(cls, v: List[int]) -> List[int]:
+        if len(v) != len(set(v)):
+            raise ValueError("spot_ids must not contain duplicates")
+        return v
 
 
 # ---------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 """
 Pieces and Spots API — CRUD for the repertoire model.
 """
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import select, func, col
+from sqlmodel import select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
@@ -28,70 +28,41 @@ router = APIRouter(tags=["pieces"])
 # ---------------------------------------------------------------------------
 
 async def _enrich_piece(session: AsyncSession, piece: Piece) -> PieceRead:
-    """Build PieceRead with computed fields."""
-    # session_count: distinct practice_logs that contain a block_log for this piece
-    result = await session.exec(
-        select(func.count(func.distinct(PracticeLog.id)))
+    """Build PieceRead with computed fields.
+
+    A block_log relates to a piece via two paths: spot-level logs (spot_id ->
+    spot.piece_id) and piece-level logs (block_id -> block.piece_id with
+    spot_id IS NULL). We use a single query with outerjoin + OR to avoid
+    double-counting sessions that have both.
+    """
+    import sqlalchemy as sa
+
+    # Single query: find all block_logs for this piece via either path
+    base = (
+        select(
+            func.count(func.distinct(PracticeLog.id)),
+            func.max(PracticeLog.practice_date),
+        )
         .join(SectionLog, SectionLog.practice_log_id == PracticeLog.id)
         .join(BlockLog, BlockLog.section_log_id == SectionLog.id)
-        .join(Spot, Spot.id == BlockLog.spot_id)
+        .outerjoin(Spot, Spot.id == BlockLog.spot_id)
+        .outerjoin(Block, Block.id == BlockLog.block_id)
         .where(
-            Spot.piece_id == piece.id,
+            sa.or_(
+                Spot.piece_id == piece.id,
+                sa.and_(
+                    Block.piece_id == piece.id,
+                    BlockLog.spot_id == None,  # noqa: E711
+                ),
+            ),
             PracticeLog.status == "completed",
             PracticeLog.deleted_at == None,  # noqa: E711
         )
     )
-    count_via_spots = result.one()
-
-    # Also count piece-level logs (spot_id is null but block references the piece)
-    result = await session.exec(
-        select(func.count(func.distinct(PracticeLog.id)))
-        .join(SectionLog, SectionLog.practice_log_id == PracticeLog.id)
-        .join(BlockLog, BlockLog.section_log_id == SectionLog.id)
-        .join(Block, Block.id == BlockLog.block_id)
-        .where(
-            Block.piece_id == piece.id,
-            BlockLog.spot_id == None,  # noqa: E711
-            PracticeLog.status == "completed",
-            PracticeLog.deleted_at == None,  # noqa: E711
-        )
-    )
-    count_via_piece = result.one()
-
-    session_count = count_via_spots + count_via_piece
-
-    # last_practiced_at
-    result = await session.exec(
-        select(func.max(PracticeLog.practice_date))
-        .join(SectionLog, SectionLog.practice_log_id == PracticeLog.id)
-        .join(BlockLog, BlockLog.section_log_id == SectionLog.id)
-        .join(Spot, Spot.id == BlockLog.spot_id)
-        .where(
-            Spot.piece_id == piece.id,
-            PracticeLog.status == "completed",
-            PracticeLog.deleted_at == None,  # noqa: E711
-        )
-    )
-    last_via_spots = result.one()
-
-    result = await session.exec(
-        select(func.max(PracticeLog.practice_date))
-        .join(SectionLog, SectionLog.practice_log_id == PracticeLog.id)
-        .join(BlockLog, BlockLog.section_log_id == SectionLog.id)
-        .join(Block, Block.id == BlockLog.block_id)
-        .where(
-            Block.piece_id == piece.id,
-            BlockLog.spot_id == None,  # noqa: E711
-            PracticeLog.status == "completed",
-            PracticeLog.deleted_at == None,  # noqa: E711
-        )
-    )
-    last_via_piece = result.one()
-
-    last_practiced_at = max(
-        (d for d in [last_via_spots, last_via_piece] if d is not None),
-        default=None,
-    )
+    result = await session.exec(base)
+    row = result.one()
+    session_count = row[0]
+    last_practiced_at = row[1]
 
     return PieceRead(
         id=piece.id,
@@ -394,10 +365,14 @@ async def reorder_spots(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Reorder spots within a piece."""
+    """Reorder spots within a piece.
+
+    Includes retired spots — they preserve their position so un-retiring
+    restores them to the expected place. Only soft-deleted spots are excluded.
+    """
     piece = await get_owned_piece(session, piece_id, current_user.id)
 
-    # Fetch active spots for this piece
+    # Fetch all non-deleted spots (including retired) for this piece
     result = await session.exec(
         select(Spot).where(
             Spot.piece_id == piece.id,
