@@ -13,14 +13,22 @@ from app.auth import get_current_user
 from app.database import get_session
 from app.models import (
     User,
+    UserSettings,
     PracticeLog,
     SectionLog,
     BlockLog,
     TemplateSession,
 )
+from app.api.ownership import get_owned_instrument
 from app.api.practice_api import _get_owned_log, _build_log_read
+from app.api.settings_api import _get_or_create_settings
 from app.schemas.practice import PracticeLogRead
-from app.schemas.progress import HistoryItem, HistoryResponse
+from app.schemas.progress import (
+    HistoryItem, HistoryResponse,
+    HeatmapDay, HeatmapResponse,
+    DailyBreakdown, WeekSummary, ComparisonResponse,
+    WeekRatings, RatingsResponse,
+)
 from app.utils.pagination import encode_cursor, decode_cursor
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -58,6 +66,41 @@ async def _compute_rotation_label(
     total = count_result.one()
 
     return f"session {display_order + 1} of {total}"
+
+
+_WEEKDAY_NAMES = [
+    "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday",
+]
+
+
+def _week_start_date(d: date_type, week_starts_on: str) -> date_type:
+    """Get the start of the week containing d."""
+    if week_starts_on == "sunday":
+        return d - timedelta(days=(d.weekday() + 1) % 7)
+    return d - timedelta(days=d.weekday())
+
+
+def _build_week_summary_from_rows(
+    rows: list[tuple],
+    week_start: date_type,
+) -> WeekSummary:
+    """Build a WeekSummary from (practice_date, duration) rows."""
+    daily_minutes: dict[str, int] = {day: 0 for day in _WEEKDAY_NAMES}
+    for practice_date, duration in rows:
+        if week_start <= practice_date < week_start + timedelta(days=7):
+            day_name = _WEEKDAY_NAMES[practice_date.weekday()]
+            daily_minutes[day_name] += duration
+
+    daily = [DailyBreakdown(day=d, minutes=m) for d, m in daily_minutes.items()]
+    days_practiced = sum(1 for m in daily_minutes.values() if m > 0)
+    total_minutes = sum(daily_minutes.values())
+
+    return WeekSummary(
+        days_practiced=days_practiced,
+        total_minutes=total_minutes,
+        daily=daily,
+    )
 
 
 def _build_history_item(
@@ -194,3 +237,160 @@ async def get_history_detail(
             detail="Practice log not found",
         )
     return await _build_log_read(session, log)
+
+
+# ---------------------------------------------------------------------------
+# Insights endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/insights/heatmap", response_model=HeatmapResponse)
+async def get_heatmap(
+    instrument_id: Optional[int] = Query(default=None),
+    year: Optional[int] = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Practice calendar heatmap data."""
+    if instrument_id is not None:
+        await get_owned_instrument(session, instrument_id, current_user.id)
+    if year is None:
+        year = datetime.now(timezone.utc).year
+
+    query = (
+        select(
+            PracticeLog.practice_date,
+            func.sum(PracticeLog.total_duration_minutes).label("duration"),
+        )
+        .where(
+            PracticeLog.user_id == current_user.id,
+            PracticeLog.status == "completed",
+            PracticeLog.deleted_at == None,  # noqa: E711
+            func.extract("year", PracticeLog.practice_date) == year,
+        )
+        .group_by(PracticeLog.practice_date)
+        .order_by(PracticeLog.practice_date)
+    )
+
+    if instrument_id is not None:
+        query = query.where(PracticeLog.instrument_id == instrument_id)
+
+    result = await session.exec(query)
+    rows = result.all()
+
+    days = [
+        HeatmapDay(date=row[0], duration_minutes=row[1])
+        for row in rows
+    ]
+
+    return HeatmapResponse(year=year, days=days)
+
+
+@router.get("/insights/comparison", response_model=ComparisonResponse)
+async def get_comparison(
+    instrument_id: Optional[int] = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """This week vs. last week comparison."""
+    if instrument_id is not None:
+        await get_owned_instrument(session, instrument_id, current_user.id)
+    today = datetime.now(timezone.utc).date()
+    settings = await _get_or_create_settings(session, current_user.id)
+    week_starts_on = settings.week_starts_on
+
+    this_week_start = _week_start_date(today, week_starts_on)
+    last_week_start = this_week_start - timedelta(days=7)
+
+    query = (
+        select(
+            PracticeLog.practice_date,
+            PracticeLog.total_duration_minutes,
+        )
+        .where(
+            PracticeLog.user_id == current_user.id,
+            PracticeLog.status == "completed",
+            PracticeLog.deleted_at == None,  # noqa: E711
+            PracticeLog.practice_date >= last_week_start,
+            PracticeLog.practice_date < this_week_start + timedelta(days=7),
+        )
+    )
+
+    if instrument_id is not None:
+        query = query.where(PracticeLog.instrument_id == instrument_id)
+
+    result = await session.exec(query)
+    rows = result.all()
+
+    this_week = _build_week_summary_from_rows(rows, this_week_start)
+    last_week = _build_week_summary_from_rows(rows, last_week_start)
+
+    return ComparisonResponse(
+        this_week=this_week,
+        last_week=last_week,
+        delta_days=this_week.days_practiced - last_week.days_practiced,
+        delta_minutes=this_week.total_minutes - last_week.total_minutes,
+    )
+
+
+@router.get("/insights/ratings", response_model=RatingsResponse)
+async def get_ratings(
+    instrument_id: int = Query(),
+    weeks: int = Query(default=4, ge=1, le=52),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Rating trend over recent weeks."""
+    await get_owned_instrument(session, instrument_id, current_user.id)
+    today = datetime.now(timezone.utc).date()
+    settings = await _get_or_create_settings(session, current_user.id)
+    week_starts_on = settings.week_starts_on
+
+    this_week_start = _week_start_date(today, week_starts_on)
+    earliest_start = this_week_start - timedelta(days=7 * (weeks - 1))
+
+    result = await session.exec(
+        select(
+            PracticeLog.practice_date,
+            BlockLog.rating,
+        )
+        .join(SectionLog, PracticeLog.id == SectionLog.practice_log_id)
+        .join(BlockLog, SectionLog.id == BlockLog.section_log_id)
+        .where(
+            PracticeLog.user_id == current_user.id,
+            PracticeLog.instrument_id == instrument_id,
+            PracticeLog.status == "completed",
+            PracticeLog.deleted_at == None,  # noqa: E711
+            BlockLog.rating != None,  # noqa: E711
+            PracticeLog.practice_date >= earliest_start,
+        )
+    )
+    rows = result.all()
+
+    # Group ratings by week
+    week_data: dict[date_type, dict[str, int]] = {}
+    for practice_date, rating in rows:
+        ws = _week_start_date(practice_date, week_starts_on)
+        if ws not in week_data:
+            week_data[ws] = {"step_back": 0, "steady": 0, "step_forward": 0}
+        if rating == -1:
+            week_data[ws]["step_back"] += 1
+        elif rating == 0:
+            week_data[ws]["steady"] += 1
+        elif rating == 1:
+            week_data[ws]["step_forward"] += 1
+
+    # Build response for all requested weeks (include empty weeks)
+    week_ratings = []
+    for i in range(weeks):
+        ws = this_week_start - timedelta(days=7 * i)
+        data = week_data.get(ws, {"step_back": 0, "steady": 0, "step_forward": 0})
+        total = data["step_back"] + data["steady"] + data["step_forward"]
+        week_ratings.append(WeekRatings(
+            week_start=ws,
+            step_back=data["step_back"],
+            steady=data["steady"],
+            step_forward=data["step_forward"],
+            total=total,
+        ))
+
+    return RatingsResponse(weeks=week_ratings)
