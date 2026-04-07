@@ -4,7 +4,7 @@
 
 This document captures the product decisions, information architecture, user flows, and UX design for Kantelo. It is intended as a reference for developers (human or AI) building or iterating on the application.
 
-**Last updated:** March 2026
+**Last updated:** April 2026
 **Domain:** kantelo.app
 **Origin:** The name comes from the Finnish *kantele*, the mythic stringed instrument from the Kalevala epic. When Väinämöinen played the kantele, every creature in nature fell silent to listen. That's what great practice leads to.
 
@@ -85,6 +85,7 @@ Bottom tab navigation
 │   └── Day / block editor
 └── Profile
     ├── Instruments
+    ├── Repertoire (per instrument)
     ├── Settings (including suggestions opt-out)
     └── Account
 ```
@@ -95,6 +96,7 @@ Bottom tab navigation
 - **Plan viewing and practice logging are merged** into a single "active session" flow. There is no separate "log practice" screen.
 - **Freeform logging** is accessed via a "Practice off-plan" link on the Today tab, which opens the same active session screen but empty — the user adds sections as they go.
 - **The plan-less user** (no templates yet) sees the Today tab adapted as a quick-start wizard.
+- **Repertoire is a first-class concept** owned by the instrument, not by individual templates. See §6.5.
 
 ---
 
@@ -114,12 +116,12 @@ The default landing screen. Answers: "What should I practice right now?"
    - **Plan source** (smaller, secondary text) — the plan name, session number, and estimated duration. Example: "Learn the Bruch concerto — session 3 of 7 · ~25 min"
    - **Section pills** — compact tags showing what the session includes (Warm-up, Scales, Repertoire, Cool-down).
 5. **"Start session" button** — primary action, full-width, prominent.
-6. **"Repeat last session" shortcut** — shown below the start button when the user's most recent session on this instrument used the same template session that's currently queued. Tapping starts a new log pre-populated from the same template session, skipping the Today tab entirely. This is a fast path for users in a daily routine. If the rotation has advanced to a different session, this shortcut does not appear.
+6. **"Repeat last session" shortcut** — shown below the start button when the user's most recent session on this instrument used the same template session that's currently queued. Tapping starts a new log pre-populated from the same template session, skipping the Today tab entirely. This is a fast path for users in a daily routine. If the rotation has advanced to a different session, this shortcut does not appear. Repertoire blocks are repeated with their full spot list from the previous session — the user can deselect any spot in the active session before rating.
 7. **"Practice off-plan" link** — secondary, below the button. Opens an empty active session for freeform logging.
 
 **Layout (user with no plan — first-run / quick-start wizard):**
 
-See section 5.5 (Quick-start wizard).
+See section 5.6 (Quick-start wizard).
 
 ### 5.2 Active session
 
@@ -144,6 +146,11 @@ Each section (warm-up, scales, repertoire, etc.) contains:
   - Checkbox (tap to mark done)
   - Exercise name and metadata (tempo, key, etc.). **Smart tempo defaults:** if the user practiced this specific block in a previous session, the tempo field pre-fills from their last logged tempo. The suggestions engine can also recommend bumping tempo (see section 7). Pre-filled tempos are shown as muted text and become primary-colored once confirmed or adjusted.
   - Rating indicator (see below)
+- **Repertoire blocks** are a special variant of exercise row. Instead of a single checkbox and rating, a repertoire block displays the piece name as a header and a list of **spot rows** beneath it. Each spot row has its own checkbox, name, optional location, and rating chevrons. The block's default spot list (from the template) is pre-populated and pre-checked. The user can:
+  - Deselect any spot for today only (uncheck before rating)
+  - Tap "+ Add spot" at the bottom of the block to create a new spot inline (single-line input, voice-enabled, with an "Add to rotation" toggle defaulted to on)
+  - Tap the piece header to log against the whole piece without spots, on a pressed day
+  - The repertoire picker surfaces "Recently practiced spots" (from the user's last few sessions on this piece) above any spots not in today's default list, so a one-tap re-add of yesterday's work is always available
 
 **Completed sections** fade back (reduced opacity) so visual focus falls on what's next. They show logged time vs. plan time as a quiet reference (e.g., "3 min (plan: 2)").
 
@@ -159,9 +166,9 @@ Directional shape encodes meaning independently of color (accessible to colorbli
 
 **Per-exercise notes:**
 
-Each exercise row includes a small "add note" link that expands an inline text field below the exercise. Notes are scoped to a specific block (stored in BlockLog), not the whole session. This is where users write observations like "intonation still shaky in the top octave of mm. 24–28." The suggestions engine can surface these back in future sessions ("Last session you noted..."). The note field is optional and collapsed by default — zero friction for users who just want to tap ratings and move on.
+Each exercise row (and each spot row within a repertoire block) includes a small "add note" link that expands an inline text field below the exercise. Notes are scoped to a specific block log (or spot log), not the whole session. This is where users write observations like "intonation still shaky in the top octave of mm. 24–28." The suggestions engine can surface these back in future sessions ("Last session you noted..."). The note field is optional and collapsed by default — zero friction for users who just want to tap ratings and move on.
 
-**Voice input:** Every text field in the active session — per-exercise notes, session notes, and the post-session reflection prompt — has a microphone button as the primary input affordance, more prominent than the text field itself. Tapping the mic activates the browser's speech recognition (Web Speech API) and transcribes directly into the field. This is critical for reducing friction: musicians have their hands full. Voice is the primary input path for notes; typing is the fallback. The mic button should use the `Mic` Lucide icon at 20px in `text-link` color, positioned to the right of the text field or as a floating button within it.
+**Voice input:** Every text field in the active session — per-exercise notes, session notes, the post-session reflection prompt, and spot creation/editing fields — has a microphone button as the primary input affordance, more prominent than the text field itself. Tapping the mic activates the browser's speech recognition (Web Speech API) and transcribes directly into the field. This is critical for reducing friction: musicians have their hands full. Voice is the primary input path for notes; typing is the fallback. The mic button should use the `Mic` Lucide icon at 20px in `text-link` color, positioned to the right of the text field or as a floating button within it.
 
 **In-the-moment suggestions:**
 
@@ -193,11 +200,11 @@ Each exercise shown with a colored dot and its rating in words:
 - Amber dot + "Step back" — something regressed
 - Light gray dot + "Skipped" — exercise not completed
 
-Per-exercise notes from the active session are displayed inline below the relevant exercise, providing context for the rating.
+Repertoire blocks display the piece name as a header followed by the practiced spots, each with their own dot and rating. Per-exercise notes from the active session are displayed inline below the relevant exercise or spot, providing context for the rating.
 
 **Post-session suggestion:**
 
-A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your mm. 1–16 are trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
+A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
 
 **Guided reflection prompt:**
 
@@ -241,6 +248,10 @@ Accessed from the Plans tab. Where users build and refine their practice plans.
 
 **"+ Add section" button** below all section cards (dashed border style).
 
+**Repertoire blocks in the editor.** When adding a block to a section, the block library (§5.5) gains a "Your repertoire" tab alongside the curated and recent tabs. This tab lists pieces from the current instrument's repertoire library, each expandable to show its active spots. Selecting a piece adds a repertoire block to the section. The block's default spot list can then be edited inline: add spots from the piece's library, create new spots (which write to the piece library), or remove spots from the default list (which does not retire them at the piece level — they remain available for ad-hoc selection in sessions). Spots can also be retired from the piece library directly via an overflow menu.
+
+**Template duplication.** Templates can be duplicated from the template editor. When duplicating, a small confirmation dialog appears: "Copy spots from the original plan? You can always edit them later." defaulted to "Yes, copy spots." When yes, the new template's repertoire blocks reference the same Pieces and Spots as the original — both templates contribute to the same spot histories. When no, repertoire blocks are created with empty default spot lists for the user to populate.
+
 ### 5.5 Block library
 
 Opens when user taps "+ Add block" within a section. Context-aware — the header shows which section the block is being added to.
@@ -254,6 +265,7 @@ Opens when user taps "+ Add block" within a section. Context-aware — the heade
 
 **Categories shown:**
 - **"Recently used"** — blocks the user has practiced in their last few sessions on this instrument. Shown first, above curated categories. Includes both curated blocks and ad hoc quick-add blocks from previous sessions. This builds muscle memory — if you added "cadenza" as a quick-add block last session, it shows up at the top of the library next time, ready to be tapped rather than typed.
+- **"Your repertoire"** — pieces from the current instrument's repertoire library, each expandable to show active spots. Selecting a piece adds a repertoire block; selecting a specific spot adds a repertoire block pre-scoped to that spot. This tab is hidden if the user has no pieces yet for this instrument.
 - "Popular for [instrument] [section type]" — the most relevant curated blocks
 - "Technique and etudes" — standard exercise literature
 - "Other" — improvisation, sight-reading, ear training, etc.
@@ -264,7 +276,7 @@ Opens when user taps "+ Add block" within a section. Context-aware — the heade
 
 ### 5.6 Quick-start wizard
 
-Shown on the Today tab for users with no active plan. Four steps, each a single screen. Goal: zero to practicing in under a minute.
+Shown on the Today tab for users with no active plan. Five steps, each a single screen. Goal: zero to practicing in under a minute.
 
 **Step 1 — Instrument:**
 "What do you play?" with a grid of common instrument pills (Violin, Viola, Cello, Piano, Guitar, Flute, Voice, Other...). Single selection. "Skip setup" link in top bar for users who want to go straight to freeform.
@@ -275,10 +287,13 @@ Shown on the Today tab for users with no active plan. Four steps, each a single 
 **Step 3 — Session areas:**
 "What should a session include?" with checkbox rows for practice areas: Warm-up, Scales and technique, Repertoire, Sight-reading, Ear training, Cool-down. Warm-up, Scales, Repertoire, and Cool-down are pre-selected as defaults.
 
-**Step 4 — Time and preview:**
+**Step 4 — Anything you're working on?**
+A single optional question: "Anything you're working on right now?" with a free-text field (voice-enabled), placeholder "e.g. Bruch concerto, Autumn Leaves, fiddle tune you're learning..." and a prominent "Skip — I'll add later" link. Whatever the user enters becomes a single Piece in the new instrument's repertoire library, and the generated plan's repertoire block defaults to that piece with no spots. If skipped, the repertoire block is generic and the user creates a piece the first time they actually practice. No movement field, no spots, no metadata at this step — just a name. The wizard's job is to get them practicing in under a minute, and asking "what are you working on" is a natural question that doesn't feel like data entry.
+
+**Step 5 — Time and preview:**
 "How much time today?" with four time-budget buttons (15, 30, 45, 60 min). The app generates a balanced plan preview based on selected areas and time budget. Preview shows each section with name, brief description, and time allocation. "Customize this plan" link opens the template editor. "Start practicing" button drops into the active session. "Save plan and practice later" saves without starting.
 
-The bottom nav appears on step 4 (user is now "in" the app). Steps 1–3 do not show the nav.
+The bottom nav appears on step 5 (user is now "in" the app). Steps 1–4 do not show the nav.
 
 ### 5.7 Progress tab
 
@@ -300,8 +315,8 @@ A reverse-chronological list of past sessions. Each session card shows:
 
 **Expanded state:**
 - All collapsed-state info, plus:
-- Block list with colored dots matching the rating scheme (teal = step forward, gray = steady, amber = step back, light gray = skipped) and rating label in words
-- Per-exercise notes displayed inline below the relevant exercise (if any were logged)
+- Block list with colored dots matching the rating scheme (teal = step forward, gray = steady, amber = step back, light gray = skipped) and rating label in words. Repertoire blocks display the piece name with their practiced spots nested beneath.
+- Per-exercise (and per-spot) notes displayed inline below the relevant row (if any were logged)
 - Session-level notes (if any)
 - Reflection prompt response (if any)
 
@@ -350,7 +365,8 @@ Compact row showing avatar (initials circle), display name, email, and a "Manage
 Each instrument is a card showing:
 - Instrument name with an "edit" link (opens detail view for removing the instrument, viewing its plans, etc.)
 - Practice frequency setting as inline pills: Daily / Few times a week / Weekly / Occasionally. Adjustable directly on the card — no drill-down needed. This setting calibrates the suggestions engine and Today tab instrument rotation (see section 6).
-- Summary line: number of active plans and last practice date (e.g., "1 active plan · last practiced today")
+- A **"Repertoire" link** that opens the instrument's repertoire library: a list of all pieces (active and any with retired-only spots), each expandable to show its spots, with affordances for renaming pieces, retiring/un-retiring spots, deleting, and viewing per-spot history. This is the canonical place for managing repertoire outside of the active session and template editor.
+- Summary line: number of active plans, number of pieces in the repertoire library, and last practice date (e.g., "1 active plan · 3 pieces · last practiced today")
 
 "+ Add instrument" button below the instrument cards (dashed border style, matching the template editor's "+ Add section" pattern).
 
@@ -375,7 +391,7 @@ Additional preferences can slot in here as needed in later releases.
 
 ## 6. Multi-instrument model
 
-Multi-instrument users see a pill toggle at the top of the Today tab. Each instrument has its own templates, session history, and analytics.
+Multi-instrument users see a pill toggle at the top of the Today tab. Each instrument has its own templates, session history, repertoire library, and analytics.
 
 ### Practice frequency setting
 
@@ -384,6 +400,71 @@ Each instrument has a configurable expected cadence (daily, a few times a week, 
 - **Today tab:** Only instruments that are "due" based on their cadence and last practice date are surfaced. A horn practiced weekly doesn't show up every day.
 - **Suggestions engine:** Consistency nudges respect the expected cadence. "It's been 3 days since you last practiced piano" only fires if piano is set to daily or a-few-times-a-week, not weekly.
 - **Rotation across instruments:** For alternating instruments (e.g., violin and viola on alternate days), the Today tab can show both when they're due on the same day.
+
+---
+
+## 6.5 Repertoire: Pieces and Spots
+
+Repertoire is a first-class concept in Kantelo, separate from templates. Each instrument has its own **repertoire library** — a growing list of pieces the user is currently working on, each with a list of spots (the sub-units they actually practice).
+
+**Why this exists.** Real practice rarely targets a whole piece or movement. It targets "the first page of the Bruch," "the B section," "trouble spots in the development." If these are logged as freeform strings, the coaching engine can't tell that "Bruch trouble spots" on Monday and "trouble spots in Bruch first half" on Wednesday are the same thing — and the rating trend chart, the most distinctive feature in Insights, becomes useless for repertoire. Modeling pieces and spots as reusable entities is what makes coaching at the repertoire level possible.
+
+### Pieces
+
+A Piece is whatever the user thinks of as a unit of repertoire — a classical concerto, a jazz standard, a fiddle tune, an etude, an original composition. Pieces are scoped to a single instrument: "Bach D minor partita" on violin and "Bach D minor partita" on viola are two different pieces, because the technical challenges, fingerings, and trouble spots are unrelated. A piece has a name, an optional composer/source field, and a list of spots.
+
+Pieces are created lazily — typically the first time the user adds a repertoire block to a template or starts logging against a piece in an active session. There is no separate "add a piece" workflow; pieces appear when needed.
+
+### Spots
+
+A Spot is a sub-unit of a piece that the user actually practices. Spots are user-defined and named in the user's own vocabulary: "first page," "development," "the lyrical bit," "trouble spots mm. 24–28," "the B section," "head," "solo changes." A spot has:
+
+- A **name** (required, free text)
+- An optional **location** (free text — see "Location field" below)
+- An **active/retired** state
+- A history of block logs across all sessions where it was practiced
+
+Spots persist at the piece level, not the template level. This means a spot's history follows the piece across template changes — if the user retires their current Bruch plan and starts a new one six months later, the spots and their history are still there.
+
+### Location field
+
+The location field is a single optional free-text input on each spot. The app does not require or parse a particular format — users may write "mm. 24–28," "page 3," "letter C to E," "the second half," or leave it blank. Coaching does not depend on parsing this field.
+
+To make location entry low-friction without imposing structure, the input shows a row of **smart-insert chips** below the field: `mm.` / `page` / `letter` / `to` / `–`. Tapping a chip inserts the text at the cursor position. Voice input (mic button) is available on the field as well.
+
+The chip order adapts to the user's history: chips the user has used recently surface first. A user who consistently writes "mm. 24–28" sees `mm.` first; a user who writes "page 3" sees `page` first.
+
+A future release may add an optional structured measure-range field for users who want it (and for coaching that benefits from parsing — e.g., "you've spent 45 minutes on mm. 1–32 across three different spots this month"). The free-text field remains the primary input.
+
+### Active vs. retired spots
+
+Spots have a `retired` state. Retired spots:
+
+- Are hidden from the active session's spot picker by default
+- Are hidden from a template's default spot list by default
+- Still appear in the piece's history view in the repertoire library
+- Still contribute to historical analytics (a retired spot's rating trend is preserved)
+- Can be un-retired at any time, restoring them to active without affecting their history
+
+Retiring is a light-touch action accessed from an overflow menu on the spot row, in either the active session or the template editor. There is no confirmation dialog. The label is "Retire from rotation" — explicit and reversible.
+
+Retiring is distinct from **deleting** a spot. Deletion is a separate destructive action behind a confirmation dialog, intended only for spots created by accident. Deletion soft-deletes the spot and unlinks (but does not delete) historical block logs that referenced it — the denormalized spot name is preserved on the historical log.
+
+### Spots and templates
+
+A template's repertoire block references a Piece and carries its own **default spot list** — the spots that are pre-selected when a session is started from this template. The default spot list is a subset of the piece's active spots.
+
+When the user adds a spot mid-session via the active session UI, a small "Add to rotation" toggle appears, defaulted to on. Leaving it on adds the spot to the template block's default spot list as well as the piece's library, so it shows up automatically next time. Toggling it off creates the spot in the piece library but does not add it to this template's defaults — useful for one-off explorations.
+
+### Workflow examples
+
+**Starting a new piece.** Meg creates a new template for violin: "Learn the Bruch concerto." In the template editor, she adds a Repertoire section, then taps "+ Add block" → "Your repertoire" tab. The list is empty. She taps "+ New piece," types "Bruch Violin Concerto in G minor, Op. 26," and creates the piece. The repertoire block is added with no spots. She starts her first session. The repertoire block shows the piece header and an empty spot list. She taps "+ Add spot," dictates "first page," and starts practicing. After 15 minutes she rates it "step forward" and adds a note. Session 2 a few days later: "first page" is pre-selected as the default. She practices it again, then taps "+ Add spot" and adds "development." Both have history from this point on. By session 5 she's added "trouble spots mm. 24–28." All three spots are in the template block's default list and pre-selected at session start. By session 12, the trouble spots are no longer trouble. From the active session, she taps the spot's overflow menu and selects "Retire from rotation." Next session, only "first page" and "development" are pre-selected. The trouble-spots history is preserved in the piece library.
+
+**Pressed-for-time session.** Meg opens the Today tab and starts her violin session. She has 12 minutes. The repertoire block shows three default spots. She taps the piece header instead of any individual spot, marks the whole piece as practiced, rates it "steady," and finishes the session. The log records a BlockLog against the piece with no spot reference. The spots' individual histories are unchanged. Coaching loses some granularity for this session but the consistency streak and overall piece-level history are preserved.
+
+**Repeat last session.** Meg taps "Repeat last session" on the Today tab. The new log is pre-populated with yesterday's exact spot list — three spots from the Bruch repertoire block, one from a Bach block. She decides she doesn't want to do the Bach today, so she unchecks that spot before rating anything. It's removed from the log. She wants to add "cadenza" to the Bruch today (she didn't get to it yesterday). She taps "+ Add spot" on the Bruch block, picks "cadenza" from the recently-practiced list (it was in last week's sessions), and it's added to today's log.
+
+**Self-duplicating a template.** Meg has a "Bruch concerto" template with three repertoire blocks (mvts. I, II, III), each with their own default spots. She wants to make a variant focused on movement I only. She duplicates the template from the template editor. A small confirmation dialog appears: "Copy spots from the original plan? You can always edit them later." with options "Yes, copy spots" (default) and "No, start fresh." She confirms. The new template has the same three repertoire blocks with the same default spot lists. The spots themselves are not duplicated — both templates reference the same Spot entities at the piece level. Practicing in either template contributes to the same spot histories. She edits the new template to remove movements II and III and renames it "Bruch mvt. I deep dive."
 
 ---
 
@@ -397,8 +478,10 @@ Five rules analyze practice patterns and surface coaching nudges. Suggestions ar
 |------|----------|--------|----------|
 | Pre-session nudges | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
 | In-the-moment coaching | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
-| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your mm. 1–16 are trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
+| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
 | Pattern-level insights | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
+
+Spot-level suggestions are a new class of in-the-moment and post-session coaching enabled by the repertoire model. Examples: "Your Bruch first-page spot has been step-forward three sessions in a row — try the next page" / "The trouble-spots passage hasn't improved in two weeks — try slower and shorter" / "You retired 'trouble spots mm. 24–28' six weeks ago — want to spot-check it?" These follow the same dismissal and opt-out rules as other suggestions.
 
 ### Design principles for suggestions
 
@@ -424,6 +507,8 @@ Opens the same active session screen but empty. The user adds sections and block
 
 Freeform sessions save into the same session history and feed the same analytics as template-based sessions. The suggestions engine can observe freeform patterns and nudge toward creating a template: "You've logged 5 freeform sessions this month. Want to turn your usual routine into a plan?"
 
+Repertoire is available in freeform sessions too. The "+ Add a section" flow lets the user add a repertoire block by picking a piece from the instrument's library (or creating a new piece on the fly), then selecting or adding spots inline. Freeform repertoire logs feed the same piece/spot history as template-based logs.
+
 ---
 
 ## 9. Data model considerations
@@ -431,15 +516,19 @@ Freeform sessions save into the same session history and feed the same analytics
 Key entities and their relationships (for developer reference, not a full schema):
 
 - **User** — has many Instruments, has Settings
-- **Instrument** — belongs to User, has many Templates, has practice frequency setting
-- **Template** — belongs to Instrument, has many Sessions (rotation units), has name, description, active/archived status. **At most one template per instrument can be active at a time.** Activating a new template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
-- **Session (template unit)** — belongs to Template, has name (user-provided), focus description, order in rotation, has many Sections
-- **Section** — belongs to Session, has type (warm-up, scales, repertoire, etc.), has many Blocks, has estimated duration
-- **Block** — belongs to Section, has name, description, estimated duration, metadata (tempo, key, difficulty), order in section. May reference a curated block from the library.
-- **PracticeLog** — belongs to Instrument, optionally linked to a Template and Session. Has date, total duration, notes, reflection_prompt (which rotating question was shown), reflection_response (user's answer, nullable). Has many BlockLogs.
-- **BlockLog** — belongs to PracticeLog, linked to a Block (or freeform). Has actual duration, rating (-1=step back, 0=steady, 1=step forward), notes (per-exercise note, nullable).
-- **Suggestion** — engine-generated, linked to User/Instrument. Has type, content, dismissed status.
+- **Instrument** — belongs to User, has many Templates, has many Pieces, has practice frequency setting
+- **Piece** — belongs to Instrument, has name, optional composer/source, has many Spots. Created lazily.
+- **Spot** — belongs to Piece, has name, optional location (free text), active/retired state. Has many BlockLogs (via reference).
+- **Template** — belongs to Instrument, has many TemplateSessions, has name, description, active/archived status. **At most one template per instrument can be active at a time.** Activating a new template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
+- **TemplateSession** — belongs to Template, has name (user-provided), focus description, order in rotation, has many Sections
+- **Section** — belongs to TemplateSession, has type (warm-up, scales, repertoire, etc.), has many Blocks, has estimated duration
+- **Block** — belongs to Section. Two flavors: a **standard block** (name, description, tempo, key, etc., optionally referencing a CuratedBlock) or a **repertoire block** (references a Piece, carries a default spot list via a join table). Repertoire blocks do not have their own name/tempo/key — those come from the piece and spots.
+- **TemplateBlockSpot** — join table linking a repertoire Block to its default Spots, with display order. Allows the same spot to be in multiple templates' default lists.
+- **PracticeLog** — belongs to Instrument, optionally linked to a Template and TemplateSession. Has date, total duration, notes, reflection_prompt (which rotating question was shown), reflection_response (user's answer, nullable). Has many SectionLogs.
+- **SectionLog** — belongs to PracticeLog, captures section-level duration and completion.
+- **BlockLog** — belongs to SectionLog. For standard blocks: has rating, notes, completed. For repertoire blocks: also references a Spot (nullable — null means "logged against the whole piece without a spot"). Each spot practiced in a session gets its own BlockLog row.
 - **CuratedBlock** — instrument-specific library entry. Has name, description, category, usage count (for popularity ranking).
+- **Suggestion** — engine-generated, linked to User/Instrument. Has type, content, dismissed status.
 
 ---
 
@@ -448,6 +537,9 @@ Key entities and their relationships (for developer reference, not a full schema
 These features are part of the product vision but not in scope for the initial build:
 
 - **Teacher-student integration:** Teacher can assign/customize templates, view student session logs, leave contextual feedback on sessions or exercises. Not scheduling or general messaging.
+- **Shared templates with suggested spots.** When teachers share templates with students (or when any template-sharing flow is built), the shared template carries its repertoire block references but spots come through as **suggested spots**, not as the recipient's live spots. The recipient can accept any suggested spot into their own piece library with one tap (which also adds it to the template's default list) or ignore it. Accepted spots become normal spots from then on, with history tied to the recipient. This preserves the invariant that every spot in a user's history is one they actually practiced. The data model should be forward-compatible: a future `suggested_spots` table can reference pieces without changing the main `spots` table.
+- **Structured location parsing.** An optional structured measure-range field on spots, alongside the free-text location, enabling coaching like "you've spent 45 minutes on mm. 1–32 across three different spots this month."
+- **Repertoire catalog.** A shared catalog of standard repertoire (IMSLP-style) that users can pick from instead of typing piece names, with autocomplete and canonical metadata. Free-text piece names remain the primary input; the catalog is an optional accelerator.
 - **Peer-to-peer social features:** Shared streaks, practice leaderboards among friends, practice groups for ensembles.
 - **AI-generated plans:** The quick-start wizard currently generates plans from simple rules. Future versions could use AI to generate more sophisticated, personalized plans based on the user's goals, history, and instrument.
 - **Audio recording:** Record practice sessions or excerpts for self-review or teacher feedback.
@@ -474,6 +566,17 @@ Wireframes were developed in conversation and should be saved as screenshots in 
 | `progress-history.png` | Progress tab, History sub-tab: pattern suggestion card, time filters, session list with expanded/collapsed states |
 | `progress-insights.png` | Progress tab, Insights sub-tab: pattern suggestion card, practice calendar heatmap, weekly time comparisons with bar chart, rating trend stacked bars |
 | `profile.png` | Profile tab: account header, instrument cards with inline frequency settings, coaching suggestions radio options, preferences |
+
+**TODO — wireframes to create for the repertoire model and updated wizard.** The following wireframes are planned but not yet created. They should be designed before or alongside the frontend implementation of the repertoire model.
+
+| File | Description |
+|------|-------------|
+| `repertoire-library.png` | Per-instrument repertoire library: pieces list, expandable to show active and retired spots, with management affordances |
+| `active-session-repertoire.png` | Active session showing a repertoire block with piece header, spot rows with checkboxes/locations/ratings, and "+ Add spot" inline |
+| `template-editor-repertoire.png` | Template editor with a repertoire block, showing default spot list management |
+| `block-library-repertoire-tab.png` | Block library "Your repertoire" tab, pieces expandable to spots |
+| `quickstart-step4-repertoire.png` | New wizard step 4: optional "anything you're working on" question |
+| `quickstart-step5.png` | Renumbered wizard step 5 (was step 4): time budget and plan preview |
 
 ### Wireframe conventions
 
