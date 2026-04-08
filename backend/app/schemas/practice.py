@@ -14,6 +14,7 @@ class BlockLogRead(BaseModel):
 
     id: int
     block_id: Optional[int] = None
+    spot_id: Optional[int] = None
     block_name: str
     rating: Optional[int] = None
     notes: Optional[str] = None
@@ -108,6 +109,19 @@ class PracticeLogUpdate(BaseModel):
 
 class ReflectionUpdate(BaseModel):
     reflection_response: str
+
+
+class AddSpotRequest(BaseModel):
+    """Add a new spot to a repertoire block mid-session."""
+    name: str = Field(min_length=1, max_length=200)
+    location: Optional[str] = Field(default=None, max_length=300)
+    add_to_rotation: bool = True
+
+
+class CollapseToPieceRequest(BaseModel):
+    """Collapse per-spot logs to a single piece-level log."""
+    rating: Optional[int] = Field(default=None, ge=-1, le=1)
+    notes: Optional[str] = None
 
 
 # --- Finish response ---
