@@ -5,6 +5,7 @@ Start, read, update, and finish practice sessions. Handles scaffolding
 from templates, smart tempo defaults, section-level actions, freeform
 additions, session finishing with summary stats, and reflection prompts.
 """
+from typing import List
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +24,9 @@ from app.models import (
     TemplateSession,
     Section,
     Block,
+    Piece,
+    Spot,
+    TemplateBlockSpot,
     PracticeLog,
     SectionLog,
     BlockLog,
@@ -31,9 +35,11 @@ from app.auth import get_current_user
 from app.api.ownership import get_owned_instrument, get_owned_template
 from app.enums import SessionStatus, utcnow
 from app.schemas.practice import (
+    AddSpotRequest,
     BlockLogCreate,
     BlockLogRead,
     BlockLogUpdate,
+    CollapseToPieceRequest,
     FinishResponse,
     PracticeLogRead,
     PracticeLogUpdate,
@@ -165,6 +171,7 @@ async def _build_log_read(
             block_reads.append(BlockLogRead(
                 id=bl.id,
                 block_id=bl.block_id,
+                spot_id=bl.spot_id,
                 block_name=bl.block_name,
                 rating=bl.rating,
                 notes=bl.notes,
@@ -289,6 +296,8 @@ async def start_practice(
             .options(
                 selectinload(TemplateSession.sections)  # type: ignore[arg-type]
                 .selectinload(Section.blocks)  # type: ignore[arg-type]
+                .selectinload(Block.template_block_spots)  # type: ignore[arg-type]
+                .selectinload(TemplateBlockSpot.spot),  # type: ignore[arg-type]
             )
         )
         ts = result.first()
@@ -345,14 +354,57 @@ async def start_practice(
             await session.flush()
 
             for block in sorted(sec.blocks, key=lambda b: b.display_order):
-                bl = BlockLog(
-                    section_log_id=sl.id,
-                    block_id=block.id,
-                    block_name=block.name,
-                    display_order=block.display_order,
-                    completed=False,
-                )
-                session.add(bl)
+                if block.piece_id is not None:
+                    # Repertoire block — expand into per-spot BlockLogs
+                    active_spots = sorted(
+                        [
+                            tbs for tbs in block.template_block_spots
+                            if tbs.spot is not None
+                            and tbs.spot.deleted_at is None
+                            and tbs.spot.retired_at is None
+                        ],
+                        key=lambda tbs: tbs.display_order,
+                    )
+                    if active_spots:
+                        # Fetch piece name for denormalization
+                        piece_result = await session.exec(
+                            select(Piece.name).where(Piece.id == block.piece_id)
+                        )
+                        piece_name = piece_result.one()
+                        for i, tbs in enumerate(active_spots):
+                            bl = BlockLog(
+                                section_log_id=sl.id,
+                                block_id=block.id,
+                                spot_id=tbs.spot.id,
+                                block_name=f"{piece_name} \u2014 {tbs.spot.name}",
+                                display_order=block.display_order * 100 + i,
+                                completed=False,
+                            )
+                            session.add(bl)
+                    else:
+                        # Zero default spots — placeholder piece-level log
+                        piece_result = await session.exec(
+                            select(Piece.name).where(Piece.id == block.piece_id)
+                        )
+                        piece_name = piece_result.one()
+                        bl = BlockLog(
+                            section_log_id=sl.id,
+                            block_id=block.id,
+                            block_name=piece_name,
+                            display_order=block.display_order,
+                            completed=False,
+                        )
+                        session.add(bl)
+                else:
+                    # Standard block
+                    bl = BlockLog(
+                        section_log_id=sl.id,
+                        block_id=block.id,
+                        block_name=block.name,
+                        display_order=block.display_order,
+                        completed=False,
+                    )
+                    session.add(bl)
 
     await session.commit()
     await session.refresh(log)
@@ -705,3 +757,272 @@ async def add_freeform_block(
     await session.commit()
     await session.refresh(bl)
     return bl
+
+
+# ---------------------------------------------------------------------------
+# Repertoire: add spot mid-session, collapse/expand
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/practice/{log_id}/blocks/{block_log_id}/spots",
+    response_model=BlockLogRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_spot_mid_session(
+    log_id: int,
+    block_log_id: int,
+    body: AddSpotRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new spot on the parent piece and add a BlockLog for it.
+
+    The block_log_id identifies a repertoire block log in the current
+    session. The new spot is created on the block's piece, and a new
+    BlockLog is added to the same section log.
+
+    If add_to_rotation is true (default), the spot is also added to the
+    source template block's default spot list.
+    """
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.in_progress.value, "add spot")
+
+    bl = await _get_block_log_in_practice(
+        session, log_id, block_log_id, current_user.id
+    )
+
+    # Resolve the block and verify it's a repertoire block
+    if bl.block_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot add spots to a freeform block",
+        )
+    result = await session.exec(
+        select(Block).where(Block.id == bl.block_id)
+    )
+    block = result.first()
+    if not block or block.piece_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Block is not a repertoire block",
+        )
+
+    # Create the spot on the piece
+    result = await session.exec(
+        select(func.coalesce(func.max(Spot.display_order), -1)).where(
+            Spot.piece_id == block.piece_id,
+            Spot.deleted_at == None,  # noqa: E711
+        )
+    )
+    max_order = result.one()
+
+    spot = Spot(
+        piece_id=block.piece_id,
+        name=body.name,
+        location=body.location,
+        display_order=max_order + 1,
+    )
+    session.add(spot)
+    await session.flush()
+
+    # Add to template rotation if requested
+    if body.add_to_rotation and block.id is not None:
+        result = await session.exec(
+            select(func.coalesce(
+                func.max(TemplateBlockSpot.display_order), -1
+            )).where(TemplateBlockSpot.block_id == block.id)
+        )
+        tbs_max = result.one()
+        tbs = TemplateBlockSpot(
+            block_id=block.id,
+            spot_id=spot.id,
+            display_order=tbs_max + 1,
+        )
+        session.add(tbs)
+
+    # Get piece name for denormalization
+    result = await session.exec(
+        select(Piece.name).where(Piece.id == block.piece_id)
+    )
+    piece_name = result.one()
+
+    # Create BlockLog for the new spot in this session
+    max_order_result = await session.exec(
+        select(func.max(BlockLog.display_order)).where(
+            BlockLog.section_log_id == bl.section_log_id
+        )
+    )
+    max_bl_order = max_order_result.one()
+    next_order = (max_bl_order + 1) if max_bl_order is not None else 0
+
+    new_bl = BlockLog(
+        section_log_id=bl.section_log_id,
+        block_id=block.id,
+        spot_id=spot.id,
+        block_name=f"{piece_name} \u2014 {spot.name}",
+        display_order=next_order,
+        completed=False,
+    )
+    session.add(new_bl)
+    await session.commit()
+    await session.refresh(new_bl)
+    return new_bl
+
+
+@router.put(
+    "/practice/{log_id}/blocks/{block_log_id}/collapse-to-piece",
+    response_model=BlockLogRead,
+)
+async def collapse_to_piece(
+    log_id: int,
+    block_log_id: int,
+    body: CollapseToPieceRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Collapse per-spot logs of a repertoire block into a single piece-level log.
+
+    Deletes all BlockLogs for this block_id in this session's section log,
+    then creates one BlockLog with spot_id=null and block_name=piece name.
+    """
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.in_progress.value, "collapse to piece")
+
+    bl = await _get_block_log_in_practice(
+        session, log_id, block_log_id, current_user.id
+    )
+
+    if bl.block_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot collapse a freeform block",
+        )
+    result = await session.exec(
+        select(Block).where(Block.id == bl.block_id)
+    )
+    block = result.first()
+    if not block or block.piece_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Block is not a repertoire block",
+        )
+
+    # Get piece name
+    result = await session.exec(
+        select(Piece.name).where(Piece.id == block.piece_id)
+    )
+    piece_name = result.one()
+
+    # Delete all BlockLogs for this block in this section log
+    result = await session.exec(
+        select(BlockLog).where(
+            BlockLog.section_log_id == bl.section_log_id,
+            BlockLog.block_id == block.id,
+        )
+    )
+    for old_bl in result.all():
+        await session.delete(old_bl)
+
+    # Create a single piece-level log
+    new_bl = BlockLog(
+        section_log_id=bl.section_log_id,
+        block_id=block.id,
+        spot_id=None,
+        block_name=piece_name,
+        display_order=bl.display_order,
+        completed=body.rating is not None,
+        rating=body.rating,
+        notes=body.notes,
+    )
+    session.add(new_bl)
+    await session.commit()
+    await session.refresh(new_bl)
+    return new_bl
+
+
+@router.put(
+    "/practice/{log_id}/blocks/{block_log_id}/expand-to-spots",
+    response_model=List[BlockLogRead],
+)
+async def expand_to_spots(
+    log_id: int,
+    block_log_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Expand a piece-level log back into per-spot BlockLogs.
+
+    Restores per-spot BlockLogs from the template block's default spot list.
+    The collapsed piece-level log is deleted.
+    """
+    log = await _get_owned_log(session, log_id, current_user.id)
+    _require_status(log, SessionStatus.in_progress.value, "expand to spots")
+
+    bl = await _get_block_log_in_practice(
+        session, log_id, block_log_id, current_user.id
+    )
+
+    if bl.block_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot expand a freeform block",
+        )
+    result = await session.exec(
+        select(Block).where(Block.id == bl.block_id)
+    )
+    block = result.first()
+    if not block or block.piece_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Block is not a repertoire block",
+        )
+
+    # Get piece name and default spots
+    result = await session.exec(
+        select(Piece.name).where(Piece.id == block.piece_id)
+    )
+    piece_name = result.one()
+
+    result = await session.exec(
+        select(TemplateBlockSpot)
+        .where(TemplateBlockSpot.block_id == block.id)
+        .options(selectinload(TemplateBlockSpot.spot))  # type: ignore[arg-type]
+    )
+    tbs_list = sorted(result.all(), key=lambda t: t.display_order)
+
+    active_spots = [
+        tbs for tbs in tbs_list
+        if tbs.spot is not None
+        and tbs.spot.deleted_at is None
+        and tbs.spot.retired_at is None
+    ]
+
+    if not active_spots:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active default spots to expand to",
+        )
+
+    # Delete the collapsed log
+    base_order = bl.display_order
+    await session.delete(bl)
+
+    # Create per-spot logs
+    new_logs = []
+    for i, tbs in enumerate(active_spots):
+        new_bl = BlockLog(
+            section_log_id=bl.section_log_id,
+            block_id=block.id,
+            spot_id=tbs.spot.id,
+            block_name=f"{piece_name} \u2014 {tbs.spot.name}",
+            display_order=base_order * 100 + i,
+            completed=False,
+        )
+        session.add(new_bl)
+        new_logs.append(new_bl)
+
+    await session.commit()
+    for nl in new_logs:
+        await session.refresh(nl)
+
+    return new_logs
