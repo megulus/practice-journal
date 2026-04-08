@@ -360,7 +360,7 @@ async def duplicate_template(
     new_template = Template(
         user_id=current_user.id,
         instrument_id=source.instrument_id,
-        name=f"Copy of {source.name}",
+        name=f"Copy of {source.name}"[:200],
         description=source.description,
         is_active=False,
         current_rotation_index=0,
