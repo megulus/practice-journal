@@ -353,9 +353,17 @@ async def start_practice(
             session.add(sl)
             await session.flush()
 
+            # Track display_order with a running counter so repertoire
+            # blocks that expand to multiple spots get sequential orders.
+            bl_order = 0
             for block in sorted(sec.blocks, key=lambda b: b.display_order):
                 if block.piece_id is not None:
                     # Repertoire block — expand into per-spot BlockLogs
+                    piece_result = await session.exec(
+                        select(Piece.name).where(Piece.id == block.piece_id)
+                    )
+                    piece_name = piece_result.one()
+
                     active_spots = sorted(
                         [
                             tbs for tbs in block.template_block_spots
@@ -366,45 +374,39 @@ async def start_practice(
                         key=lambda tbs: tbs.display_order,
                     )
                     if active_spots:
-                        # Fetch piece name for denormalization
-                        piece_result = await session.exec(
-                            select(Piece.name).where(Piece.id == block.piece_id)
-                        )
-                        piece_name = piece_result.one()
-                        for i, tbs in enumerate(active_spots):
+                        for tbs in active_spots:
                             bl = BlockLog(
                                 section_log_id=sl.id,
                                 block_id=block.id,
                                 spot_id=tbs.spot.id,
                                 block_name=f"{piece_name} \u2014 {tbs.spot.name}",
-                                display_order=block.display_order * 100 + i,
+                                display_order=bl_order,
                                 completed=False,
                             )
                             session.add(bl)
+                            bl_order += 1
                     else:
                         # Zero default spots — placeholder piece-level log
-                        piece_result = await session.exec(
-                            select(Piece.name).where(Piece.id == block.piece_id)
-                        )
-                        piece_name = piece_result.one()
                         bl = BlockLog(
                             section_log_id=sl.id,
                             block_id=block.id,
                             block_name=piece_name,
-                            display_order=block.display_order,
+                            display_order=bl_order,
                             completed=False,
                         )
                         session.add(bl)
+                        bl_order += 1
                 else:
                     # Standard block
                     bl = BlockLog(
                         section_log_id=sl.id,
                         block_id=block.id,
                         block_name=block.name,
-                        display_order=block.display_order,
+                        display_order=bl_order,
                         completed=False,
                     )
                     session.add(bl)
+                    bl_order += 1
 
     await session.commit()
     await session.refresh(log)
@@ -913,10 +915,14 @@ async def collapse_to_piece(
     )
     piece_name = result.one()
 
+    # Capture values before deleting (access after delete is fragile)
+    section_log_id = bl.section_log_id
+    base_order = bl.display_order
+
     # Delete all BlockLogs for this block in this section log
     result = await session.exec(
         select(BlockLog).where(
-            BlockLog.section_log_id == bl.section_log_id,
+            BlockLog.section_log_id == section_log_id,
             BlockLog.block_id == block.id,
         )
     )
@@ -925,11 +931,11 @@ async def collapse_to_piece(
 
     # Create a single piece-level log
     new_bl = BlockLog(
-        section_log_id=bl.section_log_id,
+        section_log_id=section_log_id,
         block_id=block.id,
         spot_id=None,
         block_name=piece_name,
-        display_order=bl.display_order,
+        display_order=base_order,
         completed=body.rating is not None,
         rating=body.rating,
         notes=body.notes,
@@ -1003,19 +1009,20 @@ async def expand_to_spots(
             detail="No active default spots to expand to",
         )
 
-    # Delete the collapsed log
+    # Capture values before deleting (access after delete is fragile)
+    section_log_id = bl.section_log_id
     base_order = bl.display_order
     await session.delete(bl)
 
-    # Create per-spot logs
+    # Create per-spot logs with sequential display_orders
     new_logs = []
     for i, tbs in enumerate(active_spots):
         new_bl = BlockLog(
-            section_log_id=bl.section_log_id,
+            section_log_id=section_log_id,
             block_id=block.id,
             spot_id=tbs.spot.id,
             block_name=f"{piece_name} \u2014 {tbs.spot.name}",
-            display_order=base_order * 100 + i,
+            display_order=base_order + i,
             completed=False,
         )
         session.add(new_bl)

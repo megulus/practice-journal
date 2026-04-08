@@ -503,3 +503,64 @@ class TestFinishWithRepertoire:
         assert summary["exercises_total"] == 4
         assert summary["exercises_completed"] == 4
         assert summary["ratings"]["step_forward"] == 4
+
+
+# ===================================================================
+# ALL SPOTS RETIRED — edge case
+# ===================================================================
+
+class TestAllSpotsRetired:
+    async def test_all_spots_retired_creates_placeholder(
+        self, client: AsyncClient, db_session, repertoire_template
+    ):
+        """When all default spots are retired, scaffolding should create
+        a single placeholder piece-level BlockLog (like zero-spots case)."""
+        t = repertoire_template
+        for spot in t["spots"]:
+            spot.retired_at = utcnow()
+            db_session.add(spot)
+        await db_session.commit()
+
+        resp = await client.post("/api/practice/start", json={
+            "instrument_id": t["template"].instrument_id,
+            "template_id": t["template"].id,
+            "template_session_id": t["session"].id,
+        })
+        assert resp.status_code == 201
+        rep_bls = resp.json()["section_logs"][1]["block_logs"]
+        assert len(rep_bls) == 1
+        assert rep_bls[0]["spot_id"] is None
+        assert rep_bls[0]["block_name"] == "Bruch Concerto"
+
+
+# ===================================================================
+# CROSS-USER SECURITY
+# ===================================================================
+
+class TestCrossUserSecurity:
+    async def test_cannot_add_spot_to_other_users_session(
+        self, other_user_client: AsyncClient, db_session, other_user
+    ):
+        """other_user cannot access a practice log they don't own."""
+        resp = await other_user_client.post(
+            "/api/practice/999/blocks/999/spots",
+            json={"name": "stolen spot"},
+        )
+        assert resp.status_code == 404
+
+    async def test_cannot_collapse_other_users_session(
+        self, other_user_client: AsyncClient,
+    ):
+        resp = await other_user_client.put(
+            "/api/practice/999/blocks/999/collapse-to-piece",
+            json={},
+        )
+        assert resp.status_code == 404
+
+    async def test_cannot_expand_other_users_session(
+        self, other_user_client: AsyncClient,
+    ):
+        resp = await other_user_client.put(
+            "/api/practice/999/blocks/999/expand-to-spots",
+        )
+        assert resp.status_code == 404
