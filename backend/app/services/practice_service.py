@@ -7,21 +7,12 @@ sub-operations independently testable.
 import random
 from datetime import datetime, timezone, timedelta
 
-from sqlmodel import select, col, func
+from sqlmodel import select, col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import (
-    PracticeLog,
-    SectionLog,
-    BlockLog,
-    Template,
-    TemplateSession,
-    Instrument,
-    UserSettings,
-)
-from app.enums import SessionStatus, PracticeFrequency
+from app.models import PracticeLog
+from app.enums import SessionStatus
 from app.schemas.practice import (
-    CoachingSuggestion,
     RatingsSummary,
     SessionSummary,
 )
@@ -116,69 +107,6 @@ async def calculate_day_streak(
         check -= timedelta(days=1)
 
     return streak
-
-
-async def generate_coaching_suggestion(
-    session: AsyncSession,
-    user_id: int,
-    instrument_id: int,
-    suggestions_preference: str,
-) -> CoachingSuggestion | None:
-    """Generate a post-session coaching suggestion.
-
-    Currently implements only the weekly_consistency rule.
-    """
-    if suggestions_preference == "off":
-        return None
-
-    today = datetime.now(timezone.utc).date()
-    # Rolling 7-day window (matches spec example text)
-    window_start = today - timedelta(days=6)
-
-    result = await session.exec(
-        select(func.count(func.distinct(PracticeLog.practice_date)))
-        .where(
-            PracticeLog.user_id == user_id,
-            PracticeLog.instrument_id == instrument_id,
-            PracticeLog.status == SessionStatus.completed.value,
-            PracticeLog.deleted_at == None,  # noqa: E711
-            PracticeLog.practice_date >= window_start,
-            PracticeLog.practice_date <= today,
-        )
-    )
-    days_this_week = result.one()
-
-    # Map practice_frequency to a target
-    frequency_targets = {
-        PracticeFrequency.daily.value: 7,
-        PracticeFrequency.few_times_a_week.value: 4,
-        PracticeFrequency.weekly.value: 1,
-        PracticeFrequency.occasionally.value: 1,
-    }
-
-    # Look up the instrument's practice_frequency
-    inst_result = await session.exec(
-        select(Instrument.practice_frequency).where(
-            Instrument.id == instrument_id
-        )
-    )
-    freq = inst_result.first() or PracticeFrequency.few_times_a_week.value
-    target = frequency_targets.get(freq, 4)
-
-    if days_this_week >= target:
-        text = (
-            f"You've practiced {days_this_week} days this week — "
-            f"you've hit your goal! Keep the momentum going."
-        )
-    else:
-        remaining = target - days_this_week
-        text = (
-            f"You've practiced {days_this_week} of the last 7 days — "
-            f"{'one more' if remaining == 1 else f'{remaining} more'} "
-            f"this week matches your goal."
-        )
-
-    return CoachingSuggestion(text=text, rule_id="weekly_consistency")
 
 
 def compute_session_summary(

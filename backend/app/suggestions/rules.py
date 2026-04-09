@@ -1,211 +1,494 @@
-from typing import Optional, Protocol
+"""
+Suggestion rule implementations.
 
+Each rule is an async function that takes a RuleContext and returns either
+a Suggestion or None. Rules query the database directly. The engine
+handles dismissal filtering, opt-out preferences, and selection.
+"""
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+
+from sqlmodel import select, func, col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.suggestions.models import PracticeStats, SessionSuggestion, SessionSuggestionType
-from app.suggestions.data_service import PracticeDataService
+from app.models import (
+    Instrument, Template, TemplateSession, Section, Block,
+    Piece, Spot, PracticeLog, SectionLog, BlockLog,
+)
+from app.enums import SuggestionTier, PracticeFrequency, SessionStatus
+from app.suggestions.base import RuleContext, Suggestion
 
 
-class SessionRule(Protocol):
-    rule_id: str
-    priority: int
+# ===================================================================
+# Pre-session rules
+# ===================================================================
 
-    def evaluate(self, stats: PracticeStats) -> Optional[SessionSuggestion]: ...
-
-
-# ---------------------------------------------------------------------------
-# Rules
-# ---------------------------------------------------------------------------
-
-class ConsistencyNudge:
-    rule_id = "consistency"
-    priority = 1
-
-    def evaluate(self, stats: PracticeStats) -> Optional[SessionSuggestion]:
-        if stats.total_sessions_last_30_days < 3:
-            return None
-        if stats.days_since_last_practice is None:
-            return None
-        if stats.days_since_last_practice < 3:
-            return None
-
-        days = stats.days_since_last_practice
-        weekly = stats.days_practiced_last_7_days
-        message = (
-            f"It's been {days} days since your last practice. "
-            f"You've practiced {weekly} of 7 days this week — "
-            f"a short session today keeps the momentum going!"
-        )
-        return SessionSuggestion(
-            key=f"session_{self.rule_id}_{stats.instrument_id or 'all'}",
-            type=SessionSuggestionType.CONSISTENCY,
-            message=message,
-            priority=self.priority,
-            instrument_id=stats.instrument_id,
-        )
+# Map practice_frequency to the "due" threshold in days. Beyond this many
+# days since last practice, the consistency_nudge fires.
+_FREQUENCY_THRESHOLDS = {
+    PracticeFrequency.daily.value: 2,
+    PracticeFrequency.few_times_a_week.value: 3,
+    PracticeFrequency.weekly.value: 8,
+    PracticeFrequency.occasionally.value: 30,
+}
 
 
-class SectionCoverage:
-    rule_id = "coverage"
-    priority = 2
-
-    def evaluate(self, stats: PracticeStats) -> Optional[SessionSuggestion]:
-        if stats.total_sessions_last_30_days < 3:
-            return None
-        if not stats.all_known_section_types:
-            return None
-
-        recent = set(stats.section_types_last_14_days)
-        known = set(stats.all_known_section_types)
-        missing = known - recent
-        if not missing:
-            return None
-
-        missing_list = ", ".join(sorted(missing)[:3])
-        extra = len(missing) - 3
-        label = missing_list + (f" (+{extra} more)" if extra > 0 else "")
-        message = (
-            f"You haven't practiced these areas in the last 2 weeks: {label}. "
-            f"Consider adding them to your next session."
-        )
-        return SessionSuggestion(
-            key=f"session_{self.rule_id}_{stats.instrument_id or 'all'}",
-            type=SessionSuggestionType.COVERAGE,
-            message=message,
-            priority=self.priority,
-            instrument_id=stats.instrument_id,
-        )
-
-
-class BalanceSuggestion:
-    rule_id = "balance"
-    priority = 3
-
-    def evaluate(self, stats: PracticeStats) -> Optional[SessionSuggestion]:
-        if stats.total_sessions_last_30_days < 3:
-            return None
-        if not stats.section_type_distribution:
-            return None
-
-        for section_type, pct in stats.section_type_distribution.items():
-            if pct > 0.70:
-                pct_display = round(pct * 100)
-                message = (
-                    f"Your recent practice is {pct_display}% {section_type}. "
-                    f"Mixing in other areas can accelerate overall progress."
-                )
-                return SessionSuggestion(
-                    key=f"session_{self.rule_id}_{stats.instrument_id or 'all'}",
-                    type=SessionSuggestionType.BALANCE,
-                    message=message,
-                    priority=self.priority,
-                    instrument_id=stats.instrument_id,
-                )
+async def consistency_nudge(ctx: RuleContext) -> Optional[Suggestion]:
+    """Fires when days since last practice exceeds the instrument's threshold."""
+    if ctx.instrument_id is None:
         return None
 
+    inst_result = await ctx.session.exec(
+        select(Instrument.practice_frequency).where(
+            Instrument.id == ctx.instrument_id
+        )
+    )
+    freq = inst_result.first() or PracticeFrequency.few_times_a_week.value
+    threshold = _FREQUENCY_THRESHOLDS.get(freq, 3)
 
-class DurationInsight:
-    rule_id = "duration"
-    priority = 4
-
-    def evaluate(self, stats: PracticeStats) -> Optional[SessionSuggestion]:
-        if stats.total_sessions_last_30_days < 3:
-            return None
-
-        # Check if recent average is very short
-        if (
-            stats.average_duration_last_10 is not None
-            and stats.average_duration_last_10 < 20
-        ):
-            avg = round(stats.average_duration_last_10)
-            message = (
-                f"Your recent sessions average {avg} minutes. "
-                f"Even adding 5-10 minutes can make a noticeable difference in progress."
-            )
-            return SessionSuggestion(
-                key=f"session_{self.rule_id}_{stats.instrument_id or 'all'}",
-                type=SessionSuggestionType.DURATION,
-                message=message,
-                priority=self.priority,
-                instrument_id=stats.instrument_id,
-            )
-
-        # Check if recent average dropped significantly from overall
-        if (
-            stats.average_duration_last_10 is not None
-            and stats.average_duration_overall is not None
-            and stats.average_duration_overall > 0
-        ):
-            drop = 1 - (stats.average_duration_last_10 / stats.average_duration_overall)
-            if drop > 0.40:
-                recent = round(stats.average_duration_last_10)
-                overall = round(stats.average_duration_overall)
-                message = (
-                    f"Your recent sessions average {recent} minutes, "
-                    f"down from your usual {overall} minutes. "
-                    f"Shorter sessions are fine, but consistency in duration helps build habits."
-                )
-                return SessionSuggestion(
-                    key=f"session_{self.rule_id}_{stats.instrument_id or 'all'}",
-                    type=SessionSuggestionType.DURATION,
-                    message=message,
-                    priority=self.priority,
-                    instrument_id=stats.instrument_id,
-                )
-
+    last_result = await ctx.session.exec(
+        select(func.max(PracticeLog.practice_date)).where(
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.instrument_id == ctx.instrument_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+        )
+    )
+    last_date = last_result.first()
+    if last_date is None:
         return None
 
+    today = datetime.now(timezone.utc).date()
+    days_since = (today - last_date).days
 
-class WarmupReminder:
-    rule_id = "warmup"
-    priority = 5
+    if days_since < threshold:
+        return None
 
-    def evaluate(self, stats: PracticeStats) -> Optional[SessionSuggestion]:
-        if stats.recent_sessions_total < 3:
-            return None
+    text = (
+        f"It's been {days_since} days since you last practiced — "
+        f"even a short session counts."
+    )
+    return Suggestion(
+        rule_id="consistency_nudge",
+        tier=SuggestionTier.pre_session,
+        text=text,
+    )
 
-        warmup_pct = stats.recent_sessions_with_warmup / stats.recent_sessions_total
-        if warmup_pct >= 0.30:
-            return None
 
-        message = (
-            f"Only {stats.recent_sessions_with_warmup} of your last "
-            f"{stats.recent_sessions_total} sessions included a warmup. "
-            f"Starting with a warmup can improve technique and prevent strain."
+async def section_coverage_drop(ctx: RuleContext) -> Optional[Suggestion]:
+    """Fires when a section type that was practiced regularly has dropped off.
+
+    Compares the last 14 days against the prior 14 days for this instrument.
+    Surfaces the first section type that appeared in the older window but
+    not in the recent one.
+    """
+    if ctx.instrument_id is None:
+        return None
+
+    today = datetime.now(timezone.utc).date()
+    recent_start = today - timedelta(days=14)
+    older_start = today - timedelta(days=28)
+
+    # Section types in the most recent 14 days
+    recent_result = await ctx.session.exec(
+        select(SectionLog.section_type)
+        .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+        .where(
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.instrument_id == ctx.instrument_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+            PracticeLog.practice_date >= recent_start,
+            PracticeLog.practice_date <= today,
         )
-        return SessionSuggestion(
-            key=f"session_{self.rule_id}_{stats.instrument_id or 'all'}",
-            type=SessionSuggestionType.WARMUP,
-            message=message,
-            priority=self.priority,
-            instrument_id=stats.instrument_id,
+        .distinct()
+    )
+    recent = set(recent_result.all())
+
+    # Section types in the prior 14 days
+    older_result = await ctx.session.exec(
+        select(SectionLog.section_type)
+        .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+        .where(
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.instrument_id == ctx.instrument_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+            PracticeLog.practice_date >= older_start,
+            PracticeLog.practice_date < recent_start,
+        )
+        .distinct()
+    )
+    older = set(older_result.all())
+
+    dropped = sorted(older - recent)
+    if not dropped:
+        return None
+
+    section = dropped[0]
+    text = (
+        f"Your {section.replace('_', ' ')} coverage has dropped off — "
+        f"consider adding a {section.replace('_', ' ')} block today."
+    )
+    return Suggestion(
+        rule_id="section_coverage_drop",
+        tier=SuggestionTier.pre_session,
+        text=text,
+    )
+
+
+# ===================================================================
+# In-the-moment rules
+# ===================================================================
+
+async def previous_block_note(ctx: RuleContext) -> Optional[Suggestion]:
+    """Surface the user's note from the previous time they practiced this block."""
+    if ctx.block_id is None or ctx.block_log_id is None:
+        return None
+
+    result = await ctx.session.exec(
+        select(BlockLog.notes, PracticeLog.practice_date)
+        .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+        .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+        .where(
+            BlockLog.block_id == ctx.block_id,
+            BlockLog.id != ctx.block_log_id,
+            BlockLog.notes != None,  # noqa: E711
+            BlockLog.notes != "",
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+        )
+        .order_by(col(PracticeLog.practice_date).desc())
+        .limit(1)
+    )
+    row = result.first()
+    if row is None:
+        return None
+
+    note, _ = row
+    text = f'Last session you noted: "{note}"'
+    return Suggestion(
+        rule_id="previous_block_note",
+        tier=SuggestionTier.in_the_moment,
+        text=text,
+        block_log_id=ctx.block_log_id,
+    )
+
+
+async def tempo_progression(ctx: RuleContext) -> Optional[Suggestion]:
+    """Suggest bumping tempo when the last 2+ sessions on this block were
+    rated step_forward."""
+    if ctx.block_id is None or ctx.block_log_id is None:
+        return None
+
+    # Pull this block's last 2 completed ratings
+    result = await ctx.session.exec(
+        select(BlockLog.rating, PracticeLog.practice_date)
+        .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+        .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+        .where(
+            BlockLog.block_id == ctx.block_id,
+            BlockLog.id != ctx.block_log_id,
+            BlockLog.rating != None,  # noqa: E711
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+        )
+        .order_by(col(PracticeLog.practice_date).desc())
+        .limit(2)
+    )
+    ratings = [r[0] for r in result.all()]
+    if len(ratings) < 2 or not all(r == 1 for r in ratings):
+        return None
+
+    # Look up the block's current tempo, if any
+    block_result = await ctx.session.exec(
+        select(Block.tempo_bpm).where(Block.id == ctx.block_id)
+    )
+    tempo = block_result.first()
+    if tempo:
+        text = (
+            f"Two sessions trending forward — try bumping the tempo "
+            f"to {tempo + 4} this time."
+        )
+    else:
+        text = "Two sessions trending forward — try a small tempo bump."
+
+    return Suggestion(
+        rule_id="tempo_progression",
+        tier=SuggestionTier.in_the_moment,
+        text=text,
+        block_log_id=ctx.block_log_id,
+    )
+
+
+async def spot_step_forward_streak(ctx: RuleContext) -> Optional[Suggestion]:
+    """Fires when a spot's last 3+ block_logs are all rated step_forward."""
+    if ctx.spot_id is None or ctx.block_log_id is None:
+        return None
+
+    result = await ctx.session.exec(
+        select(BlockLog.rating)
+        .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+        .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+        .where(
+            BlockLog.spot_id == ctx.spot_id,
+            BlockLog.id != ctx.block_log_id,
+            BlockLog.rating != None,  # noqa: E711
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+        )
+        .order_by(col(PracticeLog.created_at).desc())
+        .limit(3)
+    )
+    ratings = [r for r in result.all()]
+    if len(ratings) < 3 or not all(r == 1 for r in ratings):
+        return None
+
+    text = (
+        "This spot has been step-forward three sessions in a row — "
+        "try the next page or a faster tempo."
+    )
+    return Suggestion(
+        rule_id="spot_step_forward_streak",
+        tier=SuggestionTier.in_the_moment,
+        text=text,
+        block_log_id=ctx.block_log_id,
+    )
+
+
+# ===================================================================
+# Post-session rules
+# ===================================================================
+
+async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
+    """Compares days practiced this week to the user's effective goal,
+    derived from the instrument's frequency setting."""
+    if ctx.instrument_id is None:
+        return None
+
+    today = datetime.now(timezone.utc).date()
+    window_start = today - timedelta(days=6)
+
+    days_result = await ctx.session.exec(
+        select(func.count(func.distinct(PracticeLog.practice_date))).where(
+            PracticeLog.user_id == ctx.user_id,
+            PracticeLog.instrument_id == ctx.instrument_id,
+            PracticeLog.status == SessionStatus.completed.value,
+            PracticeLog.deleted_at == None,  # noqa: E711
+            PracticeLog.practice_date >= window_start,
+            PracticeLog.practice_date <= today,
+        )
+    )
+    days_this_week = days_result.one() or 0
+
+    inst_result = await ctx.session.exec(
+        select(Instrument.practice_frequency).where(
+            Instrument.id == ctx.instrument_id
+        )
+    )
+    freq = inst_result.first() or PracticeFrequency.few_times_a_week.value
+    targets = {
+        PracticeFrequency.daily.value: 7,
+        PracticeFrequency.few_times_a_week.value: 4,
+        PracticeFrequency.weekly.value: 1,
+        PracticeFrequency.occasionally.value: 1,
+    }
+    target = targets.get(freq, 4)
+
+    if days_this_week >= target:
+        text = (
+            f"You've practiced {days_this_week} days this week — "
+            f"you've hit your goal! Keep the momentum going."
+        )
+    else:
+        remaining = target - days_this_week
+        word = "one more" if remaining == 1 else f"{remaining} more"
+        text = (
+            f"You've practiced {days_this_week} of the last 7 days — "
+            f"{word} this week matches your goal."
         )
 
-
-# ---------------------------------------------------------------------------
-# Registry & orchestrator
-# ---------------------------------------------------------------------------
-
-ALL_RULES: list[SessionRule] = [
-    ConsistencyNudge(),
-    SectionCoverage(),
-    BalanceSuggestion(),
-    DurationInsight(),
-    WarmupReminder(),
-]
+    return Suggestion(
+        rule_id="weekly_consistency",
+        tier=SuggestionTier.post_session,
+        text=text,
+    )
 
 
-async def evaluate_session_rules(
-    session: AsyncSession,
-    user_id: int,
-    instrument_id: Optional[int] = None,
-    max_suggestions: int = 3,
-) -> list[SessionSuggestion]:
-    stats = await PracticeDataService(session, user_id, instrument_id).get_stats()
-    suggestions: list[SessionSuggestion] = []
-    for rule in ALL_RULES:
-        result = rule.evaluate(stats)
-        if result is not None:
-            suggestions.append(result)
-    suggestions.sort(key=lambda s: s.priority)
-    return suggestions[:max_suggestions]
+async def spot_plateau(ctx: RuleContext) -> Optional[Suggestion]:
+    """Fires when a spot's last 5+ block_logs are predominantly steady
+    with no step_forward in 2+ weeks.
+
+    For post-session, this scans all spots practiced in the just-finished
+    session and returns the first one matching.
+    """
+    if ctx.practice_log_id is None:
+        return None
+
+    # Find spot_ids practiced in this session
+    spots_result = await ctx.session.exec(
+        select(BlockLog.spot_id)
+        .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+        .where(
+            SectionLog.practice_log_id == ctx.practice_log_id,
+            BlockLog.spot_id != None,  # noqa: E711
+        )
+        .distinct()
+    )
+    spot_ids = [r for r in spots_result.all() if r is not None]
+    if not spot_ids:
+        return None
+
+    today = datetime.now(timezone.utc).date()
+    cutoff = today - timedelta(days=14)
+
+    for spot_id in spot_ids:
+        # Last 5 ratings on this spot (including current session if logged)
+        ratings_result = await ctx.session.exec(
+            select(BlockLog.rating, PracticeLog.practice_date)
+            .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+            .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+            .where(
+                BlockLog.spot_id == spot_id,
+                BlockLog.rating != None,  # noqa: E711
+                PracticeLog.user_id == ctx.user_id,
+                PracticeLog.status == SessionStatus.completed.value,
+                PracticeLog.deleted_at == None,  # noqa: E711
+            )
+            .order_by(col(PracticeLog.practice_date).desc())
+            .limit(5)
+        )
+        rows = ratings_result.all()
+        if len(rows) < 5:
+            continue
+
+        ratings = [r[0] for r in rows]
+        steady_count = sum(1 for r in ratings if r == 0)
+        forward_recent = any(
+            r[0] == 1 and r[1] >= cutoff for r in rows
+        )
+
+        if steady_count >= 3 and not forward_recent:
+            # Look up spot + piece names for the message
+            spot_row = await ctx.session.exec(
+                select(Spot.name, Piece.name)
+                .join(Piece, Piece.id == Spot.piece_id)
+                .where(Spot.id == spot_id)
+            )
+            row = spot_row.first()
+            if row is None:
+                continue
+            spot_name, piece_name = row
+            text = (
+                f"Your '{spot_name}' on {piece_name} has been steady for "
+                f"a while — try changing your approach (slower, smaller chunks, "
+                f"or a different focus)."
+            )
+            return Suggestion(
+                rule_id="spot_plateau",
+                tier=SuggestionTier.post_session,
+                text=text,
+            )
+
+    return None
+
+
+# ===================================================================
+# Pattern-level rules
+# ===================================================================
+
+async def retired_spot_check(ctx: RuleContext) -> Optional[Suggestion]:
+    """Fires when a spot has been retired for 4+ weeks. Suggests a check-in."""
+    if ctx.instrument_id is None:
+        return None
+
+    # The Spot model declares retired_at as Optional[datetime] (no tz), so
+    # SQLAlchemy binds parameters as TIMESTAMP WITHOUT TIME ZONE. Use naive
+    # UTC datetimes for the comparison and the math.
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoff = now_naive - timedelta(weeks=4)
+
+    result = await ctx.session.exec(
+        select(Spot.name, Piece.name, Spot.retired_at)
+        .join(Piece, Piece.id == Spot.piece_id)
+        .where(
+            Piece.instrument_id == ctx.instrument_id,
+            Piece.deleted_at == None,  # noqa: E711
+            Spot.deleted_at == None,  # noqa: E711
+            Spot.retired_at != None,  # noqa: E711
+            Spot.retired_at <= cutoff,
+        )
+        .order_by(col(Spot.retired_at).asc())
+        .limit(1)
+    )
+    row = result.first()
+    if row is None:
+        return None
+
+    spot_name, piece_name, retired_at = row
+    # If the driver returned a tz-aware value, drop the tz to compare
+    if retired_at.tzinfo is not None:
+        retired_at = retired_at.astimezone(timezone.utc).replace(tzinfo=None)
+    weeks = (now_naive - retired_at).days // 7
+    text = (
+        f"You retired '{spot_name}' on {piece_name} {weeks} weeks ago — "
+        f"want to spot-check it?"
+    )
+    return Suggestion(
+        rule_id="retired_spot_check",
+        tier=SuggestionTier.pattern_level,
+        text=text,
+    )
+
+
+async def whole_piece_overuse(ctx: RuleContext) -> Optional[Suggestion]:
+    """Fires when the user has logged piece-level (no spot) more than 5 times
+    in a row on a piece, suggesting they might benefit from picking spots."""
+    if ctx.instrument_id is None:
+        return None
+
+    # For each piece on this instrument, look at the last 6 block_logs (any
+    # block_log referencing the piece via Block.piece_id) and check if all
+    # had spot_id = None.
+    pieces_result = await ctx.session.exec(
+        select(Piece.id, Piece.name).where(
+            Piece.instrument_id == ctx.instrument_id,
+            Piece.deleted_at == None,  # noqa: E711
+        )
+    )
+    pieces = pieces_result.all()
+
+    for piece_id, piece_name in pieces:
+        logs_result = await ctx.session.exec(
+            select(BlockLog.spot_id)
+            .join(Block, Block.id == BlockLog.block_id)
+            .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+            .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
+            .where(
+                Block.piece_id == piece_id,
+                PracticeLog.user_id == ctx.user_id,
+                PracticeLog.status == SessionStatus.completed.value,
+                PracticeLog.deleted_at == None,  # noqa: E711
+            )
+            .order_by(col(PracticeLog.practice_date).desc())
+            .limit(6)
+        )
+        spot_ids = list(logs_result.all())
+        if len(spot_ids) < 6:
+            continue
+        if all(s is None for s in spot_ids):
+            text = (
+                f"You've logged {piece_name} as a whole piece for the last "
+                f"{len(spot_ids)} sessions — try picking specific spots to "
+                f"focus your practice."
+            )
+            return Suggestion(
+                rule_id="whole_piece_overuse",
+                tier=SuggestionTier.pattern_level,
+                text=text,
+            )
+
+    return None
