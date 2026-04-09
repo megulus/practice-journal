@@ -385,6 +385,58 @@ class TestWeeklyConsistency:
 
 
 class TestSpotPlateau:
+    async def test_does_not_fire_with_recent_step_forward(
+        self, db_session, test_user, test_instrument
+    ):
+        """If there's a step_forward within the last 14 days, the rule
+        should NOT fire even with 5+ steady logs."""
+        piece = Piece(instrument_id=test_instrument.id, name="Bach")
+        db_session.add(piece)
+        await db_session.commit()
+        await db_session.refresh(piece)
+        spot = Spot(piece_id=piece.id, name="Allemande")
+        db_session.add(spot)
+        await db_session.commit()
+        await db_session.refresh(spot)
+
+        today = datetime.now(timezone.utc).date()
+        # 4 old steady ratings
+        for i in range(4):
+            log = await _make_log(
+                db_session, test_user, test_instrument,
+                practice_date=today - timedelta(days=20 + i),
+            )
+            sl = await _make_section_log(db_session, log)
+            await _make_block_log(
+                db_session, sl, name="Bach — Allemande", spot_id=spot.id, rating=0,
+            )
+        # 1 recent step_forward (within last 14 days)
+        recent_log = await _make_log(
+            db_session, test_user, test_instrument,
+            practice_date=today - timedelta(days=5),
+        )
+        recent_sl = await _make_section_log(db_session, recent_log)
+        await _make_block_log(
+            db_session, recent_sl, name="Bach — Allemande", spot_id=spot.id, rating=1,
+        )
+
+        # Today's session also touches the spot
+        current = await _make_log(
+            db_session, test_user, test_instrument, practice_date=today,
+        )
+        cur_sl = await _make_section_log(db_session, current)
+        await _make_block_log(
+            db_session, cur_sl, name="Bach — Allemande", spot_id=spot.id, rating=0,
+        )
+
+        result = await evaluate_post_session(
+            db_session, test_user.id, test_instrument.id, current.id
+        )
+        # Should not be spot_plateau (recent forward exists). May still
+        # be weekly_consistency, so check the rule_id.
+        if result is not None:
+            assert result.rule_id != "spot_plateau"
+
     async def test_fires_for_steady_spot(
         self, db_session, test_user, test_instrument
     ):
@@ -478,15 +530,7 @@ class TestRetiredSpotCheck:
 
 
 class TestWholePieceOveruse:
-    async def test_fires_after_six_piece_level_logs(
-        self, db_session, test_user, test_instrument
-    ):
-        piece = Piece(instrument_id=test_instrument.id, name="Brahms")
-        db_session.add(piece)
-        await db_session.commit()
-        await db_session.refresh(piece)
-
-        # Create a Block with piece_id so the join works
+    async def _make_repertoire_block(self, db_session, test_user, test_instrument, piece):
         template = Template(
             user_id=test_user.id, instrument_id=test_instrument.id, name="P"
         )
@@ -508,8 +552,20 @@ class TestWholePieceOveruse:
         db_session.add(block)
         await db_session.commit()
         await db_session.refresh(block)
+        return block
 
-        for i in range(6):
+    async def test_fires_after_five_piece_level_sessions(
+        self, db_session, test_user, test_instrument
+    ):
+        piece = Piece(instrument_id=test_instrument.id, name="Brahms")
+        db_session.add(piece)
+        await db_session.commit()
+        await db_session.refresh(piece)
+        block = await self._make_repertoire_block(
+            db_session, test_user, test_instrument, piece
+        )
+
+        for i in range(5):
             log = await _make_log(
                 db_session, test_user, test_instrument,
                 practice_date=date(2026, 4, 1) + timedelta(days=i),
@@ -525,6 +581,81 @@ class TestWholePieceOveruse:
         )
         assert result is not None
         assert result.rule_id == "whole_piece_overuse"
+
+    async def test_does_not_fire_with_recent_spot_log(
+        self, db_session, test_user, test_instrument
+    ):
+        """If even one of the recent sessions had a spot-level log,
+        the rule should NOT fire."""
+        piece = Piece(instrument_id=test_instrument.id, name="Brahms")
+        db_session.add(piece)
+        await db_session.commit()
+        await db_session.refresh(piece)
+        block = await self._make_repertoire_block(
+            db_session, test_user, test_instrument, piece
+        )
+        spot = Spot(piece_id=piece.id, name="trio")
+        db_session.add(spot)
+        await db_session.commit()
+        await db_session.refresh(spot)
+
+        # 4 piece-only sessions, then 1 most-recent session with a spot-level log
+        for i in range(4):
+            log = await _make_log(
+                db_session, test_user, test_instrument,
+                practice_date=date(2026, 4, 1) + timedelta(days=i),
+            )
+            sl = await _make_section_log(db_session, log)
+            await _make_block_log(
+                db_session, sl, name="Brahms",
+                block_id=block.id, spot_id=None, rating=0,
+            )
+
+        # Most recent session has a spot-level log
+        recent = await _make_log(
+            db_session, test_user, test_instrument,
+            practice_date=date(2026, 4, 5),
+        )
+        recent_sl = await _make_section_log(db_session, recent)
+        await _make_block_log(
+            db_session, recent_sl, name="Brahms — trio",
+            block_id=block.id, spot_id=spot.id, rating=1,
+        )
+
+        result = await evaluate_pattern_level(
+            db_session, test_user.id, test_instrument.id
+        )
+        assert result is None
+
+    async def test_does_not_fire_with_only_four_sessions(
+        self, db_session, test_user, test_instrument
+    ):
+        """5 piece-only logs in 1 session is NOT 5 sessions — should not fire."""
+        piece = Piece(instrument_id=test_instrument.id, name="Brahms")
+        db_session.add(piece)
+        await db_session.commit()
+        await db_session.refresh(piece)
+        block = await self._make_repertoire_block(
+            db_session, test_user, test_instrument, piece
+        )
+
+        # Single session with 5 piece-only block_logs (simulating multiple
+        # quick logs in one session)
+        log = await _make_log(
+            db_session, test_user, test_instrument,
+            practice_date=date(2026, 4, 1),
+        )
+        sl = await _make_section_log(db_session, log)
+        for _ in range(5):
+            await _make_block_log(
+                db_session, sl, name="Brahms",
+                block_id=block.id, spot_id=None, rating=0,
+            )
+
+        result = await evaluate_pattern_level(
+            db_session, test_user.id, test_instrument.id
+        )
+        assert result is None  # only 1 session, not 5
 
 
 # ===================================================================
@@ -603,3 +734,57 @@ class TestSuggestionsPreference:
             db_session, test_user.id, test_instrument.id, log.id
         )
         assert result is not None
+
+
+class TestDismissalFallthrough:
+    async def test_dismissing_first_rule_lets_second_fire(
+        self, db_session, test_user, test_instrument
+    ):
+        """When the first rule in a tier is dismissed, the engine should
+        try the next rule in the registry, not return None."""
+        today = datetime.now(timezone.utc).date()
+
+        # Set up data so BOTH pre-session rules would fire:
+        # consistency_nudge: daily instrument, last practice 5 days ago
+        test_instrument.practice_frequency = "daily"
+        db_session.add(test_instrument)
+        await _make_log(
+            db_session, test_user, test_instrument,
+            practice_date=today - timedelta(days=5),
+        )
+
+        # section_coverage_drop: scales 20 days ago, only warmup recently
+        old_log = await _make_log(
+            db_session, test_user, test_instrument,
+            practice_date=today - timedelta(days=20),
+        )
+        await _make_section_log(db_session, old_log, section_type="scales")
+        recent_log = await _make_log(
+            db_session, test_user, test_instrument,
+            practice_date=today - timedelta(days=3),
+        )
+        await _make_section_log(db_session, recent_log, section_type="warmup")
+
+        # First, verify consistency_nudge fires
+        result = await evaluate_pre_session(
+            db_session, test_user.id, test_instrument.id
+        )
+        assert result is not None
+        assert result.rule_id == "consistency_nudge"
+
+        # Dismiss consistency_nudge
+        dismissal = SuggestionDismissal(
+            user_id=test_user.id,
+            instrument_id=test_instrument.id,
+            suggestion_rule_id="consistency_nudge",
+            suggestion_tier=SuggestionTier.pre_session.value,
+        )
+        db_session.add(dismissal)
+        await db_session.commit()
+
+        # Now section_coverage_drop should fire instead
+        result = await evaluate_pre_session(
+            db_session, test_user.id, test_instrument.id
+        )
+        assert result is not None
+        assert result.rule_id == "section_coverage_drop"

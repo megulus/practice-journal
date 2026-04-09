@@ -5,8 +5,13 @@ and preference-based opt-out.
 Each `evaluate_*` function is the entry point for one tier. They return
 either a single Suggestion (or None) for tiers that show one suggestion at
 a time, or a list/dict for tiers that show multiple.
+
+Rules are registered as `(rule_id, function)` tuples. The rule_id in the
+registry is the canonical identifier used for dismissal lookups, and the
+engine canonicalizes the returned Suggestion's rule_id to match. This
+makes the rule_id resilient to function renames.
 """
-from typing import Awaitable, Callable, List, Optional
+from typing import Awaitable, Callable, List, Optional, Tuple
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,29 +24,33 @@ from app.suggestions.base import RuleContext, Suggestion
 from app.suggestions import rules
 
 
+# Type alias for a registry entry: (rule_id, async function)
+RuleEntry = Tuple[str, Callable[[RuleContext], Awaitable[Optional[Suggestion]]]]
+
+
 # Rule registries by tier. Order matters — earlier rules win when multiple
 # would fire and the tier shows only one suggestion.
-PRE_SESSION_RULES: List[Callable[[RuleContext], Awaitable[Optional[Suggestion]]]] = [
-    rules.consistency_nudge,
-    rules.section_coverage_drop,
+PRE_SESSION_RULES: List[RuleEntry] = [
+    ("consistency_nudge", rules.consistency_nudge),
+    ("section_coverage_drop", rules.section_coverage_drop),
 ]
 
 # In-the-moment rules are evaluated per block_log. The first matching rule
 # wins per block_log.
-IN_SESSION_RULES: List[Callable[[RuleContext], Awaitable[Optional[Suggestion]]]] = [
-    rules.spot_step_forward_streak,
-    rules.previous_block_note,
-    rules.tempo_progression,
+IN_SESSION_RULES: List[RuleEntry] = [
+    ("spot_step_forward_streak", rules.spot_step_forward_streak),
+    ("previous_block_note", rules.previous_block_note),
+    ("tempo_progression", rules.tempo_progression),
 ]
 
-POST_SESSION_RULES: List[Callable[[RuleContext], Awaitable[Optional[Suggestion]]]] = [
-    rules.spot_plateau,
-    rules.weekly_consistency,
+POST_SESSION_RULES: List[RuleEntry] = [
+    ("spot_plateau", rules.spot_plateau),
+    ("weekly_consistency", rules.weekly_consistency),
 ]
 
-PATTERN_RULES: List[Callable[[RuleContext], Awaitable[Optional[Suggestion]]]] = [
-    rules.whole_piece_overuse,
-    rules.retired_spot_check,
+PATTERN_RULES: List[RuleEntry] = [
+    ("whole_piece_overuse", rules.whole_piece_overuse),
+    ("retired_spot_check", rules.retired_spot_check),
 ]
 
 
@@ -131,11 +140,12 @@ async def evaluate_pre_session(
         instrument_id=instrument_id,
     )
 
-    for rule in PRE_SESSION_RULES:
-        if rule.__name__ in dismissed:
+    for rule_id, rule in PRE_SESSION_RULES:
+        if rule_id in dismissed:
             continue
         result = await rule(ctx)
         if result is not None:
+            result.rule_id = rule_id  # canonicalize from registry
             return result
     return None
 
@@ -187,11 +197,12 @@ async def evaluate_in_session(
             block_id=block_id,
             spot_id=spot_id,
         )
-        for rule in IN_SESSION_RULES:
-            if rule.__name__ in dismissed:
+        for rule_id, rule in IN_SESSION_RULES:
+            if rule_id in dismissed:
                 continue
             result = await rule(ctx)
             if result is not None:
+                result.rule_id = rule_id  # canonicalize from registry
                 suggestions[bl_id] = result
                 break
     return suggestions
@@ -215,11 +226,12 @@ async def evaluate_post_session(
         instrument_id=instrument_id,
         practice_log_id=practice_log_id,
     )
-    for rule in POST_SESSION_RULES:
-        if rule.__name__ in dismissed:
+    for rule_id, rule in POST_SESSION_RULES:
+        if rule_id in dismissed:
             continue
         result = await rule(ctx)
         if result is not None:
+            result.rule_id = rule_id  # canonicalize from registry
             return result
     return None
 
@@ -240,10 +252,11 @@ async def evaluate_pattern_level(
         user_id=user_id,
         instrument_id=instrument_id,
     )
-    for rule in PATTERN_RULES:
-        if rule.__name__ in dismissed:
+    for rule_id, rule in PATTERN_RULES:
+        if rule_id in dismissed:
             continue
         result = await rule(ctx)
         if result is not None:
+            result.rule_id = rule_id  # canonicalize from registry
             return result
     return None

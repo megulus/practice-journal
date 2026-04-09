@@ -146,19 +146,24 @@ async def previous_block_note(ctx: RuleContext) -> Optional[Suggestion]:
     if ctx.block_id is None or ctx.block_log_id is None:
         return None
 
+    # Exclude the entire current session, not just the current block_log,
+    # so other block_logs in the same session can't leak through.
+    where_clauses = [
+        BlockLog.block_id == ctx.block_id,
+        BlockLog.notes != None,  # noqa: E711
+        BlockLog.notes != "",
+        PracticeLog.user_id == ctx.user_id,
+        PracticeLog.status == SessionStatus.completed.value,
+        PracticeLog.deleted_at == None,  # noqa: E711
+    ]
+    if ctx.practice_log_id is not None:
+        where_clauses.append(PracticeLog.id != ctx.practice_log_id)
+
     result = await ctx.session.exec(
         select(BlockLog.notes, PracticeLog.practice_date)
         .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
         .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
-        .where(
-            BlockLog.block_id == ctx.block_id,
-            BlockLog.id != ctx.block_log_id,
-            BlockLog.notes != None,  # noqa: E711
-            BlockLog.notes != "",
-            PracticeLog.user_id == ctx.user_id,
-            PracticeLog.status == SessionStatus.completed.value,
-            PracticeLog.deleted_at == None,  # noqa: E711
-        )
+        .where(*where_clauses)
         .order_by(col(PracticeLog.practice_date).desc())
         .limit(1)
     )
@@ -182,19 +187,23 @@ async def tempo_progression(ctx: RuleContext) -> Optional[Suggestion]:
     if ctx.block_id is None or ctx.block_log_id is None:
         return None
 
+    # Exclude the entire current session, not just the current block_log
+    where_clauses = [
+        BlockLog.block_id == ctx.block_id,
+        BlockLog.rating != None,  # noqa: E711
+        PracticeLog.user_id == ctx.user_id,
+        PracticeLog.status == SessionStatus.completed.value,
+        PracticeLog.deleted_at == None,  # noqa: E711
+    ]
+    if ctx.practice_log_id is not None:
+        where_clauses.append(PracticeLog.id != ctx.practice_log_id)
+
     # Pull this block's last 2 completed ratings
     result = await ctx.session.exec(
         select(BlockLog.rating, PracticeLog.practice_date)
         .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
         .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
-        .where(
-            BlockLog.block_id == ctx.block_id,
-            BlockLog.id != ctx.block_log_id,
-            BlockLog.rating != None,  # noqa: E711
-            PracticeLog.user_id == ctx.user_id,
-            PracticeLog.status == SessionStatus.completed.value,
-            PracticeLog.deleted_at == None,  # noqa: E711
-        )
+        .where(*where_clauses)
         .order_by(col(PracticeLog.practice_date).desc())
         .limit(2)
     )
@@ -228,19 +237,25 @@ async def spot_step_forward_streak(ctx: RuleContext) -> Optional[Suggestion]:
     if ctx.spot_id is None or ctx.block_log_id is None:
         return None
 
+    # Exclude the entire current session, not just the current block_log
+    where_clauses = [
+        BlockLog.spot_id == ctx.spot_id,
+        BlockLog.rating != None,  # noqa: E711
+        PracticeLog.user_id == ctx.user_id,
+        PracticeLog.status == SessionStatus.completed.value,
+        PracticeLog.deleted_at == None,  # noqa: E711
+    ]
+    if ctx.practice_log_id is not None:
+        where_clauses.append(PracticeLog.id != ctx.practice_log_id)
+
+    # Order by practice_date (consistent with the other rules), tie-breaking
+    # by BlockLog.id for determinism within a session.
     result = await ctx.session.exec(
         select(BlockLog.rating)
         .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
         .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
-        .where(
-            BlockLog.spot_id == ctx.spot_id,
-            BlockLog.id != ctx.block_log_id,
-            BlockLog.rating != None,  # noqa: E711
-            PracticeLog.user_id == ctx.user_id,
-            PracticeLog.status == SessionStatus.completed.value,
-            PracticeLog.deleted_at == None,  # noqa: E711
-        )
-        .order_by(col(PracticeLog.created_at).desc())
+        .where(*where_clauses)
+        .order_by(col(PracticeLog.practice_date).desc(), col(BlockLog.id).desc())
         .limit(3)
     )
     ratings = [r for r in result.all()]
@@ -319,11 +334,13 @@ async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
 
 
 async def spot_plateau(ctx: RuleContext) -> Optional[Suggestion]:
-    """Fires when a spot's last 5+ block_logs are predominantly steady
-    with no step_forward in 2+ weeks.
+    """Fires when a spot's last 5+ rated block_logs are predominantly steady
+    with no step_forward in the last 14 days.
 
-    For post-session, this scans all spots practiced in the just-finished
-    session and returns the first one matching.
+    Note: this rule examines block_logs (not distinct sessions) per spec.
+    A user who logs the same spot multiple times in one session will see
+    each log counted independently. For post-session evaluation, scans all
+    spots practiced in the just-finished session.
     """
     if ctx.practice_log_id is None:
         return None
@@ -343,10 +360,11 @@ async def spot_plateau(ctx: RuleContext) -> Optional[Suggestion]:
         return None
 
     today = datetime.now(timezone.utc).date()
-    cutoff = today - timedelta(days=14)
+    # "Last 14 days" = strictly more recent than 14 days ago.
+    forward_cutoff = today - timedelta(days=14)
 
     for spot_id in spot_ids:
-        # Last 5 ratings on this spot (including current session if logged)
+        # Last 5 ratings on this spot, most recent first
         ratings_result = await ctx.session.exec(
             select(BlockLog.rating, PracticeLog.practice_date)
             .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
@@ -367,8 +385,10 @@ async def spot_plateau(ctx: RuleContext) -> Optional[Suggestion]:
 
         ratings = [r[0] for r in rows]
         steady_count = sum(1 for r in ratings if r == 0)
+        # "no step_forward in 2+ weeks" means: no forward-rated log within
+        # the last 14 days. Use `>` not `>=` so the boundary is exactly 14d.
         forward_recent = any(
-            r[0] == 1 and r[1] >= cutoff for r in rows
+            r[0] == 1 and r[1] > forward_cutoff for r in rows
         )
 
         if steady_count >= 3 and not forward_recent:
@@ -445,14 +465,20 @@ async def retired_spot_check(ctx: RuleContext) -> Optional[Suggestion]:
 
 
 async def whole_piece_overuse(ctx: RuleContext) -> Optional[Suggestion]:
-    """Fires when the user has logged piece-level (no spot) more than 5 times
-    in a row on a piece, suggesting they might benefit from picking spots."""
+    """Fires when the user has logged a piece at the piece level (no spot)
+    for the last 5+ distinct *sessions* in a row, suggesting they might
+    benefit from picking spots.
+
+    Semantics:
+    - Look at the last N sessions in which this piece was practiced at all.
+    - For each such session, classify it as "spot-level" (any block_log
+      with spot_id IS NOT NULL for this piece) or "piece-only" (only
+      block_logs with spot_id IS NULL for this piece).
+    - Fire if the most recent 5+ sessions are all piece-only.
+    """
     if ctx.instrument_id is None:
         return None
 
-    # For each piece on this instrument, look at the last 6 block_logs (any
-    # block_log referencing the piece via Block.piece_id) and check if all
-    # had spot_id = None.
     pieces_result = await ctx.session.exec(
         select(Piece.id, Piece.name).where(
             Piece.instrument_id == ctx.instrument_id,
@@ -462,8 +488,15 @@ async def whole_piece_overuse(ctx: RuleContext) -> Optional[Suggestion]:
     pieces = pieces_result.all()
 
     for piece_id, piece_name in pieces:
-        logs_result = await ctx.session.exec(
-            select(BlockLog.spot_id)
+        # For each session that touched this piece, compute whether it
+        # contained any spot-level log. We aggregate per practice_log_id.
+        sessions_result = await ctx.session.exec(
+            select(
+                PracticeLog.id,
+                PracticeLog.practice_date,
+                func.bool_or(BlockLog.spot_id != None).label("had_spot"),  # noqa: E711
+            )
+            .select_from(BlockLog)
             .join(Block, Block.id == BlockLog.block_id)
             .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
             .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
@@ -473,16 +506,19 @@ async def whole_piece_overuse(ctx: RuleContext) -> Optional[Suggestion]:
                 PracticeLog.status == SessionStatus.completed.value,
                 PracticeLog.deleted_at == None,  # noqa: E711
             )
-            .order_by(col(PracticeLog.practice_date).desc())
-            .limit(6)
+            .group_by(PracticeLog.id, PracticeLog.practice_date)
+            .order_by(col(PracticeLog.practice_date).desc(), col(PracticeLog.id).desc())
+            .limit(5)
         )
-        spot_ids = list(logs_result.all())
-        if len(spot_ids) < 6:
+        sessions = sessions_result.all()
+        if len(sessions) < 5:
             continue
-        if all(s is None for s in spot_ids):
+
+        # All five most recent sessions must be piece-only (no spot logs)
+        if all(not row[2] for row in sessions):
             text = (
                 f"You've logged {piece_name} as a whole piece for the last "
-                f"{len(spot_ids)} sessions — try picking specific spots to "
+                f"{len(sessions)} sessions — try picking specific spots to "
                 f"focus your practice."
             )
             return Suggestion(
