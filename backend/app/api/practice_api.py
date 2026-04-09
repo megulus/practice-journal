@@ -52,9 +52,10 @@ from app.schemas.practice import (
 from app.services.practice_service import (
     calculate_day_streak,
     compute_session_summary,
-    generate_coaching_suggestion,
     select_reflection_prompt,
 )
+from app.suggestions import evaluate_post_session
+from app.schemas.practice import CoachingSuggestion
 
 router = APIRouter(tags=["practice"])
 
@@ -623,17 +624,15 @@ async def finish_practice(
     # Patch in the streak (computed after commit so this session counts)
     summary = pre_summary.model_copy(update={"day_streak": streak})
 
-    # Get user's suggestions preference
-    settings_result = await session.exec(
-        select(UserSettings).where(UserSettings.user_id == current_user.id)
+    # Evaluate post-session suggestion via the new engine. The engine handles
+    # the suggestions_preference and dismissal filtering internally.
+    raw_suggestion = await evaluate_post_session(
+        session, current_user.id, log.instrument_id, log.id
     )
-    user_settings = settings_result.first()
-    suggestions_pref = (
-        user_settings.suggestions_preference if user_settings else "all"
-    )
-
-    suggestion = await generate_coaching_suggestion(
-        session, current_user.id, log.instrument_id, suggestions_pref
+    suggestion = (
+        CoachingSuggestion(text=raw_suggestion.text, rule_id=raw_suggestion.rule_id)
+        if raw_suggestion is not None
+        else None
     )
 
     # Re-load with nested data for response
