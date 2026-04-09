@@ -181,6 +181,12 @@ class TemplateUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+# --- Duplication ---
+
+class DuplicateRequest(BaseModel):
+    copy_default_spots: bool = True
+
+
 # --- Reorder (shared across sessions, sections, blocks) ---
 
 class ReorderRequest(BaseModel):
