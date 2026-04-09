@@ -29,11 +29,13 @@ Open a new terminal window and run:
 # Run database migrations
 docker compose exec backend alembic upgrade head
 
-# Seed with violin practice data
-docker compose exec backend python scripts/seed_data.py
+# Optional: seed the global curated block library
+docker compose exec backend python scripts/seed_curated_blocks.py
 ```
 
-You should see confirmation that the database has been seeded successfully.
+User-owned data (instruments, templates, repertoire, practice logs) is created
+through the application — sign in via Clerk on the frontend and your user
+record is created automatically on first API call.
 
 ## 3. Access the Application
 
@@ -78,7 +80,7 @@ docker compose up --build
 - Or modify the ports in `docker-compose.yml`
 
 **No data showing?**
-- Make sure you ran the seed script in step 2
+- The app starts with no per-user data — sign in via Clerk and create an instrument and template via the UI
 - Check that the backend is running: http://localhost:8000/health
 
 **Backend won't start?**

@@ -5,12 +5,6 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import engine
 
-# Old route modules are disabled during the Kantelo rebuild.
-# They will be replaced by new route modules in subsequent PRs (#99–#109)
-# and removed entirely in the cleanup PR (#110).
-# from app.api import instruments, templates, logs, analytics, user, block_types, suggestions, user_instruments
-# from app.api import settings as settings_api
-
 settings = get_settings()
 
 
@@ -37,9 +31,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Practice Journal API",
-    description="API for tracking music practice sessions across multiple instruments",
-    version="0.1.0",
+    title="Kantelo API",
+    description="A practice coach for musicians. Practice smarter, not just more.",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
