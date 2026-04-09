@@ -94,6 +94,27 @@ class TestBrowseCuratedBlocks:
         assert len(data) == 1
         assert data[0]["name"] == "G major scale"
 
+    async def test_filter_is_case_insensitive(
+        self, client: AsyncClient, db_session
+    ):
+        """Seed data uses lowercase ('violin') but Instrument.name from
+        the user is title case ('Violin'). The query param should match
+        either way."""
+        await _make_curated(db_session, "G major scale", instrument="violin")
+        await _make_curated(db_session, "D minor", instrument="Violin")
+
+        # Lowercase query
+        resp = await client.get("/api/library/blocks?instrument=violin")
+        assert len(resp.json()) == 2
+
+        # Title case query
+        resp = await client.get("/api/library/blocks?instrument=Violin")
+        assert len(resp.json()) == 2
+
+        # Uppercase query
+        resp = await client.get("/api/library/blocks?instrument=VIOLIN")
+        assert len(resp.json()) == 2
+
     async def test_filter_by_section_type(
         self, client: AsyncClient, db_session
     ):
@@ -256,6 +277,105 @@ class TestRecentBlocks:
         # Same block_id null + same name → 1 row
         assert len(data) == 1
         assert data[0]["last_used_at"] == "2026-04-05"
+
+    async def test_dedupes_across_freeform_and_template_block(
+        self, client: AsyncClient, db_session, test_user, test_instrument
+    ):
+        """Same block name appearing once as freeform (block_id=null) and
+        once as a template block (block_id set) should still appear once."""
+        # Create a template-backed standard block
+        template = Template(
+            user_id=test_user.id, instrument_id=test_instrument.id, name="P"
+        )
+        db_session.add(template)
+        await db_session.commit()
+        await db_session.refresh(template)
+        ts = TemplateSession(template_id=template.id, name="S", display_order=0)
+        db_session.add(ts)
+        await db_session.commit()
+        await db_session.refresh(ts)
+        section = Section(
+            template_session_id=ts.id, name="Scales", section_type="scales",
+            display_order=0,
+        )
+        db_session.add(section)
+        await db_session.commit()
+        await db_session.refresh(section)
+        std_block = Block(
+            section_id=section.id, name="G major scale", display_order=0
+        )
+        db_session.add(std_block)
+        await db_session.commit()
+        await db_session.refresh(std_block)
+
+        # Log once freeform, once via the template block
+        await _make_practice_log_with_blocks(
+            db_session, test_user, test_instrument,
+            [{"block_name": "G major scale"}],
+            practice_date=date(2026, 4, 1),
+        )
+        await _make_practice_log_with_blocks(
+            db_session, test_user, test_instrument,
+            [{"block_name": "G major scale", "block_id": std_block.id}],
+            practice_date=date(2026, 4, 5),
+        )
+
+        resp = await client.get(
+            f"/api/library/recent?instrument_id={test_instrument.id}"
+        )
+        data = resp.json()
+        # Must dedupe across the two paths
+        assert len(data) == 1
+        assert data[0]["name"] == "G major scale"
+        assert data[0]["last_used_at"] == "2026-04-05"
+        # Most recent row had the template block_id
+        assert data[0]["block_id"] == std_block.id
+
+    async def test_recent_includes_curated_block_id(
+        self, client: AsyncClient, db_session, test_user, test_instrument
+    ):
+        """When the recent block came from a curated source, the response
+        should include curated_block_id (joined in the main query)."""
+        cb = await _make_curated(db_session, "G major scale")
+
+        template = Template(
+            user_id=test_user.id, instrument_id=test_instrument.id, name="P"
+        )
+        db_session.add(template)
+        await db_session.commit()
+        await db_session.refresh(template)
+        ts = TemplateSession(template_id=template.id, name="S", display_order=0)
+        db_session.add(ts)
+        await db_session.commit()
+        await db_session.refresh(ts)
+        section = Section(
+            template_session_id=ts.id, name="Scales", section_type="scales",
+            display_order=0,
+        )
+        db_session.add(section)
+        await db_session.commit()
+        await db_session.refresh(section)
+        block = Block(
+            section_id=section.id,
+            name="G major scale",
+            curated_block_id=cb.id,
+            display_order=0,
+        )
+        db_session.add(block)
+        await db_session.commit()
+        await db_session.refresh(block)
+
+        await _make_practice_log_with_blocks(
+            db_session, test_user, test_instrument,
+            [{"block_name": "G major scale", "block_id": block.id}],
+        )
+
+        resp = await client.get(
+            f"/api/library/recent?instrument_id={test_instrument.id}"
+        )
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["curated_block_id"] == cb.id
 
     async def test_excludes_repertoire_blocks(
         self, client: AsyncClient, db_session, test_user, test_instrument

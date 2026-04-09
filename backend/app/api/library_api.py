@@ -43,8 +43,11 @@ async def browse_curated_blocks(
     Each result includes a `usage_percentage` — the share of users with this
     instrument category whose templates include this curated block.
     """
+    # Case-insensitive on both sides — seed data uses lowercase categories
+    # ("violin"), but Instrument.name is title case from the user ("Violin").
+    instrument_lower = instrument.lower()
     query = select(CuratedBlock).where(
-        CuratedBlock.instrument_category == instrument
+        func.lower(CuratedBlock.instrument_category) == instrument_lower
     )
     if section_type is not None:
         query = query.where(CuratedBlock.section_type == section_type)
@@ -58,42 +61,50 @@ async def browse_curated_blocks(
     if not curated_blocks:
         return []
 
-    # Compute usage_percentage: of users with an instrument of this category
-    # (case-insensitive name match), what fraction has at least one template
-    # block referencing this curated block.
+    # Compute usage_percentage: of users with an instrument of this category,
+    # what fraction has at least one template block referencing each curated
+    # block. Two queries total (denominator + batched numerator), not N+1.
     denom_result = await session.exec(
         select(func.count(func.distinct(Instrument.user_id))).where(
-            func.lower(Instrument.name) == instrument.lower(),
+            func.lower(Instrument.name) == instrument_lower,
             Instrument.deleted_at == None,  # noqa: E711
         )
     )
     total_users = denom_result.one() or 0
 
+    counts_by_cb: dict[int, int] = {}
+    if total_users > 0:
+        cb_ids = [cb.id for cb in curated_blocks]
+        numer_result = await session.exec(
+            select(
+                Block.curated_block_id,
+                func.count(func.distinct(Template.user_id)),
+            )
+            .select_from(Block)
+            .join(Section, Block.section_id == Section.id)
+            .join(
+                TemplateSession,
+                Section.template_session_id == TemplateSession.id,
+            )
+            .join(Template, TemplateSession.template_id == Template.id)
+            .join(Instrument, Instrument.id == Template.instrument_id)
+            .where(
+                Block.curated_block_id.in_(cb_ids),  # type: ignore[attr-defined]
+                func.lower(Instrument.name) == instrument_lower,
+                Template.deleted_at == None,  # noqa: E711
+                Instrument.deleted_at == None,  # noqa: E711
+            )
+            .group_by(Block.curated_block_id)
+        )
+        counts_by_cb = {row[0]: row[1] for row in numer_result.all()}
+
     enriched = []
     for cb in curated_blocks:
-        if total_users == 0:
-            pct = 0
-        else:
-            users_result = await session.exec(
-                select(func.count(func.distinct(Template.user_id)))
-                .select_from(Block)
-                .join(Section, Block.section_id == Section.id)
-                .join(
-                    TemplateSession,
-                    Section.template_session_id == TemplateSession.id,
-                )
-                .join(Template, TemplateSession.template_id == Template.id)
-                .join(Instrument, Instrument.id == Template.instrument_id)
-                .where(
-                    Block.curated_block_id == cb.id,
-                    func.lower(Instrument.name) == instrument.lower(),
-                    Template.deleted_at == None,  # noqa: E711
-                    Instrument.deleted_at == None,  # noqa: E711
-                )
-            )
-            users_with_block = users_result.one() or 0
-            pct = round((users_with_block / total_users) * 100)
-
+        users_with_block = counts_by_cb.get(cb.id, 0)
+        pct = (
+            round((users_with_block / total_users) * 100)
+            if total_users > 0 else 0
+        )
         enriched.append(CuratedBlockRead(
             id=cb.id,
             name=cb.name,
@@ -128,12 +139,18 @@ async def list_recent_blocks(
         session, instrument_id, current_user.id
     )
 
-    # Pull recent block_logs joined to practice logs for this instrument
-    result = await session.exec(
+    # Single query with ROW_NUMBER() to dedupe by name (keeping the most
+    # recent row per name) and to fetch block_id + curated_block_id inline.
+    ranked = (
         select(
-            BlockLog.block_name,
-            BlockLog.block_id,
-            func.max(PracticeLog.practice_date).label("last_used"),
+            BlockLog.block_name.label("block_name"),
+            BlockLog.block_id.label("block_id"),
+            Block.curated_block_id.label("curated_block_id"),
+            PracticeLog.practice_date.label("last_used"),
+            func.row_number().over(
+                partition_by=BlockLog.block_name,
+                order_by=PracticeLog.practice_date.desc(),
+            ).label("rn"),
         )
         .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
         .join(PracticeLog, SectionLog.practice_log_id == PracticeLog.id)
@@ -143,34 +160,34 @@ async def list_recent_blocks(
             PracticeLog.instrument_id == instrument.id,
             PracticeLog.status == "completed",
             PracticeLog.deleted_at == None,  # noqa: E711
-            # Exclude repertoire blocks (those with piece_id set on Block)
-            # but keep freeform blocks (Block is null) and standard blocks.
+            # Exclude repertoire blocks (Block.piece_id IS NOT NULL).
+            # Freeform blocks have Block.id IS NULL via outerjoin and pass.
             (Block.piece_id == None) | (Block.id == None),  # noqa: E711
         )
-        .group_by(BlockLog.block_name, BlockLog.block_id)
-        .order_by(func.max(PracticeLog.practice_date).desc())
+        .subquery()
+    )
+
+    result = await session.exec(
+        select(
+            ranked.c.block_name,
+            ranked.c.block_id,
+            ranked.c.curated_block_id,
+            ranked.c.last_used,
+        )
+        .where(ranked.c.rn == 1)
+        .order_by(ranked.c.last_used.desc())
         .limit(limit)
     )
-    rows = result.all()
 
-    # For each unique name, fetch curated_block_id if applicable
-    items: List[RecentBlockRead] = []
-    for row in rows:
-        block_name, block_id, last_used = row[0], row[1], row[2]
-        curated_id = None
-        if block_id is not None:
-            cb_result = await session.exec(
-                select(Block.curated_block_id).where(Block.id == block_id)
-            )
-            curated_id = cb_result.first()
-        items.append(RecentBlockRead(
-            name=block_name,
-            block_id=block_id,
-            curated_block_id=curated_id,
-            last_used_at=last_used,
-        ))
-
-    return items
+    return [
+        RecentBlockRead(
+            name=row[0],
+            block_id=row[1],
+            curated_block_id=row[2],
+            last_used_at=row[3],
+        )
+        for row in result.all()
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +222,9 @@ async def list_repertoire_pieces(
     )
     pieces = result.all()
 
+    # NOTE: this loop issues 4 queries per piece. Tracked alongside the
+    # other piece/spot enrichment N+1s in #132 — fix together when batch
+    # query helpers are introduced.
     response_pieces: List[LibraryPieceRead] = []
     for piece in pieces:
         spot_query = select(Spot).where(
