@@ -59,7 +59,8 @@ This guide walks through deploying the Kantelo backend (FastAPI) and frontend (N
 2. In the service settings:
    - **Root Directory:** `frontend`
    - **Build Command:** (leave default — Railway will auto-detect the Dockerfile)
-3. Add these **environment variables**:
+3. The `frontend/railway.toml` file automatically passes `NEXT_PUBLIC_*` env vars as Docker build args so they're available at Next.js build time. You just need to set them as regular environment variables.
+4. Add these **environment variables**:
 
    | Variable | Value |
    |----------|-------|

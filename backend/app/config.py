@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://practice_user:practice_pass@localhost:5432/practice_journal"
     environment: str = "development"
     api_prefix: str = "/api"
+    cors_origins: str = "http://localhost:3000"
 
     # Clerk authentication settings
     clerk_secret_key: str = ""
