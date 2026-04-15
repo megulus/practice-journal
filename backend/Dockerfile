@@ -14,10 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 8000
+# Expose port (Railway sets PORT env var; default to 8000)
+EXPOSE ${PORT:-8000}
 
-# Command will be overridden by docker-compose
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-
+# Start script: run migrations then start the server.
+# Railway sets PORT automatically; fall back to 8000 for local Docker.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
