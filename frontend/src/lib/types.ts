@@ -71,7 +71,6 @@ export interface Instrument {
   practice_frequency: PracticeFrequency
   display_order: number
   active_template_count: number
-  piece_count: number
   last_practiced_at: string | null
 }
 
@@ -417,6 +416,20 @@ export interface FinishResponse {
 // Today
 // ===================================================================
 
+export interface InstrumentBrief {
+  id: number
+  name: string
+  practice_frequency: PracticeFrequency
+}
+
+export interface ActiveSessionInfo {
+  practice_log_id: number
+  instrument_id: number
+  instrument_name: string
+  session_name: string | null
+  started_at: string
+}
+
 export interface TodayCurrentSession {
   template_id: number
   template_name: string
@@ -424,34 +437,42 @@ export interface TodayCurrentSession {
   session_name: string
   focus_description: string | null
   rotation_position: string
-  estimated_duration_minutes: number
+  /** May be null if no template sessions are configured. */
+  estimated_duration_minutes: number | null
   section_types: SectionType[]
 }
 
+export interface RepeatSessionInfo {
+  session_id: number
+  session_name: string
+}
+
+export interface SessionBrief {
+  session_id: number
+  session_name: string
+  display_order: number
+}
+
 export interface TodayInstrumentDue {
-  instrument: {
-    id: number
-    name: string
-    practice_frequency: PracticeFrequency
-  }
+  instrument: InstrumentBrief
   last_practiced_at: string | null
   days_since_last: number | null
-  repeat_available: boolean
   current_session: TodayCurrentSession | null
+  repeat_session: RepeatSessionInfo | null
+  all_sessions: SessionBrief[]
 }
 
 export interface TodayInstrumentNotDue {
-  instrument: {
-    id: number
-    name: string
-    practice_frequency: PracticeFrequency
-  }
+  instrument: InstrumentBrief
   last_practiced_at: string | null
   days_since_last: number | null
-  next_due_description: string
+  next_due_description: string | null
 }
 
 export interface TodayResponse {
+  /** Set when the user has an in-progress practice session — frontend
+   * should offer to resume. */
+  active_session: ActiveSessionInfo | null
   instruments_due: TodayInstrumentDue[]
   instruments_not_due: TodayInstrumentNotDue[]
 }
@@ -466,7 +487,8 @@ export interface HistoryItem {
   id: number
   practice_date: string
   instrument_name: string
-  session_name: string
+  /** Null for freeform sessions. */
+  session_name: string | null
   template_name: string | null
   rotation_label: string | null
   total_duration_minutes: number

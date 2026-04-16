@@ -57,7 +57,6 @@ import type {
   FinishResponse,
   // Today
   TodayResponse,
-  TodayInstrumentDue,
   // Progress
   HistoryPeriod,
   HistoryResponse,
@@ -85,10 +84,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 export class APIError extends Error {
   constructor(
     public status: number,
-    message: string,
+    public statusText: string,
     public detail?: unknown
   ) {
-    super(message)
+    super(`API error ${status}: ${statusText}`)
     this.name = 'APIError'
   }
 }
@@ -139,11 +138,7 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
       } catch {
         // Body might not be JSON
       }
-      throw new APIError(
-        response.status,
-        `API error ${response.status}: ${response.statusText}`,
-        detail
-      )
+      throw new APIError(response.status, response.statusText, detail)
     }
 
     if (response.status === 204) {
@@ -425,7 +420,7 @@ export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
     getToday: () => f<TodayResponse>('/api/today'),
 
     getTodayForInstrument: (instrumentId: number) =>
-      f<TodayInstrumentDue>(`/api/today/${instrumentId}`),
+      f<TodayResponse>(`/api/today/${instrumentId}`),
 
     // -----------------------------------------------------------------
     // Practice session lifecycle
