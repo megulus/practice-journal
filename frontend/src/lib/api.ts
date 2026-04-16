@@ -1,42 +1,113 @@
+/**
+ * Kantelo API client.
+ *
+ * Wraps fetch with Bearer token injection from Clerk and provides typed
+ * methods for every endpoint. See docs/kantelo-schema-api.md for the
+ * canonical API spec.
+ */
 import type {
-  BlockType,
-  Instrument,
-  UserInstrument,
-  PracticeTemplate,
-  PracticeDay,
-  PracticeLog,
-  PracticeLogCreate,
-  AnalyticsSummary,
-  TemplateCreate,
-  TemplateUpdate,
-  DayUpdate,
-  BlockCreate,
-  BlockUpdate,
-  BlockReorder,
-  ExerciseCreate,
-  ExerciseUpdate,
-  ExerciseBlock,
-  Exercise,
-  Suggestion,
-  SuggestionsProgressResponse,
-  SuggestionAction,
+  // User & Settings
+  User,
   UserSettings,
   UserSettingsUpdate,
+  // Instruments
+  Instrument,
+  InstrumentCreate,
+  InstrumentUpdate,
+  // Pieces & Spots
+  Piece,
+  PieceDetail,
+  PieceCreate,
+  PieceUpdate,
+  Spot,
+  SpotCreate,
+  SpotUpdate,
+  SpotHistory,
+  // Templates / Sessions / Sections / Blocks
+  Template,
+  TemplateListItem,
+  TemplateCreate,
+  TemplateUpdate,
+  TemplateSession,
+  TemplateSessionCreate,
+  TemplateSessionUpdate,
+  Section,
+  SectionCreate,
+  SectionUpdate,
+  Block,
+  BlockCreate,
+  BlockUpdate,
+  ReorderRequest,
+  DuplicateRequest,
+  DefaultSpotAdd,
+  DefaultSpotReorder,
+  // Practice
+  PracticeLog,
+  PracticeStartRequest,
+  PracticeLogUpdate,
+  ReflectionUpdate,
+  SectionLog,
+  SectionLogUpdate,
+  SectionLogCreate,
+  BlockLog,
+  BlockLogUpdate,
+  BlockLogCreate,
+  AddSpotRequest,
+  CollapseToPieceRequest,
+  FinishResponse,
+  // Today
+  TodayResponse,
+  TodayInstrumentDue,
+  // Progress
+  HistoryPeriod,
+  HistoryResponse,
+  HeatmapResponse,
+  ComparisonResponse,
+  RatingsResponse,
+  // Suggestions
+  PreSessionResponse,
+  InSessionResponse,
+  SuggestionDismissRequest,
   SuggestionInteractionCreate,
+  SuggestionInteractionRead,
+  // Library
+  CuratedBlock,
+  RecentBlock,
+  LibraryRepertoireResponse,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// Factory function to create API client with auth token
+/**
+ * Custom error thrown for non-2xx responses. Includes the HTTP status
+ * and any error detail returned by the backend.
+ */
+export class APIError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public detail?: unknown
+  ) {
+    super(message)
+    this.name = 'APIError'
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal: fetch wrapper with auth + JSON handling
+// ---------------------------------------------------------------------------
+
 function createFetchAPI(getToken?: () => Promise<string | null>) {
   async function fetchAPI(endpoint: string, options?: RequestInit): Promise<void>
   async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T>
-  async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T | void> {
+  async function fetchAPI<T>(
+    endpoint: string,
+    options?: RequestInit
+  ): Promise<T | void> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
 
-    // Add any existing headers from options
     if (options?.headers) {
       Object.entries(options.headers).forEach(([key, value]) => {
         if (typeof value === 'string') {
@@ -45,7 +116,6 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
       })
     }
 
-    // Add Authorization header if we have a token getter
     if (getToken) {
       try {
         const token = await getToken()
@@ -63,210 +133,463 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
     })
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`)
+      let detail: unknown
+      try {
+        detail = await response.json()
+      } catch {
+        // Body might not be JSON
+      }
+      throw new APIError(
+        response.status,
+        `API error ${response.status}: ${response.statusText}`,
+        detail
+      )
     }
 
     if (response.status === 204) {
       return
     }
 
-    return response.json()
+    return response.json() as Promise<T>
   }
   return fetchAPI
 }
 
-// Create authenticated API client (to be used in components with useAuth)
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function qs(params: Record<string, string | number | boolean | undefined | null>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue
+    search.set(key, String(value))
+  }
+  const s = search.toString()
+  return s ? `?${s}` : ''
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
-  const authFetchAPI = createFetchAPI(getToken)
-  
+  const f = createFetchAPI(getToken)
+
   return {
-    // User Instruments (user's instrument selections)
-    getUserInstruments: () =>
-      authFetchAPI<UserInstrument[]>('/api/user/instruments/'),
+    // -----------------------------------------------------------------
+    // User
+    // -----------------------------------------------------------------
+    getMe: () => f<User>('/api/user/me'),
 
-    // Combined endpoint - gets user instruments AND available in one call (faster)
-    getUserInstrumentsWithAvailable: () =>
-      authFetchAPI<{ user_instruments: UserInstrument[]; available_instruments: Instrument[] }>(
-        '/api/user/instruments/with-available'
-      ),
-
-    addUserInstrument: (instrumentId: number) =>
-      authFetchAPI<UserInstrument>('/api/user/instruments/', {
-        method: 'POST',
-        body: JSON.stringify({ instrument_id: instrumentId }),
-      }),
-
-    removeUserInstrument: (id: number, confirm = false) =>
-      authFetchAPI<{ status: string; deleted_templates: number }>(
-        `/api/user/instruments/${id}${confirm ? '?confirm=true' : ''}`,
-        { method: 'DELETE' }
-      ),
-
-    updateUserInstrument: (id: number, data: { display_order?: number }) =>
-      authFetchAPI<UserInstrument>(`/api/user/instruments/${id}`, {
+    // -----------------------------------------------------------------
+    // Settings
+    // -----------------------------------------------------------------
+    getSettings: () => f<UserSettings>('/api/settings'),
+    updateSettings: (data: UserSettingsUpdate) =>
+      f<UserSettings>('/api/settings', {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
 
-    // Available Instruments (system + shareable)
-    getAvailableInstruments: () =>
-      authFetchAPI<Instrument[]>('/api/instruments/available'),
+    // -----------------------------------------------------------------
+    // Instruments
+    // -----------------------------------------------------------------
+    listInstruments: () => f<Instrument[]>('/api/instruments'),
 
-    getInstrument: (id: number) =>
-      authFetchAPI<Instrument>(`/api/instruments/${id}`),
-
-    // Block Types
-    getBlockTypes: () =>
-      authFetchAPI<BlockType[]>('/api/block-types/'),
-
-    // Templates
-    getTemplates: (userInstrumentId?: number, includeArchived?: boolean) => {
-      const params = new URLSearchParams()
-      if (userInstrumentId) params.set('user_instrument_id', String(userInstrumentId))
-      if (includeArchived) params.set('include_archived', 'true')
-      const qs = params.toString()
-      return authFetchAPI<PracticeTemplate[]>(`/api/templates/${qs ? `?${qs}` : ''}`)
-    },
-
-    getTemplate: (id: number) =>
-      authFetchAPI<PracticeTemplate>(`/api/templates/${id}`),
-
-    copyTemplate: (id: number) =>
-      authFetchAPI<PracticeTemplate>(`/api/templates/${id}/copy`, { method: 'POST' }),
-
-    getPracticeDay: (templateId: number, dayNumber: number) =>
-      authFetchAPI<PracticeDay>(`/api/templates/${templateId}/days/${dayNumber}`),
-
-    // Template CRUD
-    createTemplate: (data: TemplateCreate) =>
-      authFetchAPI<PracticeTemplate>('/api/templates/', {
+    createInstrument: (data: InstrumentCreate) =>
+      f<Instrument>('/api/instruments', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    updateTemplate: (id: number, data: TemplateUpdate) =>
-      authFetchAPI<PracticeTemplate>(`/api/templates/${id}`, {
+    updateInstrument: (id: number, data: InstrumentUpdate) =>
+      f<Instrument>(`/api/instruments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteInstrument: (id: number) =>
+      f<void>(`/api/instruments/${id}`, { method: 'DELETE' }),
+
+    // -----------------------------------------------------------------
+    // Pieces (repertoire library)
+    // -----------------------------------------------------------------
+    listPieces: (instrumentId: number) =>
+      f<Piece[]>(`/api/instruments/${instrumentId}/pieces`),
+
+    createPiece: (instrumentId: number, data: PieceCreate) =>
+      f<Piece>(`/api/instruments/${instrumentId}/pieces`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getPiece: (id: number, opts?: { includeRetiredSpots?: boolean }) =>
+      f<PieceDetail>(
+        `/api/pieces/${id}${qs({ include_retired_spots: opts?.includeRetiredSpots })}`
+      ),
+
+    updatePiece: (id: number, data: PieceUpdate) =>
+      f<Piece>(`/api/pieces/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deletePiece: (id: number) =>
+      f<void>(`/api/pieces/${id}`, { method: 'DELETE' }),
+
+    // -----------------------------------------------------------------
+    // Spots
+    // -----------------------------------------------------------------
+    createSpot: (pieceId: number, data: SpotCreate) =>
+      f<Spot>(`/api/pieces/${pieceId}/spots`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateSpot: (id: number, data: SpotUpdate) =>
+      f<Spot>(`/api/spots/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    retireSpot: (id: number) =>
+      f<Spot>(`/api/spots/${id}/retire`, { method: 'POST' }),
+
+    unretireSpot: (id: number) =>
+      f<Spot>(`/api/spots/${id}/unretire`, { method: 'POST' }),
+
+    deleteSpot: (id: number) =>
+      f<void>(`/api/spots/${id}`, { method: 'DELETE' }),
+
+    reorderSpots: (pieceId: number, spotIds: number[]) =>
+      f<Spot[]>(`/api/pieces/${pieceId}/spots/reorder`, {
         method: 'PUT',
+        body: JSON.stringify({ spot_ids: spotIds }),
+      }),
+
+    getSpotHistory: (id: number) =>
+      f<SpotHistory>(`/api/spots/${id}/history`),
+
+    // -----------------------------------------------------------------
+    // Templates
+    // -----------------------------------------------------------------
+    listTemplates: (instrumentId: number) =>
+      f<TemplateListItem[]>(`/api/instruments/${instrumentId}/templates`),
+
+    createTemplate: (instrumentId: number, data: TemplateCreate) =>
+      f<Template>(`/api/instruments/${instrumentId}/templates`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getTemplate: (id: number) => f<Template>(`/api/templates/${id}`),
+
+    updateTemplate: (id: number, data: TemplateUpdate) =>
+      f<Template>(`/api/templates/${id}`, {
+        method: 'PATCH',
         body: JSON.stringify(data),
       }),
 
     deleteTemplate: (id: number) =>
-      authFetchAPI<void>(`/api/templates/${id}`, { method: 'DELETE' }),
+      f<void>(`/api/templates/${id}`, { method: 'DELETE' }),
 
-    // Day CRUD
-    updateDay: (templateId: number, dayNumber: number, data: DayUpdate) =>
-      authFetchAPI<PracticeDay>(`/api/templates/${templateId}/days/${dayNumber}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-
-    // Block CRUD
-    createBlock: (templateId: number, dayNumber: number, data: BlockCreate) =>
-      authFetchAPI<ExerciseBlock>(`/api/templates/${templateId}/days/${dayNumber}/blocks`, {
+    duplicateTemplate: (id: number, data: DuplicateRequest = {}) =>
+      f<Template>(`/api/templates/${id}/duplicate`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    updateBlock: (templateId: number, dayNumber: number, blockId: number, data: BlockUpdate) =>
-      authFetchAPI<ExerciseBlock>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}`, {
-        method: 'PUT',
+    // -----------------------------------------------------------------
+    // Template sessions (rotation units)
+    // -----------------------------------------------------------------
+    createTemplateSession: (templateId: number, data: TemplateSessionCreate) =>
+      f<TemplateSession>(`/api/templates/${templateId}/sessions`, {
+        method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    reorderBlocks: (templateId: number, dayNumber: number, data: BlockReorder) =>
-      authFetchAPI<void>(`/api/templates/${templateId}/days/${dayNumber}/blocks/reorder`, {
-        method: 'PUT',
+    updateTemplateSession: (id: number, data: TemplateSessionUpdate) =>
+      f<TemplateSession>(`/api/sessions/${id}`, {
+        method: 'PATCH',
         body: JSON.stringify(data),
       }),
 
-    deleteBlock: (templateId: number, dayNumber: number, blockId: number) =>
-      authFetchAPI<void>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}`, {
+    deleteTemplateSession: (id: number) =>
+      f<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
+
+    reorderTemplateSessions: (templateId: number, orderedIds: number[]) =>
+      f<void>(`/api/templates/${templateId}/sessions/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ ordered_ids: orderedIds } as ReorderRequest),
+      }),
+
+    // -----------------------------------------------------------------
+    // Sections
+    // -----------------------------------------------------------------
+    createSection: (sessionId: number, data: SectionCreate) =>
+      f<Section>(`/api/sessions/${sessionId}/sections`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateSection: (id: number, data: SectionUpdate) =>
+      f<Section>(`/api/sections/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteSection: (id: number) =>
+      f<void>(`/api/sections/${id}`, { method: 'DELETE' }),
+
+    reorderSections: (sessionId: number, orderedIds: number[]) =>
+      f<void>(`/api/sessions/${sessionId}/sections/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ ordered_ids: orderedIds } as ReorderRequest),
+      }),
+
+    // -----------------------------------------------------------------
+    // Blocks (standard + repertoire)
+    // -----------------------------------------------------------------
+    createBlock: (sectionId: number, data: BlockCreate) =>
+      f<Block>(`/api/sections/${sectionId}/blocks`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateBlock: (id: number, data: BlockUpdate) =>
+      f<Block>(`/api/blocks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteBlock: (id: number) =>
+      f<void>(`/api/blocks/${id}`, { method: 'DELETE' }),
+
+    reorderBlocks: (sectionId: number, orderedIds: number[]) =>
+      f<void>(`/api/sections/${sectionId}/blocks/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ ordered_ids: orderedIds } as ReorderRequest),
+      }),
+
+    // Default spots on a repertoire block
+    addDefaultSpot: (blockId: number, spotId: number) =>
+      f<Block>(`/api/blocks/${blockId}/default-spots`, {
+        method: 'POST',
+        body: JSON.stringify({ spot_id: spotId } as DefaultSpotAdd),
+      }),
+
+    removeDefaultSpot: (blockId: number, spotId: number) =>
+      f<void>(`/api/blocks/${blockId}/default-spots/${spotId}`, {
         method: 'DELETE',
       }),
 
-    // Exercise CRUD
-    createExercise: (templateId: number, dayNumber: number, blockId: number, data: ExerciseCreate) =>
-      authFetchAPI<Exercise>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}/exercises`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-
-    updateExercise: (templateId: number, dayNumber: number, blockId: number, exerciseId: number, data: ExerciseUpdate) =>
-      authFetchAPI<Exercise>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}/exercises/${exerciseId}`, {
+    reorderDefaultSpots: (blockId: number, spotIds: number[]) =>
+      f<Block>(`/api/blocks/${blockId}/default-spots/reorder`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ spot_ids: spotIds } as DefaultSpotReorder),
       }),
 
-    deleteExercise: (templateId: number, dayNumber: number, blockId: number, exerciseId: number) =>
-      authFetchAPI<void>(`/api/templates/${templateId}/days/${dayNumber}/blocks/${blockId}/exercises/${exerciseId}`, {
-        method: 'DELETE',
-      }),
+    // -----------------------------------------------------------------
+    // Library (curated blocks, recently used, repertoire pieces)
+    // -----------------------------------------------------------------
+    browseCuratedBlocks: (params: {
+      instrument: string
+      sectionType?: string
+      q?: string
+    }) =>
+      f<CuratedBlock[]>(
+        `/api/library/blocks${qs({
+          instrument: params.instrument,
+          section_type: params.sectionType,
+          q: params.q,
+        })}`
+      ),
 
-    // Section types (for freeform section name suggestions)
-    getSectionTypes: () =>
-      authFetchAPI<string[]>('/api/logs/section-types'),
+    listRecentBlocks: (instrumentId: number, limit = 10) =>
+      f<RecentBlock[]>(
+        `/api/library/recent${qs({ instrument_id: instrumentId, limit })}`
+      ),
 
-    // Logs
-    createLog: (data: PracticeLogCreate) =>
-      authFetchAPI<PracticeLog>('/api/logs/', {
+    listRepertoirePieces: (instrumentId: number, includeRetired = false) =>
+      f<LibraryRepertoireResponse>(
+        `/api/library/repertoire${qs({
+          instrument_id: instrumentId,
+          include_retired: includeRetired,
+        })}`
+      ),
+
+    // -----------------------------------------------------------------
+    // Today
+    // -----------------------------------------------------------------
+    getToday: () => f<TodayResponse>('/api/today'),
+
+    getTodayForInstrument: (instrumentId: number) =>
+      f<TodayInstrumentDue>(`/api/today/${instrumentId}`),
+
+    // -----------------------------------------------------------------
+    // Practice session lifecycle
+    // -----------------------------------------------------------------
+    startPractice: (data: PracticeStartRequest) =>
+      f<PracticeLog>('/api/practice/start', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    getLogs: (templateId?: number, limit = 50) =>
-      authFetchAPI<PracticeLog[]>(
-        `/api/logs/${templateId ? `?template_id=${templateId}&limit=${limit}` : `?limit=${limit}`}`
-      ),
+    getPractice: (logId: number) => f<PracticeLog>(`/api/practice/${logId}`),
 
-    getLog: (id: number) =>
-      authFetchAPI<PracticeLog>(`/api/logs/${id}`),
+    updatePractice: (logId: number, data: PracticeLogUpdate) =>
+      f<PracticeLog>(`/api/practice/${logId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
 
-    // Analytics
-    getAnalytics: (templateId?: number) =>
-      authFetchAPI<AnalyticsSummary>(
-        `/api/analytics/${templateId ? `?template_id=${templateId}` : ''}`
-      ),
-
-    // Suggestions
-    getSessionSuggestions: (instrumentId?: number) =>
-      authFetchAPI<Suggestion[]>(
-        `/api/suggestions/${instrumentId ? `?instrument_id=${instrumentId}` : ''}`
-      ),
-
-    getSuggestionsProgress: (instrumentId?: number) =>
-      authFetchAPI<SuggestionsProgressResponse>(
-        `/api/suggestions/progress${instrumentId ? `?instrument_id=${instrumentId}` : ''}`
-      ),
-
-    dismissSuggestion: (suggestionKey: string) =>
-      authFetchAPI<{ status: string; suggestion_key: string }>(
-        `/api/suggestions/dismiss/${suggestionKey}`,
-        { method: 'POST' }
-      ),
-
-    acceptSuggestion: (suggestionKey: string, action: SuggestionAction) =>
-      authFetchAPI<{ status: string; suggestion_key: string; exercise: Exercise }>(
-        `/api/suggestions/accept/${suggestionKey}`,
+    updateSectionLog: (
+      logId: number,
+      sectionLogId: number,
+      data: SectionLogUpdate
+    ) =>
+      f<SectionLog>(
+        `/api/practice/${logId}/sections/${sectionLogId}`,
         {
-          method: 'POST',
-          body: JSON.stringify(action),
+          method: 'PUT',
+          body: JSON.stringify(data),
         }
       ),
 
-    recordInteraction: (data: SuggestionInteractionCreate) =>
-      authFetchAPI<void>('/api/suggestions/interactions', {
+    updateBlockLog: (
+      logId: number,
+      blockLogId: number,
+      data: BlockLogUpdate
+    ) =>
+      f<BlockLog>(`/api/practice/${logId}/blocks/${blockLogId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    addFreeformSection: (logId: number, data: SectionLogCreate) =>
+      f<SectionLog>(`/api/practice/${logId}/sections`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    // Settings
-    getSettings: () =>
-      authFetchAPI<UserSettings>('/api/settings/'),
+    addFreeformBlock: (
+      logId: number,
+      sectionLogId: number,
+      data: BlockLogCreate
+    ) =>
+      f<BlockLog>(
+        `/api/practice/${logId}/sections/${sectionLogId}/blocks`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      ),
 
-    updateSettings: (data: UserSettingsUpdate) =>
-      authFetchAPI<UserSettings>('/api/settings/', {
+    // Repertoire-specific session actions
+    addSpotMidSession: (
+      logId: number,
+      blockLogId: number,
+      data: AddSpotRequest
+    ) =>
+      f<BlockLog>(`/api/practice/${logId}/blocks/${blockLogId}/spots`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    collapseToPiece: (
+      logId: number,
+      blockLogId: number,
+      data: CollapseToPieceRequest = {}
+    ) =>
+      f<BlockLog>(
+        `/api/practice/${logId}/blocks/${blockLogId}/collapse-to-piece`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }
+      ),
+
+    expandToSpots: (logId: number, blockLogId: number) =>
+      f<BlockLog[]>(
+        `/api/practice/${logId}/blocks/${blockLogId}/expand-to-spots`,
+        { method: 'PUT' }
+      ),
+
+    finishPractice: (logId: number) =>
+      f<FinishResponse>(`/api/practice/${logId}/finish`, { method: 'POST' }),
+
+    saveReflection: (logId: number, data: ReflectionUpdate) =>
+      f<PracticeLog>(`/api/practice/${logId}/reflection`, {
         method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    // -----------------------------------------------------------------
+    // Progress (history + insights)
+    // -----------------------------------------------------------------
+    getHistory: (params?: {
+      instrumentId?: number
+      period?: HistoryPeriod
+      cursor?: string
+      limit?: number
+    }) =>
+      f<HistoryResponse>(
+        `/api/progress/history${qs({
+          instrument_id: params?.instrumentId,
+          period: params?.period,
+          cursor: params?.cursor,
+          limit: params?.limit,
+        })}`
+      ),
+
+    getHistoryDetail: (logId: number) =>
+      f<PracticeLog>(`/api/progress/history/${logId}`),
+
+    getHeatmap: (instrumentId: number, year?: number) =>
+      f<HeatmapResponse>(
+        `/api/progress/insights/heatmap${qs({
+          instrument_id: instrumentId,
+          year,
+        })}`
+      ),
+
+    getComparison: (instrumentId: number) =>
+      f<ComparisonResponse>(
+        `/api/progress/insights/comparison${qs({ instrument_id: instrumentId })}`
+      ),
+
+    getRatings: (instrumentId: number, weeks = 4) =>
+      f<RatingsResponse>(
+        `/api/progress/insights/ratings${qs({
+          instrument_id: instrumentId,
+          weeks,
+        })}`
+      ),
+
+    // -----------------------------------------------------------------
+    // Suggestions
+    // -----------------------------------------------------------------
+    getPreSessionSuggestion: (instrumentId: number) =>
+      f<PreSessionResponse>(
+        `/api/suggestions/pre-session${qs({ instrument_id: instrumentId })}`
+      ),
+
+    getInSessionSuggestions: (logId: number) =>
+      f<InSessionResponse>(`/api/suggestions/in-session/${logId}`),
+
+    dismissSuggestion: (data: SuggestionDismissRequest) =>
+      f<void>('/api/suggestions/dismiss', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    recordSuggestionInteraction: (data: SuggestionInteractionCreate) =>
+      f<SuggestionInteractionRead>('/api/suggestions/interact', {
+        method: 'POST',
         body: JSON.stringify(data),
       }),
   }
 }
+
+export type KanteloAPI = ReturnType<typeof createAuthenticatedAPI>
