@@ -10,17 +10,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!isLoaded) return
-
-    if (isSignedIn) {
-      router.push('/me')
-    } else {
-      router.push('/sign-in')
-    }
+    router.replace(isSignedIn ? '/today' : '/sign-in')
   }, [isLoaded, isSignedIn, router])
 
-  // Show minimal UI while determining redirect destination
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-primary-100 to-secondary-100">
-    </main>
-  )
+  return null
 }
