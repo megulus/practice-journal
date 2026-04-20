@@ -25,12 +25,45 @@ export default function SessionSummaryPage() {
         sessionStorage.removeItem(`session-summary-${logId}`)
         return
       } catch {
-        // fall through to redirect
+        // fall through to API fallback
       }
     }
-    // If no cached data, we can't show the summary — redirect to today
-    router.replace('/today')
-  }, [logId, router])
+
+    // Fallback: reconstruct from the API (handles page refresh).
+    // We can't get the full FinishResponse, but we can show the practice log.
+    const loadFromApi = async () => {
+      try {
+        const log = await api.getPractice(logId)
+        if (log.status !== 'completed') {
+          router.replace(`/session/${logId}`)
+          return
+        }
+        // Build a partial summary from the log data
+        const allBlocks = log.section_logs.flatMap((sl) => sl.block_logs)
+        const completed = allBlocks.filter((bl) => bl.completed)
+        const sf = completed.filter((bl) => bl.rating === 1).length
+        const st = completed.filter((bl) => bl.rating === 0).length
+        const sb = completed.filter((bl) => bl.rating === -1).length
+        const sk = allBlocks.length - completed.length
+
+        setData({
+          practice_log: log,
+          summary: {
+            total_duration_minutes: log.total_duration_minutes,
+            exercises_completed: completed.length,
+            exercises_total: allBlocks.length,
+            day_streak: 0, // can't reconstruct from log alone
+            ratings: { step_forward: sf, steady: st, step_back: sb, skipped: sk },
+          },
+          coaching_suggestion: null,
+          reflection_prompt: log.reflection_prompt,
+        })
+      } catch {
+        router.replace('/today')
+      }
+    }
+    loadFromApi()
+  }, [logId, router, api])
 
   const handleSaveReflection = async () => {
     if (!reflection.trim()) return

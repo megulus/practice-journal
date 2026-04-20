@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
@@ -17,6 +17,9 @@ import type {
 
 export default function ActiveSessionPage() {
   const api = useApi()
+  const apiRef = useRef(api)
+  apiRef.current = api
+
   const router = useRouter()
   const params = useParams()
   const logId = Number(params.id)
@@ -29,24 +32,32 @@ export default function ActiveSessionPage() {
   const fetchLog = useCallback(async () => {
     try {
       setLoading(true)
-      const data = await api.getPractice(logId)
+      const data = await apiRef.current.getPractice(logId)
       setLog(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load session')
     } finally {
       setLoading(false)
     }
-  }, [api, logId])
+  }, [logId])
 
   useEffect(() => {
     if (logId) fetchLog()
   }, [logId, fetchLog])
 
+  // Collect pending note-save callbacks so we can flush before finish
+  const pendingFlushes = useRef<Set<() => Promise<void>>>(new Set())
+
   const handleFinish = async () => {
     if (!log) return
     setFinishing(true)
     try {
-      const result: FinishResponse = await api.finishPractice(log.id)
+      // Flush any unsaved notes (covers the case where the user taps
+      // Finish without blurring a note field first)
+      const flushes = Array.from(pendingFlushes.current)
+      await Promise.all(flushes.map((fn) => fn()))
+
+      const result: FinishResponse = await apiRef.current.finishPractice(log.id)
       // Navigate to summary with the finish data
       // For now, store in sessionStorage since we don't have a summary page yet
       sessionStorage.setItem(
@@ -101,9 +112,13 @@ export default function ActiveSessionPage() {
             </h1>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
               if (confirm('Abandon this session?')) {
-                api.updatePractice(log.id, { status: 'abandoned' })
+                try {
+                  await apiRef.current.updatePractice(log.id, { status: 'abandoned' })
+                } catch {
+                  // Navigate anyway — the session can be cleaned up later
+                }
                 router.push('/today')
               }
             }}
@@ -144,6 +159,7 @@ export default function ActiveSessionPage() {
             logId={log.id}
             sectionLog={sl}
             onUpdate={fetchLog}
+            pendingFlushes={pendingFlushes}
           />
         ))}
 
@@ -151,7 +167,11 @@ export default function ActiveSessionPage() {
         <AddSectionButton logId={log.id} onAdd={fetchLog} />
 
         {/* Session notes */}
-        <SessionNotes logId={log.id} initialNotes={log.notes ?? ''} />
+        <SessionNotes
+          logId={log.id}
+          initialNotes={log.notes ?? ''}
+          pendingFlushes={pendingFlushes}
+        />
 
         {/* Finish button */}
         <button
@@ -174,10 +194,12 @@ function SectionCard({
   logId,
   sectionLog,
   onUpdate,
+  pendingFlushes,
 }: {
   logId: number
   sectionLog: SectionLog
   onUpdate: () => void
+  pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
   const api = useApi()
   const isCompleted = sectionLog.completed
@@ -196,6 +218,10 @@ function SectionCard({
   }
 
   const handleSkipSection = async () => {
+    const hasRatings = sectionLog.block_logs.some((bl) => bl.rating !== null)
+    if (hasRatings && !confirm('Skipping will clear ratings in this section. Continue?')) {
+      return
+    }
     await api.updateSectionLog(logId, sectionLog.id, { completed: false })
     onUpdate()
   }
@@ -244,6 +270,7 @@ function SectionCard({
             logId={logId}
             blockLog={bl}
             onUpdate={onUpdate}
+            pendingFlushes={pendingFlushes}
           />
         ))}
       </div>
@@ -266,10 +293,12 @@ function BlockRow({
   logId,
   blockLog,
   onUpdate,
+  pendingFlushes,
 }: {
   logId: number
   blockLog: BlockLog
   onUpdate: () => void
+  pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
   const api = useApi()
   const [showNotes, setShowNotes] = useState(!!blockLog.notes)
@@ -291,14 +320,23 @@ function BlockRow({
     onUpdate()
   }
 
-  const handleSaveNotes = async () => {
+  const handleSaveNotes = useCallback(async () => {
     setSavingNotes(true)
     try {
       await api.updateBlockLog(logId, blockLog.id, { notes })
     } finally {
       setSavingNotes(false)
     }
-  }
+  }, [api, logId, blockLog.id, notes])
+
+  // Register/unregister the flush callback so Finish can save pending notes
+  useEffect(() => {
+    const flushes = pendingFlushes.current
+    if (showNotes && notes !== (blockLog.notes ?? '')) {
+      flushes?.add(handleSaveNotes)
+      return () => { flushes?.delete(handleSaveNotes) }
+    }
+  }, [showNotes, notes, blockLog.notes, handleSaveNotes, pendingFlushes])
 
   return (
     <div className={`px-4 py-3 ${!blockLog.completed ? '' : 'bg-gray-50/50'}`}>
@@ -512,16 +550,27 @@ function AddSectionButton({
 function SessionNotes({
   logId,
   initialNotes,
+  pendingFlushes,
 }: {
   logId: number
   initialNotes: string
+  pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
   const api = useApi()
   const [notes, setNotes] = useState(initialNotes)
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     await api.updatePractice(logId, { notes: notes || undefined })
-  }
+  }, [api, logId, notes])
+
+  // Register flush so Finish saves pending session notes
+  useEffect(() => {
+    const flushes = pendingFlushes.current
+    if (notes !== initialNotes) {
+      flushes?.add(handleSave)
+      return () => { flushes?.delete(handleSave) }
+    }
+  }, [notes, initialNotes, handleSave, pendingFlushes])
 
   return (
     <div>
