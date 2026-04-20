@@ -1,11 +1,17 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
-import Header from '@/components/Header'
+import AppShell from '@/components/AppShell'
 
 export const metadata: Metadata = {
-  title: 'Practice Journal',
-  description: 'Track your music practice across multiple instruments',
+  title: 'Kantelo',
+  description: 'A practice coach for musicians. Practice smarter, not just more.',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#667eea',
 }
 
 export default function RootLayout({
@@ -17,8 +23,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body>
-          <Header />
-          {children}
+          <AppShell>{children}</AppShell>
         </body>
       </html>
     </ClerkProvider>
