@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import type {
   TodayResponse,
@@ -28,23 +29,25 @@ export default function TodayPage() {
       const today = await api.getToday()
       setData(today)
 
-      // Default to the first due instrument
+      // Default to the first due instrument (only if none selected yet)
       const allInstruments = [
         ...today.instruments_due,
         ...today.instruments_not_due,
       ]
-      if (allInstruments.length > 0 && !selectedInstrumentId) {
+      if (allInstruments.length > 0) {
         const first =
           today.instruments_due[0]?.instrument ??
           today.instruments_not_due[0]?.instrument
-        if (first) setSelectedInstrumentId(first.id)
+        if (first) {
+          setSelectedInstrumentId((prev) => prev ?? first.id)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
-  }, [api, selectedInstrumentId])
+  }, [api])
 
   useEffect(() => {
     fetchData()
@@ -134,12 +137,12 @@ export default function TodayPage() {
               {data.active_session.session_name &&
                 ` — ${data.active_session.session_name}`}
             </p>
-            <a
+            <Link
               href={`/session/${data.active_session.practice_log_id}`}
               className="block w-full text-center py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
             >
               Resume session
-            </a>
+            </Link>
           </div>
         )}
 
@@ -289,21 +292,21 @@ function DueInstrumentCard({ entry }: { entry: TodayInstrumentDue }) {
           </div>
 
           {/* Start session button */}
-          <a
+          <Link
             href={`/session/start?instrument=${entry.instrument.id}&template=${current_session.template_id}&session=${current_session.session_id}`}
             className="block w-full text-center py-3 bg-primary-600 text-white rounded-xl font-medium text-base hover:bg-primary-700 transition-colors shadow-sm"
           >
             Start session
-          </a>
+          </Link>
 
           {/* Repeat last session shortcut */}
           {repeat_session && (
-            <a
+            <Link
               href={`/session/start?instrument=${entry.instrument.id}&template=${current_session.template_id}&session=${repeat_session.session_id}`}
               className="block w-full text-center py-2.5 mt-2 text-primary-600 text-sm hover:text-primary-700 transition-colors"
             >
               Repeat last session ({repeat_session.session_name})
-            </a>
+            </Link>
           )}
         </>
       ) : (
@@ -317,12 +320,12 @@ function DueInstrumentCard({ entry }: { entry: TodayInstrumentDue }) {
       )}
 
       {/* Practice off-plan */}
-      <a
+      <Link
         href={`/session/start?instrument=${entry.instrument.id}`}
         className="block w-full text-center py-2 mt-2 text-gray-500 text-sm hover:text-gray-700 transition-colors"
       >
         Practice off-plan
-      </a>
+      </Link>
     </div>
   )
 }
@@ -338,12 +341,12 @@ function NotDueCard({ entry }: { entry: TodayInstrumentNotDue }) {
           {entry.next_due_description}
         </p>
       )}
-      <a
+      <Link
         href={`/session/start?instrument=${entry.instrument.id}`}
         className="text-primary-600 text-sm hover:text-primary-700 underline"
       >
         Practice anyway
-      </a>
+      </Link>
     </div>
   )
 }
@@ -357,12 +360,12 @@ function EmptyState() {
       <p className="text-gray-500 mb-6">
         Add an instrument in the Profile tab to get started.
       </p>
-      <a
+      <Link
         href="/profile"
         className="inline-block px-6 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
       >
         Go to Profile
-      </a>
+      </Link>
     </div>
   )
 }

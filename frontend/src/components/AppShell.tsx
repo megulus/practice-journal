@@ -15,9 +15,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     isSignedIn && !NO_NAV_ROUTES.some((r) => pathname?.startsWith(r))
 
   return (
-    <>
+    <div className={showNav ? 'pb-16' : ''}>
       {children}
       {showNav && <BottomNav />}
-    </>
+    </div>
   )
 }
