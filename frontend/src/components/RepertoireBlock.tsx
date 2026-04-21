@@ -96,6 +96,10 @@ export default function RepertoireBlock({
       <div className="flex items-center gap-3 px-4 py-2">
         {/* Three-state checkbox */}
         <button
+          role="checkbox"
+          aria-checked={
+            isWholePieceMode ? 'true' : checkboxState === 'indeterminate' ? 'mixed' : 'false'
+          }
           onClick={handlePieceCheckbox}
           className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
             isWholePieceMode

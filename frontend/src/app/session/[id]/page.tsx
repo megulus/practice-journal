@@ -29,11 +29,23 @@ export default function ActiveSessionPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
+  // Track which block_ids are repertoire blocks. Once a block_id is seen
+  // with spot_id set, it's repertoire forever (even after collapse removes
+  // the spot logs). This survives the collapse→expand round trip.
+  const repertoireBlockIds = useRef(new Set<number>())
 
   const fetchLog = useCallback(async () => {
     try {
       setLoading(true)
       const data = await apiRef.current.getPractice(logId)
+      // Learn which block_ids are repertoire from any spot-level logs
+      for (const sl of data.section_logs) {
+        for (const bl of sl.block_logs) {
+          if (bl.spot_id !== null && bl.block_id !== null) {
+            repertoireBlockIds.current.add(bl.block_id)
+          }
+        }
+      }
       setLog(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load session')
@@ -161,6 +173,7 @@ export default function ActiveSessionPage() {
             sectionLog={sl}
             onUpdate={fetchLog}
             pendingFlushes={pendingFlushes}
+            repertoireBlockIds={repertoireBlockIds}
           />
         ))}
 
@@ -196,11 +209,13 @@ function SectionCard({
   sectionLog,
   onUpdate,
   pendingFlushes,
+  repertoireBlockIds,
 }: {
   logId: number
   sectionLog: SectionLog
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
+  repertoireBlockIds: React.RefObject<Set<number>>
 }) {
   const api = useApi()
   const isCompleted = sectionLog.completed
@@ -266,7 +281,7 @@ function SectionCard({
       {/* Block rows — standard blocks render individually, repertoire
           blocks (same block_id, spot_id set) are grouped into a RepertoireBlock */}
       <div className="divide-y divide-gray-50">
-        {groupBlockLogs(sectionLog.block_logs).map((group) =>
+        {groupBlockLogs(sectionLog.block_logs, repertoireBlockIds.current).map((group) =>
           group.type === 'standard' ? (
             <BlockRow
               key={group.blockLog.id}
@@ -637,15 +652,20 @@ type BlockGroup =
       pieceLog: BlockLog | null
     }
 
-function groupBlockLogs(blockLogs: BlockLog[]): BlockGroup[] {
+function groupBlockLogs(
+  blockLogs: BlockLog[],
+  knownRepertoireBlockIds: Set<number> | null,
+): BlockGroup[] {
   const groups: BlockGroup[] = []
   const repGroups = new Map<
     number,
     { spotLogs: BlockLog[]; pieceLog: BlockLog | null }
   >()
 
-  // First pass: identify repertoire block_ids (multiple logs sharing the
-  // same non-null block_id, or a single log with spot_id set)
+  // A block is repertoire if:
+  // - it has spot_id set (per-spot log), OR
+  // - its block_id is in the known-repertoire set (survives collapse), OR
+  // - multiple logs share the same block_id (multi-spot in this render)
   const blockIdCounts = new Map<number, number>()
   for (const bl of blockLogs) {
     if (bl.block_id !== null) {
@@ -653,22 +673,17 @@ function groupBlockLogs(blockLogs: BlockLog[]): BlockGroup[] {
     }
   }
 
-  // A block is repertoire if: it has spot_id, OR there are multiple logs
-  // sharing the same block_id (multi-spot), OR it's a piece-level log
-  // from a collapsed repertoire block.
-  const isRepertoireBlockId = (bl: BlockLog): boolean => {
+  const isRepertoire = (bl: BlockLog): boolean => {
     if (bl.spot_id !== null) return true
+    if (bl.block_id !== null && knownRepertoireBlockIds?.has(bl.block_id)) return true
     if (bl.block_id !== null && (blockIdCounts.get(bl.block_id) ?? 0) > 1) return true
-    // A piece-level log (spot_id null) from a repertoire block: detect by
-    // checking if the block_name contains " — " (spot logs) or if other
-    // logs in the same block_id have spot_id set.
     return false
   }
 
-  // Second pass: group
+  // Group pass
   const seen = new Set<number>()
   for (const bl of blockLogs) {
-    if (bl.block_id !== null && isRepertoireBlockId(bl)) {
+    if (bl.block_id !== null && isRepertoire(bl)) {
       if (!seen.has(bl.block_id)) {
         seen.add(bl.block_id)
         repGroups.set(bl.block_id, { spotLogs: [], pieceLog: null })
