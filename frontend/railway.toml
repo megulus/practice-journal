@@ -13,6 +13,6 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL = "${{NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL}}"
 NEXT_PUBLIC_API_URL = "${{NEXT_PUBLIC_API_URL}}"
 
 [deploy]
-healthcheckPath = "/"
+healthcheckPath = "/sign-in"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
