@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import RatingChevrons from '@/components/RatingChevrons'
 import TimeStepper from '@/components/TimeStepper'
+import RepertoireBlock from '@/components/RepertoireBlock'
 import type {
   PracticeLog,
   SectionLog,
@@ -28,11 +29,23 @@ export default function ActiveSessionPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
+  // Track which block_ids are repertoire blocks. Once a block_id is seen
+  // with spot_id set, it's repertoire forever (even after collapse removes
+  // the spot logs). This survives the collapse→expand round trip.
+  const repertoireBlockIds = useRef(new Set<number>())
 
   const fetchLog = useCallback(async () => {
     try {
       setLoading(true)
       const data = await apiRef.current.getPractice(logId)
+      // Learn which block_ids are repertoire from any spot-level logs
+      for (const sl of data.section_logs) {
+        for (const bl of sl.block_logs) {
+          if (bl.spot_id !== null && bl.block_id !== null) {
+            repertoireBlockIds.current.add(bl.block_id)
+          }
+        }
+      }
       setLog(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load session')
@@ -160,6 +173,7 @@ export default function ActiveSessionPage() {
             sectionLog={sl}
             onUpdate={fetchLog}
             pendingFlushes={pendingFlushes}
+            repertoireBlockIds={repertoireBlockIds}
           />
         ))}
 
@@ -195,11 +209,13 @@ function SectionCard({
   sectionLog,
   onUpdate,
   pendingFlushes,
+  repertoireBlockIds,
 }: {
   logId: number
   sectionLog: SectionLog
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
+  repertoireBlockIds: React.RefObject<Set<number>>
 }) {
   const api = useApi()
   const isCompleted = sectionLog.completed
@@ -262,17 +278,31 @@ function SectionCard({
         </button>
       </div>
 
-      {/* Block rows */}
+      {/* Block rows — standard blocks render individually, repertoire
+          blocks (same block_id, spot_id set) are grouped into a RepertoireBlock */}
       <div className="divide-y divide-gray-50">
-        {sectionLog.block_logs.map((bl) => (
-          <BlockRow
-            key={bl.id}
-            logId={logId}
-            blockLog={bl}
-            onUpdate={onUpdate}
-            pendingFlushes={pendingFlushes}
-          />
-        ))}
+        {groupBlockLogs(sectionLog.block_logs, repertoireBlockIds.current).map((group) =>
+          group.type === 'standard' ? (
+            <BlockRow
+              key={group.blockLog.id}
+              logId={logId}
+              blockLog={group.blockLog}
+              onUpdate={onUpdate}
+              pendingFlushes={pendingFlushes}
+            />
+          ) : (
+            <RepertoireBlock
+              key={`rep-${group.blockId}`}
+              logId={logId}
+              blockId={group.blockId}
+              pieceName={group.pieceName}
+              spotLogs={group.spotLogs}
+              pieceLog={group.pieceLog}
+              onUpdate={onUpdate}
+              pendingFlushes={pendingFlushes}
+            />
+          )
+        )}
       </div>
 
       {/* Quick-add block */}
@@ -605,4 +635,92 @@ function SectionTypeIcon({ type }: { type: string }) {
       className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors[type] ?? 'bg-gray-400'}`}
     />
   )
+}
+
+// ---------------------------------------------------------------------------
+// Block log grouping — identifies repertoire blocks (shared block_id +
+// spot_id set) and groups them for rendering as a RepertoireBlock.
+// ---------------------------------------------------------------------------
+
+type BlockGroup =
+  | { type: 'standard'; blockLog: BlockLog }
+  | {
+      type: 'repertoire'
+      blockId: number
+      pieceName: string
+      spotLogs: BlockLog[]
+      pieceLog: BlockLog | null
+    }
+
+function groupBlockLogs(
+  blockLogs: BlockLog[],
+  knownRepertoireBlockIds: Set<number> | null,
+): BlockGroup[] {
+  const groups: BlockGroup[] = []
+  const repGroups = new Map<
+    number,
+    { spotLogs: BlockLog[]; pieceLog: BlockLog | null }
+  >()
+
+  // A block is repertoire if:
+  // - it has spot_id set (per-spot log), OR
+  // - its block_id is in the known-repertoire set (survives collapse), OR
+  // - multiple logs share the same block_id (multi-spot in this render)
+  const blockIdCounts = new Map<number, number>()
+  for (const bl of blockLogs) {
+    if (bl.block_id !== null) {
+      blockIdCounts.set(bl.block_id, (blockIdCounts.get(bl.block_id) ?? 0) + 1)
+    }
+  }
+
+  const isRepertoire = (bl: BlockLog): boolean => {
+    if (bl.spot_id !== null) return true
+    if (bl.block_id !== null && knownRepertoireBlockIds?.has(bl.block_id)) return true
+    if (bl.block_id !== null && (blockIdCounts.get(bl.block_id) ?? 0) > 1) return true
+    return false
+  }
+
+  // Group pass
+  const seen = new Set<number>()
+  for (const bl of blockLogs) {
+    if (bl.block_id !== null && isRepertoire(bl)) {
+      if (!seen.has(bl.block_id)) {
+        seen.add(bl.block_id)
+        repGroups.set(bl.block_id, { spotLogs: [], pieceLog: null })
+      }
+      const group = repGroups.get(bl.block_id)!
+      if (bl.spot_id !== null) {
+        group.spotLogs.push(bl)
+      } else {
+        group.pieceLog = bl
+      }
+    }
+  }
+
+  // Third pass: build output in order, replacing repertoire logs with groups
+  const emitted = new Set<number>()
+  for (const bl of blockLogs) {
+    if (bl.block_id !== null && repGroups.has(bl.block_id)) {
+      if (!emitted.has(bl.block_id)) {
+        emitted.add(bl.block_id)
+        const group = repGroups.get(bl.block_id)!
+        // Extract piece name from the first spot log or piece log
+        const firstLog = group.spotLogs[0] ?? group.pieceLog
+        const pieceName = firstLog
+          ? firstLog.block_name.split(' \u2014 ')[0]
+          : 'Unknown piece'
+        groups.push({
+          type: 'repertoire',
+          blockId: bl.block_id,
+          pieceName,
+          spotLogs: group.spotLogs,
+          pieceLog: group.pieceLog,
+        })
+      }
+    } else {
+      groups.push({ type: 'standard', blockLog: bl })
+    }
+  }
+
+  return groups
 }
