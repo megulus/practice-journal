@@ -146,13 +146,18 @@ export default function TemplateEditorPage() {
   }
 
   const addSection = async () => {
-    if (!selectedSession) return
-    await api.createSection(selectedSession.id, {
-      name: 'New section',
-      section_type: DEFAULT_SECTION_TYPE,
-      estimated_duration_minutes: 5,
-    })
-    await refresh()
+    if (!selectedSession || busy) return
+    setBusy(true)
+    try {
+      await api.createSection(selectedSession.id, {
+        name: 'New section',
+        section_type: DEFAULT_SECTION_TYPE,
+        estimated_duration_minutes: 5,
+      })
+      await refresh()
+    } finally {
+      setBusy(false)
+    }
   }
 
   const renameSection = async (sectionId: number, name: string) => {
@@ -225,6 +230,7 @@ export default function TemplateEditorPage() {
       router.push(`/plans/${copy.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to duplicate')
+    } finally {
       setBusy(false)
     }
   }

@@ -37,13 +37,18 @@ export default function AddBlockSheet({
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
-  // Lock body scroll while open and close on Escape.
+  // Lock body scroll while open and close on Escape. Mount-only effect so
+  // parent re-renders don't re-fire focus/scroll-lock setup.
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     document.addEventListener('keydown', onKey)
     closeButtonRef.current?.focus()
@@ -51,7 +56,7 @@ export default function AddBlockSheet({
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [])
 
   useEffect(() => {
     if (tab === 'curated') {
