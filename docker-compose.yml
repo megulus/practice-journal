@@ -38,6 +38,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* must be passed as build args so the static export in
+        # `npm run build` (run inside the Dockerfile) can inline them.
+        # Runtime `environment:` vars below don't reach the build stage.
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+        NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: /
+        NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: /
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
     dns:
