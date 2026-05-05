@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApi } from '@/lib/useApi'
 import type {
   CuratedBlock,
@@ -36,6 +36,22 @@ export default function AddBlockSheet({
   const [recent, setRecent] = useState<RecentBlock[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  // Lock body scroll while open and close on Escape.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    closeButtonRef.current?.focus()
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
 
   useEffect(() => {
     if (tab === 'curated') {
@@ -76,14 +92,26 @@ export default function AddBlockSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-      <div className="w-full max-w-lg bg-white rounded-t-2xl shadow-xl flex flex-col max-h-[85vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Add block to ${sectionName}`}
+        className="w-full max-w-lg bg-white rounded-t-2xl shadow-xl flex flex-col max-h-[85vh]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-gray-100">
           <p className="text-sm text-gray-500">Add to: {sectionName}</p>
           <button
+            ref={closeButtonRef}
             onClick={onClose}
-            className="text-sm text-gray-500 hover:text-gray-800"
+            className="text-sm text-gray-500 hover:text-gray-800 px-2 py-1 touch-manipulation"
           >
             Cancel
           </button>

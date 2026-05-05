@@ -32,6 +32,7 @@ export default function TemplateEditorPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [addBlockSectionId, setAddBlockSectionId] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{
     kind: 'template' | 'session' | 'section' | 'block'
     id: number
@@ -66,6 +67,15 @@ export default function TemplateEditorPage() {
   useEffect(() => {
     loadTemplate()
   }, [loadTemplate])
+
+  // Correct selectedSessionId if the session it points at no longer exists
+  // (e.g., another tab deleted it, or a refresh dropped it).
+  useEffect(() => {
+    if (!template) return
+    if (selectedSessionId == null) return
+    if (template.sessions.some((s) => s.id === selectedSessionId)) return
+    setSelectedSessionId(template.sessions[0]?.id ?? null)
+  }, [template, selectedSessionId])
 
   const refresh = useCallback(async () => {
     const t = await api.getTemplate(templateId)
@@ -102,12 +112,17 @@ export default function TemplateEditorPage() {
   }
 
   const addSession = async () => {
-    if (!template) return
-    const next = await api.createTemplateSession(template.id, {
-      name: `Session ${template.sessions.length + 1}`,
-    })
-    setSelectedSessionId(next.id)
-    await refresh()
+    if (!template || busy) return
+    setBusy(true)
+    try {
+      const next = await api.createTemplateSession(template.id, {
+        name: `Session ${template.sessions.length + 1}`,
+      })
+      setSelectedSessionId(next.id)
+      await refresh()
+    } finally {
+      setBusy(false)
+    }
   }
 
   const renameSession = async (sessionId: number, name: string) => {
@@ -201,11 +216,17 @@ export default function TemplateEditorPage() {
   }
 
   const duplicate = async () => {
-    if (!template) return
-    const copy = await api.duplicateTemplate(template.id, {
-      copy_default_spots: true,
-    })
-    router.push(`/plans/${copy.id}`)
+    if (!template || busy) return
+    setBusy(true)
+    try {
+      const copy = await api.duplicateTemplate(template.id, {
+        copy_default_spots: true,
+      })
+      router.push(`/plans/${copy.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate')
+      setBusy(false)
+    }
   }
 
   const deleteTemplate = async () => {
@@ -290,7 +311,8 @@ export default function TemplateEditorPage() {
             </button>
             <button
               onClick={duplicate}
-              className="px-3 py-1 rounded-full text-xs border bg-white border-gray-200 text-gray-600"
+              disabled={busy}
+              className="px-3 py-1 rounded-full text-xs border bg-white border-gray-200 text-gray-600 disabled:opacity-50"
             >
               Duplicate
             </button>
@@ -316,6 +338,7 @@ export default function TemplateEditorPage() {
             selectedSessionId={selectedSession?.id ?? null}
             onSelect={setSelectedSessionId}
             onAdd={addSession}
+            addDisabled={busy}
           />
         </div>
 

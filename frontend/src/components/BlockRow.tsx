@@ -41,12 +41,12 @@ export default function BlockRow({
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0">
       {/* Reorder chevrons */}
-      <div className="flex flex-col gap-0.5 shrink-0">
+      <div className="flex flex-col shrink-0">
         <button
           type="button"
           disabled={isFirst}
           onClick={() => onMove('up')}
-          className="w-5 h-3 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs"
+          className="w-9 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs touch-manipulation"
           aria-label="Move up"
         >
           ▲
@@ -55,7 +55,7 @@ export default function BlockRow({
           type="button"
           disabled={isLast}
           onClick={() => onMove('down')}
-          className="w-5 h-3 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs"
+          className="w-9 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs touch-manipulation"
           aria-label="Move down"
         >
           ▼
@@ -83,7 +83,7 @@ export default function BlockRow({
       <button
         type="button"
         onClick={onDelete}
-        className="shrink-0 w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 text-sm"
+        className="shrink-0 w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 text-sm touch-manipulation"
         aria-label="Remove block"
       >
         ✕

@@ -52,12 +52,12 @@ export default function SectionCard({
     <section className="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
-        <div className="flex flex-col gap-0.5 shrink-0">
+        <div className="flex flex-col shrink-0">
           <button
             type="button"
             disabled={isFirst}
             onClick={() => onMove('up')}
-            className="w-5 h-3 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs"
+            className="w-9 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs touch-manipulation"
             aria-label="Move section up"
           >
             ▲
@@ -66,7 +66,7 @@ export default function SectionCard({
             type="button"
             disabled={isLast}
             onClick={() => onMove('down')}
-            className="w-5 h-3 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs"
+            className="w-9 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs touch-manipulation"
             aria-label="Move section down"
           >
             ▼
@@ -93,7 +93,7 @@ export default function SectionCard({
         <button
           type="button"
           onClick={onDelete}
-          className="shrink-0 w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 text-sm"
+          className="shrink-0 w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 text-sm touch-manipulation"
           aria-label="Remove section"
         >
           ✕
