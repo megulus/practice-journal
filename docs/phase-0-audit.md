@@ -1,0 +1,258 @@
+# Phase 0 — Scaffolding & design system audit
+
+> Audit of the current frontend against [Phase 0 of the frontend plan](kantelo-frontend-plan.md). Becomes the source of truth for sequencing the Phase 0 backfill PRs.
+>
+> **Why this exists:** the rebuild skipped Phase 0 and went straight to features (#144 Today, #145 Active session, #166 Plans editor). Every screen so far has been built against stock Tailwind (indigo `primary-*`, neutral grays, ad-hoc rounded corners) instead of the warm-stone + teal token system specified in [`kantelo-design-tokens.md`](kantelo-design-tokens.md). This audit catalogs the gap so we can fill it deliberately.
+
+**Last updated:** 2026-05-06
+
+---
+
+## Legend
+
+- ✅ done — matches what Phase 0 specifies
+- ⚠️ partial — exists but needs migration to tokens / new structure
+- ❌ missing — has to be added from scratch
+- 🔄 wrong — exists but conflicts with the spec; needs replacement
+
+---
+
+## 0.1 — Project setup
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Next.js 14 App Router + TypeScript | ✅ | |
+| Tailwind CSS configured | ⚠️ | `tailwind.config.ts` uses stock indigo `primary` palette; needs replacement with token-driven theme |
+| Clerk Next.js SDK | ✅ | |
+| Lucide React icon library | ❌ | Not installed. Current code uses unicode glyphs (`▲`, `▼`, `✕`) and emoji-like characters |
+| `/src` directory structure (per plan) | 🔄 | Flat structure: `app/today`, `app/plans`, `components/*`. Plan calls for `app/(auth)/`, `app/(app)/`, `components/ui/`, `components/layout/`, `components/[feature]/`, `lib/`, `hooks/`, `types/`. We have `lib/` only |
+
+**What's needed:**
+- Install `lucide-react`
+- Reorganize `app/` into `(auth)` and `(app)` route groups (Clerk auth pages → `(auth)`, everything else → `(app)`)
+- Create `components/ui/`, `components/layout/`, `hooks/`, `types/` (currently types live in `lib/types.ts` — fine to keep but plan suggests a `types/` dir)
+- Replace `tailwind.config.ts` with a token-driven theme (see 0.2)
+
+---
+
+## 0.2 — Design tokens as CSS
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `lib/tokens.css` (or equivalent) with all tokens | ❌ | No CSS custom properties at all |
+| Light + dark token sets | ❌ | Single (light, indigo-based) Tailwind theme |
+| IBM Plex Sans loaded (400, 500, 600) | ❌ | Default sans-serif stack |
+| Finlandica loaded (700) for wordmark | ❌ | No wordmark anywhere in the app |
+| Tokens imported in root layout | ❌ | |
+
+**What's needed:**
+- Create `src/styles/tokens.css` (or `src/lib/tokens.css`) with every token from [`kantelo-design-tokens.md` §2-§6](kantelo-design-tokens.md), organized into `:root` (light) and `[data-theme="dark"]`
+- Add Google Fonts links for IBM Plex Sans (3 weights) and Finlandica (700) in root layout, or use `next/font`
+- Update `tailwind.config.ts` to consume the CSS variables: `colors: { 'page-bg': 'var(--page-bg)', primary: 'var(--primary)', ... }`. This way Tailwind utility classes (`bg-page-bg`, `text-primary`, etc.) automatically respond to dark mode without conditional logic.
+- Wire `tokens.css` import into `app/layout.tsx`
+
+**Decision needed:** are the section type pinned/pool colors (warm-up, cool-down, blue, purple, etc.) defined as Tailwind-extended colors, or kept as a TypeScript constant `SECTION_COLOR_POOL` and applied via inline style? The plan suggests the latter — "an ordered array in the frontend".
+
+---
+
+## 0.3 — Theme provider
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `ThemeProvider` component | ❌ | |
+| `prefers-color-scheme` detection | ❌ | |
+| localStorage persistence | ❌ | |
+| `data-theme` attribute on `<html>` | ❌ | |
+| Toggle function via React context | ❌ | |
+| Wired into root layout | ❌ | |
+
+**What's needed:** build from scratch per plan §0.3.
+
+**Note on persistence:** the spec says "stored in settings." That implies the user's theme preference goes through `GET/PATCH /api/settings`, not just localStorage. localStorage is the fast path for unsigned users / first paint; settings is the durable cross-device store. Plan ordering: build with localStorage first (Phase 0), wire to settings in Phase 4 alongside the Profile preferences.
+
+---
+
+## 0.4 — API client
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Typed fetch wrapper with API base URL | ✅ | `lib/api.ts` `createAuthenticatedAPI` |
+| Clerk JWT injected via `useAuth().getToken()` | ✅ | `lib/useApi.ts` |
+| JSON serialization | ✅ | |
+| Typed responses | ✅ | All ~50 methods return typed promises |
+| 401 redirects to sign-in | ⚠️ | Needs verification — the `f<T>` helper throws an `APIError` but I don't see an explicit 401 → sign-in redirect |
+| 4xx/5xx handling | ⚠️ | Throws `APIError`; consumers handle it locally with try/catch and `setError` |
+
+**What's needed:** small audit + likely a 401 interceptor that redirects to `/sign-in`. Otherwise mostly done.
+
+---
+
+## 0.5 — Auth integration
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Clerk middleware for protected routes | ✅ | `src/middleware.ts` |
+| Sign-in / sign-up pages | ✅ | `app/sign-in/[[...sign-in]]/page.tsx`, `app/sign-up/[[...sign-up]]/page.tsx` |
+| Auto-create user on first authenticated `GET /api/user/me` | ❓ | Need to check whether the backend already does this on any endpoint, or whether the frontend has to gate every page on a `/me` call |
+
+**What's needed:** confirm backend behavior; if it doesn't auto-create, add a one-shot `GET /api/user/me` call at app boot (root layout client-side effect, or middleware). This is currently latent: there's no path from "Clerk-authenticated user" to "Kantelo user record" except by calling endpoints that side-effect-create the user.
+
+---
+
+## 0.6 — App shell & navigation
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Authenticated layout | ✅ | `components/AppShell.tsx` |
+| Bottom tab nav | ⚠️ | Exists (`BottomNav.tsx`) but: (a) uses unicode/emoji icons, not Lucide; (b) order and labels match plan but no token-driven colors |
+| Side nav (≥1024px) | ❌ | Nothing for desktop; everything is mobile-only |
+| Wordmark in side nav (Finlandica 20px) | ❌ | |
+| Active route detection via `usePathname()` | ✅ | |
+| Responsive container (max 520px main, optional secondary panel) | ❌ | Most screens use `max-w-lg` (~512px) but no secondary panel logic |
+| Each tab renders something | ⚠️ | Today (real), Progress (placeholder), Plans (real after #166), Profile (placeholder) |
+
+**What's needed:**
+- Replace bottom nav icons with Lucide (`Sun`, `Activity`, `LayoutGrid`, `User`)
+- Build desktop side nav with wordmark
+- Build responsive container that switches between bottom-nav-only (mobile) and side-nav + secondary-panel (desktop)
+- Apply tokens (`nav-active`, `nav-inactive`)
+
+---
+
+## 0.7 — UI primitives
+
+The biggest chunk. Plan calls for a `components/ui/` directory with these primitives, all token-driven, all light + dark.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `Button` (primary, secondary, danger, ghost) | ❌ | Inline button styles everywhere; no shared component |
+| `Card` (default, suggestion, coaching, hint) | ❌ | Cards are inline `bg-white rounded-xl border` everywhere |
+| `Pill` (instrument toggle, generic) | ❌ | Inline pill styles in BottomNav, Today, Plans, SessionTabs |
+| `SectionPip` (8px colored circle) | ❌ | |
+| `Checkbox` (18px, teal when checked) | ❌ | Active session uses ad-hoc `<button role="checkbox">` markup |
+| `TimeStepper` | ⚠️ | Exists at `components/TimeStepper.tsx` — ad-hoc styling, needs migration to tokens + relocation to `components/ui/` |
+| `RatingChevrons` | ⚠️ | Exists at `components/RatingChevrons.tsx` — ad-hoc styling, needs migration |
+| `ProgressBar` | ❌ | |
+| `RotationBar` | ❌ | |
+| `StatCard` | ❌ | Session summary uses inline divs |
+| `TextInput` (standard + recessed) | ❌ | Inline `<input className="...">` everywhere |
+| `TextArea` (standard + recessed/italic) | ❌ | |
+| `VoiceInput` (mic button + Web Speech API) | ❌ | **Missing entirely.** Spec calls voice input the *primary* path for notes, session notes, and reflection prompt — typing is the fallback. Currently only typing is supported. |
+
+**Plus from `ConfirmDialog` / `AddBlockSheet` work in #169:**
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `Dialog` / `Sheet` primitive | ❌ | Tracked in #173 (filed as tech debt). Should land as part of Phase 0 since these are foundational. |
+| `AutoSaveInput` / `useAutoSaveField` | ❌ | Tracked in #171 (filed as tech debt). Same — foundational. |
+
+---
+
+## Cross-cutting items not in 0.1–0.7 but required
+
+These are mentioned in [`kantelo-frontend-plan.md`](kantelo-frontend-plan.md) acceptance criteria and elsewhere; they aren't part of any specific sub-task but block "Phase 0 done":
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Light + dark mode toggle visible somewhere | ❌ | The plan implies a toggle exists; Profile is the natural home in Phase 4, but for Phase 0 acceptance ("Light/dark mode toggle works and persists"), we need a temporary toggle (e.g., in the header during dev) |
+| All UI primitives render correctly in both modes | ❌ | Depends on 0.2 + 0.7 |
+| API client successfully calls `GET /api/user/me` with auth token | ⚠️ | Method exists if 0.5 is wired; not currently auto-called |
+| Desktop layout shows side nav; mobile shows bottom tabs | ❌ | Depends on 0.6 |
+
+---
+
+## Existing screens that need retoning
+
+After Phase 0 lands, these screens need a sweep to swap stock Tailwind for token-driven utility classes / `components/ui/` primitives:
+
+- `app/today/page.tsx` (built in #144)
+- `app/session/[id]/page.tsx` (built in #145, repertoire support added)
+- `app/session/[id]/summary/page.tsx` (built in #145)
+- `app/session/start/page.tsx` (built in #144)
+- `app/plans/page.tsx` and `app/plans/[id]/page.tsx` (built in #166)
+- `components/AppShell.tsx`, `components/BottomNav.tsx`
+- `components/RepertoireBlock.tsx`, `components/SectionCard.tsx`, `components/BlockRow.tsx`, `components/AddBlockSheet.tsx`, `components/SessionTabs.tsx`
+- `components/RatingChevrons.tsx`, `components/TimeStepper.tsx` (move to `components/ui/` + retone)
+- `components/ConfirmDialog.tsx` (rebuild on top of new `Dialog` primitive — see #173)
+
+This is the "design debt" pile. Doing it incrementally per-screen is fine; doing it all in one PR is risky (huge diff, hard to review).
+
+---
+
+## Proposed sequencing of Phase 0 PRs
+
+The sub-tasks 0.1–0.7 don't all have to be separate PRs. Some are cheap and can ride together; others are large enough to deserve their own.
+
+Recommended grouping:
+
+1. **PR 1 — Foundation** (0.1 + 0.2)
+   - Install `lucide-react`
+   - Create `tokens.css` with full light + dark token sets
+   - Add font loading (Plex + Finlandica)
+   - Replace `tailwind.config.ts` with token-driven theme
+   - Reorganize `app/` into `(auth)` and `(app)` route groups
+   - Add the empty `components/ui/`, `components/layout/`, `hooks/`, `types/` directories
+   - **No screen retoning yet** — existing screens keep working with their stock Tailwind classes (since CSS variables fall back to indigo via the new theme, or we set `tailwind.config.ts` to map old class names to new token vars).
+   - **Risk:** existing screens look broken or weird until they're retoned. Worth a moment of jank.
+
+2. **PR 2 — Theme provider + dark mode wiring** (0.3)
+   - `ThemeProvider` with localStorage persistence
+   - Temporary toggle button (header or floating)
+   - Wire `data-theme` to `<html>`
+   - Acceptance: toggling switches the page background color (everything else still hardcoded — that's fine, validates the wiring)
+
+3. **PR 3 — UI primitives (basic set)** (0.7, batch 1)
+   - `Button`, `Card`, `Pill`, `TextInput`, `TextArea`, `Checkbox`, `SectionPip`, `ProgressBar`, `RotationBar`, `StatCard`
+   - Move `TimeStepper`, `RatingChevrons` into `components/ui/` and retone
+   - No `VoiceInput` yet (more involved)
+
+4. **PR 4 — Dialog / Sheet primitive** (#173)
+   - `Dialog` (centered modal) and `Sheet` (bottom sheet) sharing focus-trap, scroll-lock, backdrop dismiss
+   - Refactor `ConfirmDialog` and `AddBlockSheet` onto it
+
+5. **PR 5 — AutoSaveInput primitive** (#171)
+   - `useAutoSaveField` hook + `AutoSaveInput` / `AutoSaveTextarea` components
+   - Replaces ad-hoc `useState(initial)` patterns in BlockRow, SectionCard, plan editor inline subcomponents
+
+6. **PR 6 — App shell** (0.6)
+   - Lucide nav icons
+   - Desktop side nav with Finlandica wordmark
+   - Responsive container (mobile bottom nav, desktop side nav)
+
+7. **PR 7 — VoiceInput** (0.7, batch 2)
+   - Mic button component wrapping Web Speech API
+   - Recording state, transcription, fallback for unsupported browsers, permission denied handling
+
+8. **PR 8 — Auto-create user on /me** (0.5)
+   - One-shot `GET /api/user/me` at app boot
+   - 401 interceptor in API client → redirect to sign-in (0.4 audit item)
+
+9. **PR 9+ — Screen retoning** (per-screen, can be parallelized)
+   - Today, Active session, Session summary, Plans list, Plans editor, etc.
+   - Each PR limited to one or two screens to keep diffs reviewable
+
+After all of these, **Phase 1 acceptance** can be re-evaluated and any drift from the plan (active session missing "Mark all done", "Skip section", quick-add block, smart tempo defaults) gets its own follow-up.
+
+---
+
+## Open questions
+
+1. **Section colors as Tailwind-extended colors or TS constant?** — the plan implies a TS constant; using Tailwind-extended colors with a CSS-var mapping is also viable. Decide before PR 1 lands.
+2. **Theme toggle's permanent home** — Profile (Phase 4)? A nav bar item? An OS-only follower? For Phase 0, a dev-only toggle is fine; the long-term answer should be settled before Phase 4.
+3. **Reorganize routes (0.1) in PR 1, or hold until later?** — moving files mid-rebuild is disruptive. The case for doing it now: every retoning PR will touch these files anyway, so the move is cheaper if it happens before the retones. The case for holding: if we hit a snag, mid-rebuild file moves create a worse merge state. **Recommendation: do it in PR 1.**
+4. **Which screens get retoned first?** — Today is the main screen the user sees, so it's a natural starting point. Active session is most complex but already shipped, so retoning it surfaces the most token coverage gaps fastest. **Recommendation: Today, then Active session, then everything else.**
+
+---
+
+## Acceptance for "Phase 0 done"
+
+Mirrors the plan's own acceptance criteria, restated here as a checklist for tracking:
+
+- [ ] App runs locally, navigates between all four tabs (Today, Progress, Plans, Profile)
+- [ ] Clerk auth works — unauthenticated users see sign-in
+- [ ] Light/dark mode toggle works and persists
+- [ ] All UI primitives in `components/ui/` render correctly in both modes
+- [ ] `VoiceInput` activates speech recognition, transcribes into a text field, and hides gracefully when Web Speech API is unavailable
+- [ ] API client successfully calls `GET /api/user/me` with auth token; user record is auto-created if not present
+- [ ] Desktop layout shows side nav with Finlandica wordmark; mobile shows bottom tabs with Lucide icons
+- [ ] All existing screens (Today, Active session, Session summary, Plans list, Plans editor) have been retoned to use tokens + UI primitives
