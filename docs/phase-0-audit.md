@@ -269,6 +269,91 @@ For each existing screen, decide whether to **retone in place** (lift code, swap
 - "Choose a different session" picker (mentioned in plan, not in spec §5.1) — file as a small follow-up if we want it
 - Active-session resume banner (we added it; not in spec but useful — keep it, just retone it)
 
+### Active session (`src/app/(app)/session/[id]/page.tsx`)
+
+**Spec reference:** kantelo-product-spec.md §5.2, docs/wireframes/active-session.png + active-session-repertoire-default.png + active-session-repertoire-whole-piece.png, kantelo-frontend-plan.md Phase 1 task 1.2.
+
+**Strategy:** ✅ **Retone in place + extract subcomponents.**
+
+**Rationale:** Existing decomposition is correct; a from-scratch rewrite would risk regressing the load-bearing patterns from #145 (`apiRef`, `pendingFlushes`, `repertoireBlockIds` refs, atomic finish flush). Extracting the seven inline components into `components/session/*.tsx` files is the natural moment to do it — readability win, matches the plan's `components/[feature]/` convention.
+
+**In scope for the retone PR:**
+- Token swaps everywhere (page bg, card bg, borders, text colors, radii)
+- Adopt new `Card`, `Button`, `Checkbox`, `TextArea`, `RatingChevrons`, `TimeStepper` primitives from Phase 0
+- Section pip uses the section color system (pinned + pool per spec §2) — replaces ad-hoc `bg-orange-400`/`bg-blue-400`/etc. in `SectionTypeIcon`
+- Lucide icons (`Check` inside checkbox, `X` for close, `MoreHorizontal` for overflow)
+- Add "X min (plan: Y)" reference text on completed sections (currently just opacity fade)
+- Replace `window.confirm` for End session with `ConfirmDialog` (or eventual `Dialog` primitive from #173)
+- Extract `SectionCard`, `BlockRow`, `QuickAddBlock`, `AddSectionButton`, `SessionNotes`, `SectionTypeIcon` into `components/session/*.tsx` files
+- Retone `RepertoireBlock.tsx` in the same PR (splitting would leave a half-retoned screen — the components touch each other)
+
+**Out of scope (separate tickets — file before the retone PR opens):**
+- **Voice input** on every text field (per-block notes, session notes, quick-add, add-section name, reflection) — depends on Phase 0 `VoiceInput` primitive (PR 7)
+- **In-the-moment suggestions** display (`GET /api/suggestions/in-session/{logId}` returns data the frontend never fetches) — depends on a `HintCard` primitive
+- **Smart tempo defaults** — pre-fill tempo field from `last_tempo_bpm`, shown muted, switches to primary on confirm/adjust (currently shown as static "Last tempo: X bpm" text)
+- **"Browse library" link** next to quick-add per spec §quick-add
+- **Progress label** "what was just completed" (e.g., "Scales complete") — small but functional
+- Add-section freeform picker — already #168 design ticket; the current 7-button picker will be replaced when that lands
+
+### Session summary (`src/app/(app)/session/[id]/summary/page.tsx`)
+
+**Spec reference:** kantelo-product-spec.md §5.3, docs/wireframes/session-summary.png, kantelo-frontend-plan.md Phase 1 task 1.3.
+
+**Strategy:** ✅ **Retone in place.**
+
+**Rationale:** Small file (199 lines), structurally close to spec. The major missing piece — the "What you practiced" per-exercise list — is already tracked as **#165** (deferred polish from #146) and will be built on top of the new primitives once they land. The current aggregated rating-count display ("Step forward: 3, Steady: 1") is not in spec but stays in place during the retone; #165 replaces it later.
+
+**In scope for the retone PR:**
+- Token swaps (page bg, card bg, text colors, borders, radii)
+- Adopt `StatCard` and `Card` (coaching variant) primitives from Phase 0
+- Coaching suggestion card uses `--coaching-bg` / `--coaching-text` tokens (currently uses ad-hoc `bg-teal-50`)
+- Reflection text field uses tokenized text input
+- Add **"Edit this session"** button (spec calls for it; small functional add — Link back to `/session/[id]`)
+- Add the subtitle line under "Session complete" (e.g., "Slow practice on mvt. II · Violin") — currently missing
+
+**Out of scope (separate tickets):**
+- **"What you practiced" per-exercise list** — already #165
+- **Voice input** on the reflection text field — depends on Phase 0 `VoiceInput` primitive
+
+### Plans list (`src/app/(app)/plans/page.tsx`)
+
+**Spec reference:** kantelo-product-spec.md §5.4 (intro), kantelo-frontend-plan.md Phase 2 task 2.1.
+
+**Strategy:** ✅ **Retone in place + small structural add.**
+
+**Rationale:** Built in #166. Decomposition is fine; spec calls for one structural addition (active/archived grouping based on `is_active`) which is small enough to ride along with the retone.
+
+**In scope for the retone PR:**
+- Token swaps (page bg, card bg, text colors, borders, radii)
+- Adopt `Button`, `Card`, `Pill` primitives
+- Group templates into "Active" and "Archived" sections (where archived = `is_active === false`)
+- Per-row metadata: add **session count** and **estimated total time** (sum of section durations across all template sessions) to each row — spec calls for both
+- Active badge → tokenized teal pill
+
+**Out of scope (separate tickets):**
+- True archive/unarchive workflow if `is_active` proves insufficient (file if needed; current schema only has the boolean)
+
+### Plans editor (`src/app/(app)/plans/[id]/page.tsx`)
+
+**Spec reference:** kantelo-product-spec.md §5.4, kantelo-frontend-plan.md Phase 2 task 2.2, docs/wireframes/template-editor.png.
+
+**Strategy:** ✅ **Retone in place.**
+
+**Rationale:** Built in #166 with a deliberate retone-friendly structure (`SessionTabs`, `SectionCard`, `BlockRow`, `AddBlockSheet`). All gaps are token swaps + small visual adjustments.
+
+**In scope for the retone PR:**
+- Token swaps everywhere
+- Adopt `Button`, `Card`, `Pill`, `Checkbox`, `TextInput`, `TextArea` primitives
+- Section header: add section pip (using the section color system) and (eventually) section-type indicator — depends on #168 picker landing
+- Block row: replace the inline `X` delete with an overflow menu (`MoreHorizontal` Lucide icon) — spec calls for an edit/delete overflow menu
+- AddBlockSheet uses tokenized colors and Lucide icons
+- ConfirmDialog migrates to the eventual `Dialog` primitive from #173
+
+**Out of scope (separate tickets — already filed):**
+- **Repertoire blocks in the editor** + spot management drawer — already **#167**
+- **Drag-and-drop reorder** (chevrons are deliberate; #166 deferred this) — file follow-up if/when chevrons feel clunky in real use
+- **Section type picker** — already **#168** design ticket; until that lands, sections stay hardcoded to `'other'`
+
 ---
 
 ## Acceptance for "Phase 0 done"
