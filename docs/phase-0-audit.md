@@ -235,12 +235,39 @@ After all of these, **Phase 1 acceptance** can be re-evaluated and any drift fro
 
 ---
 
-## Open questions
+## Resolved decisions
 
-1. **Section colors as Tailwind-extended colors or TS constant?** — the plan implies a TS constant; using Tailwind-extended colors with a CSS-var mapping is also viable. Decide before PR 1 lands.
-2. **Theme toggle's permanent home** — Profile (Phase 4)? A nav bar item? An OS-only follower? For Phase 0, a dev-only toggle is fine; the long-term answer should be settled before Phase 4.
-3. **Reorganize routes (0.1) in PR 1, or hold until later?** — moving files mid-rebuild is disruptive. The case for doing it now: every retoning PR will touch these files anyway, so the move is cheaper if it happens before the retones. The case for holding: if we hit a snag, mid-rebuild file moves create a worse merge state. **Recommendation: do it in PR 1.**
-4. **Which screens get retoned first?** — Today is the main screen the user sees, so it's a natural starting point. Active session is most complex but already shipped, so retoning it surfaces the most token coverage gaps fastest. **Recommendation: Today, then Active session, then everything else.**
+1. **Section colors** — Hybrid: define each color's pillBg/pillText/pip as CSS custom properties in `tokens.css` (light + dark), with a TypeScript `SECTION_COLOR_POOL` constant in `lib/section-colors.ts` referencing those vars (e.g. `pillBg: 'var(--section-blue-pill-bg)'`). A small `getSectionColor(sectionType, displayOrder)` helper centralizes the pinned/pool assignment rule. Components apply via inline `style={{}}`.
+2. **Theme toggle home** — Profile preferences row, three options (Match system / Light / Dark), default Match system. Spec patched in PR #175 (kantelo-product-spec.md §5.8). First-paint resolution via inline `<head>` script reading localStorage with `prefers-color-scheme` fallback; settings is the cross-device source of truth (backend ticket #176). No persistent toggle in nav.
+3. **Route reorg** — Done as a standalone PR #177 before the Foundation PR. Mechanical changes kept separate from foundational design work.
+4. **Retone order** — Today, then Active session, then everything else. Visual retoning kept separate from any functional changes — spec-missing functional pieces become their own follow-up tickets.
+
+---
+
+## Per-screen retone strategy
+
+For each existing screen, decide whether to **retone in place** (lift code, swap classes/components for tokens/primitives, preserve current functional scope) or **rebuild from scratch** (delete and rewrite against the spec). Spec-missing functional pieces always become separate follow-up tickets — they are not part of the retone PR.
+
+### Today (`src/app/(app)/today/page.tsx`)
+
+**Spec reference:** kantelo-product-spec.md §5.1, docs/wireframes/today-tab.png, kantelo-frontend-plan.md Phase 1 task 1.1.
+
+**Strategy:** ✅ **Retone in place.**
+
+**Rationale:** Component decomposition (`TodayPage` → `InstrumentToggle`, `SuggestionCard`, `DueInstrumentCard`, `NotDueCard`, `EmptyState`) maps cleanly to the spec layout. All gaps are token swaps + small additions, not architectural.
+
+**In scope for the retone PR:**
+- Swap stock Tailwind classes for token-driven utilities (page bg, text colors, borders, radii)
+- Adopt new `Button`, `Card`, `Pill` primitives from Phase 0
+- Replace inline SVG with Lucide icons in suggestion card (`AlertCircle`, `X`)
+- Add a small `RotationDots` component for the "Today's practice" header (currently missing — spec calls for "filled dots showing position in the rotation cycle")
+- Section pills use the section color system (pinned for warm-up/cool-down, pool for everything else) per spec §2
+
+**Out of scope (separate tickets):**
+- Empty state → quick-start wizard (already #151)
+- Mobile header with Kantelo wordmark + avatar (lives in AppShell — covered by PR 6 in the sequencing)
+- "Choose a different session" picker (mentioned in plan, not in spec §5.1) — file as a small follow-up if we want it
+- Active-session resume banner (we added it; not in spec but useful — keep it, just retone it)
 
 ---
 
