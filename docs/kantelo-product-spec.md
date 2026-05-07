@@ -382,8 +382,11 @@ Three radio button options with descriptions:
 Slim for v1:
 - **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
 - **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
+- **Theme** — Match system / Light / Dark. Default: Match system. Theme preference syncs across devices via settings, with first-paint resolution from localStorage to avoid a flash of wrong theme.
 
 Additional preferences can slot in here as needed in later releases.
+
+The theme toggle deliberately lives here in Preferences rather than as a persistent control in the side nav or top bar. A persistent toggle adds visual noise to a UI that's deliberately quiet — Kantelo's brand voice favors a "tool that takes your craft seriously" over a customizable cockpit.
 
 **Sign out** button at the bottom (danger-colored text, no fill).
 
