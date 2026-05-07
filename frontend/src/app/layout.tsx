@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
-import AppShell from '@/components/AppShell'
 
 export const metadata: Metadata = {
   title: 'Kantelo',
@@ -22,12 +21,8 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body>
-          <AppShell>{children}</AppShell>
-        </body>
+        <body>{children}</body>
       </html>
     </ClerkProvider>
   )
 }
-
-
