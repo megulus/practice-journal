@@ -114,13 +114,10 @@ export const SECTION_COLOR_POOL: SectionColorName[] = [
  * Resolve the section color for a section in a template session.
  *
  * @param sectionType - The section type from the backend.
- * @param displayOrder - The section's `display_order` within its parent
- *   template session (0-indexed). Pool assignment counts only non-pinned
- *   sections in order — pinned sections (warm-up, cool-down) don't
- *   consume a pool slot.
  * @param nonPinnedIndex - 0-indexed position among non-pinned sections
  *   in the session. Callers iterating over sections should track this
- *   themselves (warm-up/cool-down don't increment it).
+ *   themselves — warm-up and cool-down are pinned and don't consume a
+ *   pool slot, so they don't increment the index.
  */
 export function getSectionColor(
   sectionType: SectionType,
