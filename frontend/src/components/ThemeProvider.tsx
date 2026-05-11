@@ -56,15 +56,21 @@ function applyDataTheme(resolved: ResolvedTheme) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Use lazy initializers so we read localStorage / matchMedia exactly once
-  // and only on the client. The first-paint script in layout.tsx has already
-  // set the correct data-theme attribute by this point.
-  const [theme, setThemeState] = useState<ThemePreference>(() =>
-    readStoredPreference(),
-  )
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
-    detectSystem(),
-  )
+  // Initial state must match between SSR and the first client render or
+  // React will warn about a hydration mismatch. localStorage and
+  // matchMedia aren't available on the server, so we render the
+  // defaults first, then reconcile from storage in a mount effect.
+  // The first-paint <head> script in layout.tsx has already set the
+  // correct data-theme attribute by this point, so page colors don't
+  // flicker — only the picker's selected pill resolves on mount.
+  const [theme, setThemeState] = useState<ThemePreference>('system')
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>('light')
+
+  // Reconcile preference + system theme from the browser on mount.
+  useEffect(() => {
+    setThemeState(readStoredPreference())
+    setSystemTheme(detectSystem())
+  }, [])
 
   // Listen for OS-level color-scheme changes so "Match system" stays in sync.
   useEffect(() => {
