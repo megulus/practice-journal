@@ -77,12 +77,25 @@ All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
 
 - `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav)
 - `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
-
-Phase 0 will add `src/components/ui/` for design-system primitives (Button, Card, Pill, etc.).
+- `src/components/ui/` — design-system primitives (Button, Card, Pill, etc.) — added incrementally during Phase 0 PR 3+
 
 ### Styling
 
-Tailwind CSS with a stock indigo theme in `tailwind.config.ts`. **This is not the long-term design system** — Phase 0 of the rebuild replaces it with the warm-stone + teal token system specified in `docs/kantelo-design-tokens.md`. Until that lands, screens use stock Tailwind utility classes (`bg-gray-50`, `text-primary-600`, etc.).
+Design tokens live in `src/lib/tokens.css` as CSS custom properties (light by default, dark mode under `[data-theme="dark"]`). The token names and values are the source of truth — see `docs/kantelo-design-tokens.md`.
+
+`tailwind.config.ts` exposes every token as a Tailwind utility by referencing the matching CSS variable. Utility names match the token names verbatim, which means some doubled prefixes (`bg-page-bg`, `text-text-primary`, `border-border-default`) — chosen so the design doc remains the unambiguous source of truth. Common utility shapes:
+
+- Surfaces: `bg-page-bg`, `bg-card-bg`, `bg-card-bg-inset`, `bg-input-bg`, `bg-input-bg-recessed`
+- Text: `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `text-text-link`, `text-text-on-primary-action`
+- Borders: `border-border-default`, `border-border-subtle`, `border-border-input`, `border-border-input-focus`
+- Primary (teal action): `bg-primary`, `bg-primary-hover`, `bg-primary-subtle-bg`, `text-primary-subtle-text`, `border-primary-subtle-border`
+- Spacing: `p-md`, `p-lg`, `p-4xl` (4/6/8/12/14/16/18/20px → `xs`, `sm`, `md`, `lg`, `xl`, `2xl`, `3xl`, `4xl`)
+- Radii: `rounded-md`, `rounded-lg`, `rounded-xl`, `rounded-pill`, `rounded-round`
+- Fonts: `font-sans` (IBM Plex Sans), `font-wordmark` (Finlandica — wordmark only)
+
+Section type colors aren't exposed as Tailwind utilities — they're applied via `getSectionColor()` and inline `style={{}}` because they encode an assignment rule (pinned warm-up/cool-down + 8-color pool by display order). See `src/lib/section-colors.ts`.
+
+Existing screens (Today, Active session, Plans, etc.) still use stock Tailwind classes from the previous indigo theme. Those colors no longer exist after the foundation PR — affected buttons will look unstyled until each screen is retoned (Phase 0 PR 9+). This jank is intentional and tracked in `docs/phase-0-audit.md`.
 
 ## Environment Variables
 
