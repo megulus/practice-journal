@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
+import { ibmPlexSans, finlandica } from './fonts'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#667eea',
+  themeColor: '#0D6B52',
 }
 
 export default function RootLayout({
@@ -20,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en">
+      <html lang="en" className={`${ibmPlexSans.variable} ${finlandica.variable}`}>
         <body>{children}</body>
       </html>
     </ClerkProvider>

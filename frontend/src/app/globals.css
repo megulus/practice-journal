@@ -1,10 +1,16 @@
+@import '../lib/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+html {
+  font-family: var(--font-ibm-plex-sans), system-ui, -apple-system, sans-serif;
+}
+
 body {
-  color: #111827;
-  background-color: #f9fafb;
+  color: var(--text-primary);
+  background-color: var(--page-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -18,5 +24,3 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
-
-
