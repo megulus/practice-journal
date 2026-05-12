@@ -3,12 +3,15 @@
  *
  * Source of truth: docs/kantelo-design-tokens.md
  *
- * Light mode is the default (`:root`); dark mode activates when the
- * root element has `data-theme="dark"`. The theme provider that sets
- * that attribute lands in PR 2.
+ * Light mode is the default (`:root`); dark mode activates when an
+ * ancestor has `data-theme="dark"`. `data-theme="light"` is also
+ * supported so a subtree can be forced back to light even when the
+ * page-level theme is dark (used by the /preview route to show both
+ * modes side by side).
  */
 
-:root {
+:root,
+[data-theme="light"] {
   /* Surfaces */
   --page-bg: #F7F6F3;
   --card-bg: #FFFFFF;
