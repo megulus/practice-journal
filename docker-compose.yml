@@ -48,6 +48,7 @@ services:
         NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: /
         NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: /
         NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_PREVIEW_ENABLED: ${NEXT_PUBLIC_PREVIEW_ENABLED:-}
     ports:
       - "3000:3000"
     dns:
@@ -64,6 +65,10 @@ services:
       NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: /
       # API URL
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Optional: set NEXT_PUBLIC_PREVIEW_ENABLED=1 in repo-root .env to
+      # show /preview when running docker-compose (npm run dev). Local
+      # `npm run dev` (without docker) shows it automatically via NODE_ENV.
+      NEXT_PUBLIC_PREVIEW_ENABLED: ${NEXT_PUBLIC_PREVIEW_ENABLED:-}
     volumes:
       - ./frontend:/app
       - /app/node_modules
