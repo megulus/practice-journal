@@ -11,6 +11,10 @@ NEXT_PUBLIC_CLERK_SIGN_UP_URL = "${{NEXT_PUBLIC_CLERK_SIGN_UP_URL}}"
 NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL = "${{NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL}}"
 NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL = "${{NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL}}"
 NEXT_PUBLIC_API_URL = "${{NEXT_PUBLIC_API_URL}}"
+# Optional: set NEXT_PUBLIC_PREVIEW_ENABLED=1 in Railway env vars to expose
+# the dev /preview route on this deploy. Omit it on real prod environments —
+# the page will redirect to /today via NODE_ENV gating in preview/page.tsx.
+NEXT_PUBLIC_PREVIEW_ENABLED = "${{NEXT_PUBLIC_PREVIEW_ENABLED}}"
 
 [deploy]
 healthcheckPath = "/sign-in"
