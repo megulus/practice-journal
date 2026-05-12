@@ -57,12 +57,31 @@ export const Pill = forwardRef<HTMLButtonElement, PillProps>(function Pill(
     )
   }
 
-  const { active = false, className, type = 'button', children, ...rest } = props
+  const {
+    active = false,
+    className,
+    type = 'button',
+    children,
+    role,
+    'aria-pressed': ariaPressedProp,
+    ...rest
+  } = props
+  // Only emit aria-pressed when the caller hasn't overridden the role.
+  // For role="radio" callers (e.g., the Profile theme picker), they pass
+  // aria-checked themselves and aria-pressed would be semantically wrong.
+  const isPlainButton = !role || role === 'button'
+  const ariaPressed =
+    ariaPressedProp !== undefined
+      ? ariaPressedProp
+      : isPlainButton
+        ? active
+        : undefined
   return (
     <button
       ref={ref}
       type={type}
-      aria-pressed={active}
+      role={role}
+      aria-pressed={ariaPressed}
       className={cx(
         INSTRUMENT_BASE,
         active

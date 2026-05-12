@@ -33,6 +33,17 @@ describe('Pill', () => {
       await user.click(screen.getByRole('button'))
       expect(onClick).toHaveBeenCalledOnce()
     })
+
+    it('omits aria-pressed when caller overrides role (e.g., radio)', () => {
+      render(
+        <Pill role="radio" aria-checked={true} active>
+          x
+        </Pill>,
+      )
+      const el = screen.getByRole('radio')
+      expect(el).not.toHaveAttribute('aria-pressed')
+      expect(el).toHaveAttribute('aria-checked', 'true')
+    })
   })
 
   describe('sectionType variant', () => {

@@ -17,13 +17,13 @@ const BASE =
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    'bg-primary text-text-on-primary-action hover:bg-primary-hover border border-primary',
+    'bg-primary text-text-on-primary-action hover:bg-primary-hover',
   secondary:
     'bg-transparent text-text-primary border border-border-input hover:bg-card-bg-inset',
   ghost:
-    'bg-transparent text-text-link border border-transparent hover:underline',
+    'bg-transparent text-text-link hover:underline',
   danger:
-    'bg-danger-text text-text-on-primary-action border border-danger-text hover:opacity-90',
+    'bg-danger-text text-text-on-primary-action hover:opacity-90',
 }
 
 const SIZES: Record<ButtonSize, string> = {
