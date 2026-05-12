@@ -170,7 +170,7 @@ function ThemeScope({
 }) {
   return (
     <div
-      data-theme={mode === 'dark' ? 'dark' : undefined}
+      data-theme={mode}
       className="bg-page-bg text-text-primary px-4xl py-3xl"
     >
       <p
