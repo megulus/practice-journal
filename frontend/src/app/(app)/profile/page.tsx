@@ -1,6 +1,7 @@
 'use client'
 
 import { Monitor, Sun, Moon } from 'lucide-react'
+import { Pill } from '@/components/ui'
 import { useTheme } from '@/hooks/useTheme'
 import type { ThemePreference } from '@/components/ThemeProvider'
 
@@ -26,22 +27,16 @@ function ThemePicker() {
       {OPTIONS.map(({ value, label, Icon }) => {
         const active = theme === value
         return (
-          <button
+          <Pill
             key={value}
-            type="button"
+            active={active}
             role="radio"
             aria-checked={active}
             onClick={() => setTheme(value)}
-            className={`inline-flex items-center gap-sm rounded-md text-xs font-medium transition-colors ${
-              active
-                ? 'bg-pill-active-bg text-pill-active-text border border-pill-active-bg'
-                : 'border border-pill-inactive-border text-pill-inactive-text hover:text-text-primary'
-            }`}
-            style={{ padding: '5px 14px' }}
           >
             <Icon size={14} strokeWidth={1.5} aria-hidden />
             {label}
-          </button>
+          </Pill>
         )
       })}
     </div>
