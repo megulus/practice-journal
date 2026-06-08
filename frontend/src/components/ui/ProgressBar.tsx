@@ -25,7 +25,7 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
         aria-label={label}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(clamped * 100)}
+        aria-valuenow={pctNum}
         className={cx('w-full overflow-hidden bg-border-default', className)}
         style={{ height: 3, borderRadius: 2, ...style }}
         {...rest}

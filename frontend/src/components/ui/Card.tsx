@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { cx } from '@/lib/cx'
 
-export type CardVariant = 'default' | 'suggestion' | 'coaching' | 'hint'
+type CardVariant = 'default' | 'suggestion' | 'coaching' | 'hint'
 
 type CardCommonProps = HTMLAttributes<HTMLDivElement>
 

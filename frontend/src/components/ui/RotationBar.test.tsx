@@ -49,18 +49,16 @@ describe('RotationBar', () => {
     segments.forEach((s) => expect(s).toHaveClass('bg-border-default'))
   })
 
-  it('renders no segments when total is 0', () => {
+  it('renders no segments and drops the progressbar role when total is 0', () => {
     const { container } = render(
       <RotationBar total={0} current={0} label="x" />,
     )
     expect(container.querySelectorAll('span').length).toBe(0)
-    expect(screen.getByRole('progressbar')).toHaveAttribute(
-      'aria-valuemax',
-      '0',
-    )
+    // No segments → no progressbar role for assistive tech.
+    expect(screen.queryByRole('progressbar')).toBeNull()
   })
 
-  it('treats NaN total/current as 0', () => {
+  it('treats NaN total/current as 0 (no progressbar role)', () => {
     render(
       <RotationBar
         total={Number.NaN}
@@ -68,9 +66,7 @@ describe('RotationBar', () => {
         label="x"
       />,
     )
-    const bar = screen.getByRole('progressbar')
-    expect(bar).toHaveAttribute('aria-valuemax', '0')
-    expect(bar).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.queryByRole('progressbar')).toBeNull()
   })
 
   it('applies the label as aria-label', () => {

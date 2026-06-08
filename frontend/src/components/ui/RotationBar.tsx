@@ -21,14 +21,22 @@ export const RotationBar = forwardRef<HTMLDivElement, RotationBarProps>(
     const safeCurrent = Number.isFinite(current) ? current : 0
     const segments = Math.max(0, Math.floor(safeTotal))
     const filled = Math.max(0, Math.min(Math.floor(safeCurrent), segments))
+    // With no segments there's no progress to report — render a plain div
+    // so assistive tech doesn't announce an empty progressbar.
+    const ariaProps =
+      segments > 0
+        ? {
+            role: 'progressbar' as const,
+            'aria-label': label,
+            'aria-valuemin': 0,
+            'aria-valuemax': segments,
+            'aria-valuenow': filled,
+          }
+        : {}
     return (
       <div
         ref={ref}
-        role="progressbar"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={segments}
-        aria-valuenow={filled}
+        {...ariaProps}
         className={cx('flex w-full items-stretch', className)}
         style={{ gap: 3, ...style }}
         {...rest}

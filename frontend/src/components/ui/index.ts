@@ -14,7 +14,7 @@ export { TextArea } from './TextArea'
 export type { TextAreaProps, TextAreaVariant } from './TextArea'
 
 export { Card } from './Card'
-export type { CardProps, CardVariant } from './Card'
+export type { CardProps } from './Card'
 
 export { SectionPip } from './SectionPip'
 export type { SectionPipProps } from './SectionPip'
