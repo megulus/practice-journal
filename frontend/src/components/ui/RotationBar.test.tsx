@@ -4,17 +4,21 @@ import { RotationBar } from './RotationBar'
 
 describe('RotationBar', () => {
   it('renders with role=progressbar', () => {
-    render(<RotationBar total={3} current={1} />)
+    render(<RotationBar total={3} current={1} label="x" />)
     expect(screen.getByRole('progressbar')).toBeInTheDocument()
   })
 
   it('renders the requested number of segments', () => {
-    const { container } = render(<RotationBar total={5} current={2} />)
+    const { container } = render(
+      <RotationBar total={5} current={2} label="x" />,
+    )
     expect(container.querySelectorAll('span').length).toBe(5)
   })
 
   it('fills the first `current` segments with the primary class', () => {
-    const { container } = render(<RotationBar total={4} current={2} />)
+    const { container } = render(
+      <RotationBar total={4} current={2} label="x" />,
+    )
     const segments = Array.from(container.querySelectorAll('span'))
     expect(segments[0]).toHaveClass('bg-primary')
     expect(segments[1]).toHaveClass('bg-primary')
@@ -23,14 +27,14 @@ describe('RotationBar', () => {
   })
 
   it('exposes total + current via aria-value attributes', () => {
-    render(<RotationBar total={7} current={3} />)
+    render(<RotationBar total={7} current={3} label="x" />)
     const bar = screen.getByRole('progressbar')
     expect(bar).toHaveAttribute('aria-valuemax', '7')
     expect(bar).toHaveAttribute('aria-valuenow', '3')
   })
 
   it('clamps current above total to total', () => {
-    render(<RotationBar total={3} current={10} />)
+    render(<RotationBar total={3} current={10} label="x" />)
     expect(screen.getByRole('progressbar')).toHaveAttribute(
       'aria-valuenow',
       '3',
@@ -38,9 +42,42 @@ describe('RotationBar', () => {
   })
 
   it('renders an empty bar when current is 0', () => {
-    const { container } = render(<RotationBar total={3} current={0} />)
+    const { container } = render(
+      <RotationBar total={3} current={0} label="x" />,
+    )
     const segments = Array.from(container.querySelectorAll('span'))
     segments.forEach((s) => expect(s).toHaveClass('bg-border-default'))
+  })
+
+  it('renders no segments when total is 0', () => {
+    const { container } = render(
+      <RotationBar total={0} current={0} label="x" />,
+    )
+    expect(container.querySelectorAll('span').length).toBe(0)
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuemax',
+      '0',
+    )
+  })
+
+  it('treats NaN total/current as 0', () => {
+    render(
+      <RotationBar
+        total={Number.NaN}
+        current={Number.NaN}
+        label="x"
+      />,
+    )
+    const bar = screen.getByRole('progressbar')
+    expect(bar).toHaveAttribute('aria-valuemax', '0')
+    expect(bar).toHaveAttribute('aria-valuenow', '0')
+  })
+
+  it('applies the label as aria-label', () => {
+    render(<RotationBar total={3} current={2} label="Rotation progress" />)
+    expect(
+      screen.getByRole('progressbar', { name: 'Rotation progress' }),
+    ).toBeInTheDocument()
   })
 
   it('forwards ref to underlying div', () => {
@@ -49,6 +86,7 @@ describe('RotationBar', () => {
       <RotationBar
         total={3}
         current={1}
+        label="x"
         ref={(el) => {
           captured = el
         }}

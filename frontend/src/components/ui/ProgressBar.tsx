@@ -3,9 +3,10 @@ import { cx } from '@/lib/cx'
 
 export interface ProgressBarProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'role'> {
-  // 0..1 — values outside the range are clamped.
+  // 0..1 — values outside the range are clamped; NaN is treated as 0.
   value: number
-  label?: string
+  // Required for accessibility (becomes aria-label on the progressbar).
+  label: string
 }
 
 export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
@@ -13,8 +14,10 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
     { value, label, className, style, ...rest },
     ref,
   ) {
-    const clamped = Math.max(0, Math.min(1, value))
-    const pct = `${(clamped * 100).toFixed(2)}%`
+    const safe = Number.isFinite(value) ? value : 0
+    const clamped = Math.max(0, Math.min(1, safe))
+    const pctNum = Math.round(clamped * 100)
+    const pct = `${pctNum}%`
     return (
       <div
         ref={ref}

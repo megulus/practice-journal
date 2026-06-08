@@ -8,11 +8,19 @@ import { cx } from '@/lib/cx'
 
 export type CardVariant = 'default' | 'suggestion' | 'coaching' | 'hint'
 
-export interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: CardVariant
-  // Suggestion variant only: content for the 18×18 amber chip on the left.
-  icon?: ReactNode
+type CardCommonProps = HTMLAttributes<HTMLDivElement>
+
+type StandardCardProps = CardCommonProps & {
+  variant?: 'default' | 'coaching' | 'hint'
 }
+
+type SuggestionCardProps = CardCommonProps & {
+  variant: 'suggestion'
+  // 18×18 amber chip content rendered to the left of children.
+  icon: ReactNode
+}
+
+export type CardProps = StandardCardProps | SuggestionCardProps
 
 const VARIANT_CLASSES: Record<CardVariant, string> = {
   default: 'bg-card-bg border border-border-default rounded-xl text-text-primary',
@@ -29,28 +37,25 @@ const VARIANT_STYLES: Record<CardVariant, CSSProperties> = {
 }
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
-  { variant = 'default', icon, className, style, children, ...rest },
+  props,
   ref,
 ) {
-  const classes = cx(VARIANT_CLASSES[variant], className)
-  const mergedStyle = { ...VARIANT_STYLES[variant], ...style }
-
-  if (variant === 'suggestion' && icon !== undefined) {
+  if (props.variant === 'suggestion') {
+    const { icon, className, style, children, ...rest } = props
     return (
       <div
         ref={ref}
-        className={cx(classes, 'flex items-start gap-md')}
-        style={mergedStyle}
+        className={cx(
+          VARIANT_CLASSES.suggestion,
+          'flex items-start gap-md',
+          className,
+        )}
+        style={{ ...VARIANT_STYLES.suggestion, ...style }}
         {...rest}
       >
         <span
           aria-hidden="true"
-          className="inline-flex flex-shrink-0 items-center justify-center rounded-sm text-white"
-          style={{
-            width: 18,
-            height: 18,
-            backgroundColor: 'var(--amber-icon-bg)',
-          }}
+          className="inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm bg-amber-icon-bg text-white"
         >
           {icon}
         </span>
@@ -59,8 +64,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     )
   }
 
+  const { variant = 'default', className, style, children, ...rest } = props
   return (
-    <div ref={ref} className={classes} style={mergedStyle} {...rest}>
+    <div
+      ref={ref}
+      className={cx(VARIANT_CLASSES[variant], className)}
+      style={{ ...VARIANT_STYLES[variant], ...style }}
+      {...rest}
+    >
       {children}
     </div>
   )

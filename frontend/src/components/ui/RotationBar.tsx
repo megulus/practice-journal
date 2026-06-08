@@ -3,11 +3,13 @@ import { cx } from '@/lib/cx'
 
 export interface RotationBarProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'role'> {
+  // Non-finite values are treated as 0 (rendering an empty bar).
   total: number
   // 1-indexed: segments [1..current] are filled, current+1..total are empty.
-  // Pass 0 to render an entirely-empty bar.
+  // Pass 0 to render an entirely-empty bar. Non-finite values become 0.
   current: number
-  label?: string
+  // Required for accessibility (becomes aria-label on the progressbar).
+  label: string
 }
 
 export const RotationBar = forwardRef<HTMLDivElement, RotationBarProps>(
@@ -15,8 +17,10 @@ export const RotationBar = forwardRef<HTMLDivElement, RotationBarProps>(
     { total, current, label, className, style, ...rest },
     ref,
   ) {
-    const segments = Math.max(0, Math.floor(total))
-    const filled = Math.max(0, Math.min(Math.floor(current), segments))
+    const safeTotal = Number.isFinite(total) ? total : 0
+    const safeCurrent = Number.isFinite(current) ? current : 0
+    const segments = Math.max(0, Math.floor(safeTotal))
+    const filled = Math.max(0, Math.min(Math.floor(safeCurrent), segments))
     return (
       <div
         ref={ref}

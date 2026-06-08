@@ -16,7 +16,7 @@ describe('Card', () => {
 
   it('applies suggestion variant classes when requested', () => {
     render(
-      <Card variant="suggestion" data-testid="card">
+      <Card variant="suggestion" icon={<span>!</span>} data-testid="card">
         x
       </Card>,
     )
@@ -41,14 +41,19 @@ describe('Card', () => {
     expect(screen.getByTestId('card')).toHaveClass('bg-input-bg-recessed')
   })
 
-  it('renders the icon slot for suggestion variant', () => {
+  it('renders the icon slot for suggestion variant inside an aria-hidden chip', () => {
     render(
       <Card variant="suggestion" icon={<span data-testid="icon">!</span>}>
         body
       </Card>,
     )
-    expect(screen.getByTestId('icon')).toBeInTheDocument()
+    const icon = screen.getByTestId('icon')
+    expect(icon).toBeInTheDocument()
     expect(screen.getByText('body')).toBeInTheDocument()
+    // Chip wraps the icon and is decorative — assistive tech should skip it.
+    const chip = icon.parentElement
+    expect(chip).toHaveAttribute('aria-hidden', 'true')
+    expect(chip).toHaveClass('bg-amber-icon-bg')
   })
 
   it('forwards ref to underlying div', () => {
