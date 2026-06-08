@@ -97,11 +97,18 @@ Section type colors aren't exposed as Tailwind utilities — they're applied via
 
 Existing screens (Today, Active session, Plans, etc.) still use stock Tailwind classes from the previous indigo theme. Those colors no longer exist after the foundation PR — affected buttons will look unstyled until each screen is retoned (Phase 0 PR 9+). This jank is intentional and tracked in `docs/phase-0-audit.md`.
 
+### Previewing primitives
+
+`/preview` is a dev-only route that renders every primitive in light and dark scope side by side. Available locally at http://localhost:3000/preview without any flag. The gate lives in `src/app/preview/page.tsx` (server component checks `NODE_ENV` and redirects to `/today` in prod unless `NEXT_PUBLIC_PREVIEW_ENABLED=1` was set at build time); the side-by-side render is in `src/app/preview/PreviewContent.tsx`.
+
 ## Environment Variables
 
 Required in `.env.local`:
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` — Clerk auth keys
 - `NEXT_PUBLIC_API_URL` — Backend API base URL (default: `http://localhost:8000`)
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` — Clerk routing config
+
+Optional (build-time only — must be set as a build arg, not a runtime env var, since `NEXT_PUBLIC_*` vars are inlined at build):
+- `NEXT_PUBLIC_PREVIEW_ENABLED` — set to `1` to expose `/preview` in a production build. Off by default; the route redirects to `/today` without it.
 
 Local Docker also requires the `NEXT_PUBLIC_*` vars in the repo-root `.env` so they reach the frontend Dockerfile build args (see `docker-compose.yml`).

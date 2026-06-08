@@ -205,6 +205,22 @@ docker compose exec backend alembic upgrade head
 docker compose exec backend python scripts/seed_curated_blocks.py  # optional
 ```
 
+### UI primitives preview
+
+The frontend serves a dev-only route at `/preview` that renders every
+design-system primitive in both light and dark scope side by side —
+useful for eyeballing variants while retoning screens during the Phase 0
+rebuild.
+
+- **Local dev:** http://localhost:3000/preview (no flag needed).
+- **Production:** The route's server component redirects to `/today`
+  unless the build was made with `NEXT_PUBLIC_PREVIEW_ENABLED=1`.
+  Because it's a `NEXT_PUBLIC_*` variable it's inlined at build time, so
+  toggling it requires a fresh image — set it as a build arg, not a
+  runtime env var. The plumbing is already wired through `Dockerfile`,
+  `railway.toml`, and `docker-compose.yml`; enable it on a staging or
+  preview environment to share the showcase without exposing it on prod.
+
 ## Future Enhancements
 
 Tracked in GitHub Issues. High-level themes:
