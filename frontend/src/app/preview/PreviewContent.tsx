@@ -1,12 +1,18 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { Lightbulb } from 'lucide-react'
 import {
   Button,
   Pill,
   Checkbox,
   TextInput,
   TextArea,
+  Card,
+  SectionPip,
+  ProgressBar,
+  RotationBar,
+  StatCard,
 } from '@/components/ui'
 import {
   SECTION_COLORS_BY_NAME,
@@ -156,6 +162,115 @@ function Showcase() {
           onChange={(e) => setArea(e.target.value)}
         />
         <TextArea variant="recessed" rows={3} placeholder="Recessed textarea…" />
+      </Section>
+
+      <Section title="Card — variants">
+        <Card>
+          <div
+            className="text-text-primary font-semibold"
+            style={{ fontSize: 15, letterSpacing: '-0.2px' }}
+          >
+            Default card
+          </div>
+          <p
+            className="text-text-secondary mt-xs"
+            style={{ fontSize: 13, lineHeight: 1.5 }}
+          >
+            Plan card, section card, session history card. 18px padding,
+            10px radius, 1px border.
+          </p>
+        </Card>
+
+        <Card variant="suggestion" icon={<Lightbulb size={12} strokeWidth={2.5} />}>
+          <div
+            className="font-semibold"
+            style={{ fontSize: 13, color: 'var(--amber-text)' }}
+          >
+            Suggestion card
+          </div>
+          <p
+            className="mt-xs"
+            style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--amber-text-muted)' }}
+          >
+            Pre-session coaching nudge. Amber chip on the left,
+            short rationale on the right.
+          </p>
+        </Card>
+
+        <Card variant="coaching">
+          A short post-session reflection from the coaching engine. No border,
+          coaching-bg, 13px text on coaching-text.
+        </Card>
+
+        <Card variant="hint">
+          In-session hint card. 11px text on text-secondary, left rail
+          accent, recessed background.
+        </Card>
+      </Section>
+
+      <Section title="SectionPip — all colors">
+        <Row>
+          {sectionColorNames.map((name) => (
+            <div key={name} className="flex items-center gap-xs">
+              <SectionPip color={SECTION_COLORS_BY_NAME[name]} />
+              <span
+                className="text-text-secondary"
+                style={{ fontSize: 11 }}
+              >
+                {name}
+              </span>
+            </div>
+          ))}
+        </Row>
+      </Section>
+
+      <Section title="ProgressBar — values">
+        <div className="space-y-md">
+          <ProgressBar value={0} label="Empty" />
+          <ProgressBar value={0.25} label="25%" />
+          <ProgressBar value={0.6} label="60%" />
+          <ProgressBar value={1} label="Full" />
+        </div>
+      </Section>
+
+      <Section title="RotationBar — configurations">
+        <div className="space-y-md">
+          <div>
+            <p
+              className="text-text-tertiary mb-xs"
+              style={{ fontSize: 11 }}
+            >
+              3-session rotation, on session 2
+            </p>
+            <RotationBar total={3} current={2} label="2 of 3" />
+          </div>
+          <div>
+            <p
+              className="text-text-tertiary mb-xs"
+              style={{ fontSize: 11 }}
+            >
+              5-session rotation, just started
+            </p>
+            <RotationBar total={5} current={1} label="1 of 5" />
+          </div>
+          <div>
+            <p
+              className="text-text-tertiary mb-xs"
+              style={{ fontSize: 11 }}
+            >
+              7-session rotation, complete
+            </p>
+            <RotationBar total={7} current={7} label="7 of 7" />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="StatCard — session summary row">
+        <div className="grid grid-cols-3 gap-md">
+          <StatCard value="42" label="Minutes practiced" />
+          <StatCard value="6" label="Exercises completed" />
+          <StatCard value="3" label="Day streak" />
+        </div>
       </Section>
     </div>
   )
