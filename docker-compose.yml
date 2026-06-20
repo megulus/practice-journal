@@ -38,6 +38,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
       args:
         # NEXT_PUBLIC_* must be passed as build args so the static export in
         # `npm run build` (run inside the Dockerfile) can inline them.
