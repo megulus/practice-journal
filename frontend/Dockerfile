@@ -5,7 +5,7 @@ WORKDIR /app
 # --- Dependencies ---
 FROM base AS deps
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 # --- Build ---
 FROM base AS builder
@@ -32,6 +32,13 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_PREVIEW_ENABLED=$NEXT_PUBLIC_PREVIEW_ENABLED
 
 RUN npm run build
+
+# --- Dev ---
+FROM base AS dev
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+EXPOSE 3000
+CMD ["npm", "run", "dev"]    
 
 # --- Production ---
 FROM base AS runner
