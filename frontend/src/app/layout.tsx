@@ -39,7 +39,18 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" className={`${ibmPlexSans.variable} ${finlandica.variable}`}>
+      {/*
+        suppressHydrationWarning: the themeInitScript above mutates
+        <html>'s data-theme attribute before React hydrates, so the
+        server markup and the client's first render intentionally
+        differ on this element. Scoped one level deep — it does not
+        suppress warnings for descendants.
+      */}
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={`${ibmPlexSans.variable} ${finlandica.variable}`}
+      >
         <head>
           <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         </head>
