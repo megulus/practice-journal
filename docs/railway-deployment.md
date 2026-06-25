@@ -69,8 +69,8 @@ This guide walks through deploying the Kantelo backend (FastAPI) and frontend (N
    | `CLERK_SECRET_KEY` | Your Clerk secret key |
    | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
    | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` |
-   | `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/` |
-   | `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | `/` |
+   | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/` |
+   | `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/` |
 
 4. Deploy. Note the frontend's public URL.
 
