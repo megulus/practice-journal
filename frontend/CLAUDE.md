@@ -106,7 +106,7 @@ Existing screens (Today, Active session, Plans, etc.) still use stock Tailwind c
 Required in `.env.local`:
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` — Clerk auth keys
 - `NEXT_PUBLIC_API_URL` — Backend API base URL (default: `http://localhost:8000`)
-- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` — Clerk routing config
+- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`, `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` — Clerk routing config (the `*_FALLBACK_REDIRECT_URL` pair replaced the deprecated `*_AFTER_SIGN_IN/UP_URL` vars in Clerk v6)
 
 Optional (build-time only — must be set as a build arg, not a runtime env var, since `NEXT_PUBLIC_*` vars are inlined at build):
 - `NEXT_PUBLIC_PREVIEW_ENABLED` — set to `1` to expose `/preview` in a production build. Off by default; the route redirects to `/today` without it.
