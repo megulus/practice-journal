@@ -74,6 +74,34 @@ describe('Dialog', () => {
     expect(second).toHaveFocus()
   })
 
+  it('keeps focus on the only focusable element when trapped', async () => {
+    const user = userEvent.setup()
+    render(
+      <Dialog onClose={() => {}} aria-label="d">
+        <button>Only</button>
+      </Dialog>,
+    )
+    const only = screen.getByText('Only')
+    expect(only).toHaveFocus()
+    await user.tab()
+    expect(only).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(only).toHaveFocus()
+  })
+
+  it('focuses the panel when there are no focusable children', async () => {
+    const user = userEvent.setup()
+    render(
+      <Dialog onClose={() => {}} aria-label="d">
+        <p>Nothing focusable here</p>
+      </Dialog>,
+    )
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveFocus()
+    await user.tab() // stays trapped on the panel
+    expect(dialog).toHaveFocus()
+  })
+
   it('locks body scroll while open and restores it on close', () => {
     const { unmount } = render(
       <Dialog onClose={() => {}} aria-label="d">
@@ -107,6 +135,30 @@ describe('Dialog', () => {
     expect(screen.getByText('Inside')).toHaveFocus()
 
     await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+  })
+
+  it('restores focus to the trigger when dismissed via the backdrop', async () => {
+    const user = userEvent.setup()
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Trigger</button>
+          {open && (
+            <Dialog onClose={() => setOpen(false)} aria-label="d">
+              <button>Inside</button>
+            </Dialog>
+          )}
+        </>
+      )
+    }
+    render(<Harness />)
+    const trigger = screen.getByText('Trigger')
+
+    await user.click(trigger)
+    const backdrop = screen.getByRole('dialog').parentElement as HTMLElement
+    await user.click(backdrop)
     expect(trigger).toHaveFocus()
   })
 })

@@ -46,6 +46,12 @@ function getFocusable(container: HTMLElement | null): HTMLElement[] {
  * It renders through a portal and applies no surface styling of its own; the
  * consumer passes the panel's look via `className`. Use {@link Sheet} for the
  * bottom-sheet variant.
+ *
+ * Assumes a single dialog is open at a time: the body scroll lock and the
+ * `document`-level Escape/focus-trap listener are global, so two simultaneous
+ * instances would fight over focus and double-restore scroll. No consumer
+ * stacks them today — revisit (scope per-instance, or add a count) before
+ * nesting one inside another.
  */
 export function Dialog({
   onClose,
@@ -77,7 +83,6 @@ export function Dialog({
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        e.stopPropagation()
         onCloseRef.current()
         return
       }
