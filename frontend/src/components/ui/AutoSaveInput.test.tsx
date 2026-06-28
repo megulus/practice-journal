@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, userEvent } from '@/test/utils'
 import { AutoSaveInput, AutoSaveTextarea } from './AutoSaveInput'
 import { useAutoSaveField } from './useAutoSaveField'
@@ -74,6 +75,23 @@ describe('AutoSaveInput', () => {
     expect(input).toHaveValue('a')
 
     rerender(<AutoSaveInput value="b" onCommit={vi.fn()} aria-label="f" />)
+    expect(input).toHaveValue('b')
+  })
+
+  it('re-syncs to the committed value after a blur commit (controlled parent)', async () => {
+    // A real controlled parent: onCommit lifts the new value back into the prop.
+    function Controlled() {
+      const [value, setValue] = useState('a')
+      return <AutoSaveInput value={value} onCommit={setValue} aria-label="f" />
+    }
+    const user = userEvent.setup()
+    render(<Controlled />)
+    const input = screen.getByLabelText('f')
+
+    await user.clear(input)
+    await user.type(input, 'b')
+    await user.tab() // commit → parent updates the prop → field re-syncs
+
     expect(input).toHaveValue('b')
   })
 

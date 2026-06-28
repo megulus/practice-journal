@@ -55,6 +55,9 @@ export function useAutoSaveField<T>({
   // Re-sync to the source value when it changes and the user isn't editing.
   // While focused, the in-flight draft is preserved so a background refresh
   // (multi-device sync, optimistic revert) can't clobber what's being typed.
+  // Deps are [value] only: `format`/`parse` are assumed behaviorally stable —
+  // a changed formatter alone won't re-render the draft. All current consumers
+  // pass constant helpers; revisit if one needs a value-dependent format.
   useEffect(() => {
     if (!editingRef.current) setDraft(formatRef.current(value))
   }, [value])
