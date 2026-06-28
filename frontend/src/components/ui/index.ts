@@ -27,3 +27,6 @@ export type { RotationBarProps } from './RotationBar'
 
 export { StatCard } from './StatCard'
 export type { StatCardProps } from './StatCard'
+
+export { Dialog, Sheet } from './Dialog'
+export type { DialogProps, DialogPlacement } from './Dialog'
