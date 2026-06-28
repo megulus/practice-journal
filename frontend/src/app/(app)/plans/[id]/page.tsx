@@ -15,6 +15,7 @@ import SessionTabs from '@/components/SessionTabs'
 import SectionCard from '@/components/SectionCard'
 import AddBlockSheet from '@/components/AddBlockSheet'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { AutoSaveInput } from '@/components/ui'
 
 // TODO(#168): replace hardcoded section_type with a real picker (template
 // editor + freeform session). All new sections in this PR are 'other'.
@@ -471,17 +472,10 @@ function PlanNameField({
   initial: string
   onCommit: (value: string) => void | Promise<void>
 }) {
-  const [value, setValue] = useState(initial)
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => {
-        const trimmed = value.trim()
-        if (trimmed && trimmed !== initial) onCommit(trimmed)
-        else if (!trimmed) setValue(initial)
-      }}
+    <AutoSaveInput
+      value={initial}
+      onCommit={onCommit}
       placeholder="Plan name"
       className="w-full text-xl font-semibold text-gray-900 bg-transparent placeholder-gray-300 focus:outline-none"
     />
@@ -495,19 +489,17 @@ function SessionFocusField({
   initial: string
   onCommit: (value: string) => void | Promise<void>
 }) {
-  const [value, setValue] = useState(initial)
   return (
     <div className="mt-3">
       <label className="block text-xs text-gray-500 mb-1">
         Session focus (shown on Today tab)
       </label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => {
-          if (value !== initial) onCommit(value)
-        }}
+      {/* Focus is optional and clearable, so don't trim or roll back on empty. */}
+      <AutoSaveInput
+        value={initial}
+        onCommit={onCommit}
+        trim={false}
+        rollbackWhenEmpty={false}
         placeholder="e.g. Intonation and bow control"
         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary-300"
       />
@@ -526,19 +518,12 @@ function SessionRenameRow({
   onRename: (name: string) => void | Promise<void>
   onDelete: () => void
 }) {
-  const [name, setName] = useState(session.name)
   return (
     <div className="mt-3 flex items-center gap-2">
       <label className="block text-xs text-gray-500 shrink-0">Name</label>
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={() => {
-          const trimmed = name.trim()
-          if (trimmed && trimmed !== session.name) onRename(trimmed)
-          else if (!trimmed) setName(session.name)
-        }}
+      <AutoSaveInput
+        value={session.name}
+        onCommit={onRename}
         className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary-300"
       />
       {canDelete && (
