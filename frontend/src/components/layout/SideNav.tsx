@@ -30,7 +30,7 @@ export default function SideNav() {
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 space-y-0.5 px-2">
+      <nav aria-label="Primary" className="flex-1 space-y-0.5 px-2">
         {primaryNavItems.map(({ label, href, icon: Icon }) => {
           const active = isActivePath(pathname, href)
           return (
