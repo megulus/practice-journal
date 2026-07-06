@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import type { Section } from '@/lib/types'
+import { AutoSaveInput, useAutoSaveField } from './ui'
 import BlockRow from './BlockRow'
 
 export default function SectionCard({
@@ -31,22 +31,12 @@ export default function SectionCard({
   onChangeBlockDuration: (blockId: number, minutes: number) => void
   onDeleteBlock: (blockId: number) => void
 }) {
-  const [name, setName] = useState(section.name)
-  const [duration, setDuration] = useState(
-    String(section.estimated_duration_minutes)
-  )
-
-  const handleNameBlur = () => {
-    const trimmed = name.trim()
-    if (trimmed && trimmed !== section.name) onRename(trimmed)
-    else if (!trimmed) setName(section.name)
-  }
-
-  const handleDurationBlur = () => {
-    const parsed = Math.max(0, parseInt(duration, 10) || 0)
-    if (parsed !== section.estimated_duration_minutes) onDurationChange(parsed)
-    setDuration(String(parsed))
-  }
+  const duration = useAutoSaveField<number>({
+    value: section.estimated_duration_minutes,
+    onCommit: onDurationChange,
+    parse: (s) => Math.max(0, parseInt(s, 10) || 0),
+    rollbackWhenEmpty: false,
+  })
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
@@ -72,20 +62,19 @@ export default function SectionCard({
             ▼
           </button>
         </div>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={handleNameBlur}
+        <AutoSaveInput
+          value={section.name}
+          onCommit={onRename}
           placeholder="Section name"
           className="flex-1 min-w-0 bg-transparent text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none"
         />
         <input
           type="number"
           min={0}
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-          onBlur={handleDurationBlur}
+          value={duration.value}
+          onChange={duration.onChange}
+          onFocus={duration.onFocus}
+          onBlur={duration.onBlur}
           className="w-12 bg-transparent text-sm text-gray-500 text-right tabular-nums focus:outline-none"
           aria-label="Section duration in minutes"
         />

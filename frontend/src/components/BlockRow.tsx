@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import type { Block } from '@/lib/types'
+import { AutoSaveInput } from './ui'
 import TimeStepper from './TimeStepper'
 
 /**
@@ -28,15 +28,7 @@ export default function BlockRow({
   onDurationChange: (minutes: number) => void
   onDelete: () => void
 }) {
-  const [name, setName] = useState(block.name ?? block.piece_name ?? '')
   const isRepertoire = block.piece_id != null
-
-  const handleBlur = () => {
-    const trimmed = name.trim()
-    const original = block.name ?? block.piece_name ?? ''
-    if (trimmed && trimmed !== original) onRename(trimmed)
-    else if (!trimmed) setName(original)
-  }
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0">
@@ -63,11 +55,9 @@ export default function BlockRow({
       </div>
 
       {/* Name */}
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={handleBlur}
+      <AutoSaveInput
+        value={block.name ?? block.piece_name ?? ''}
+        onCommit={onRename}
         disabled={isRepertoire}
         placeholder="Block name"
         className="flex-1 min-w-0 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none disabled:text-gray-500"
