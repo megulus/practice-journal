@@ -20,6 +20,17 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      keyframes: {
+        // Recording indicator for VoiceInput — opacity 0.6–1.0, 1s cycle
+        // (design-tokens §6). Gated with motion-safe: at the usage site.
+        'voice-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.6' },
+        },
+      },
+      animation: {
+        'voice-pulse': 'voice-pulse 1s ease-in-out infinite',
+      },
       colors: {
         // Surfaces
         'page-bg': 'var(--page-bg)',
