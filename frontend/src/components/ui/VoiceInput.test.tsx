@@ -106,6 +106,32 @@ describe('VoiceInput', () => {
     expect(onTranscript).toHaveBeenCalledWith('final words')
   })
 
+  it('can start a fresh session after a permission error', async () => {
+    const user = userEvent.setup()
+    render(<VoiceInput onTranscript={vi.fn()} />)
+
+    await user.click(screen.getByRole('button'))
+    const first = MockSpeechRecognition.last!
+    act(() => first.emitError('not-allowed'))
+
+    // The error cleared the session ref, so a new click starts a new session
+    // (rather than being permanently blocked by the stale ref).
+    await user.click(screen.getByRole('button', { name: 'Start voice input' }))
+    const second = MockSpeechRecognition.last!
+    expect(second).not.toBe(first)
+    expect(second.start).toHaveBeenCalledOnce()
+  })
+
+  it('tears down the session on unmount', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<VoiceInput onTranscript={vi.fn()} />)
+    await user.click(screen.getByRole('button'))
+    const instance = MockSpeechRecognition.last!
+
+    unmount()
+    expect(instance.abort).toHaveBeenCalled()
+  })
+
   it('surfaces a permission notice and calls onError when denied', async () => {
     const onError = vi.fn()
     const user = userEvent.setup()

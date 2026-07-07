@@ -117,6 +117,9 @@ export function useSpeechRecognition(
   }, [])
 
   const stop = useCallback(() => {
+    // The ref is cleared by onend (async), not here. Between stop() and onend
+    // a re-toggle routes back through stop() — a harmless momentary no-op, not
+    // a leak or double-start (start() guards on the ref).
     recognitionRef.current?.stop()
     setIsRecording(false)
   }, [])
@@ -143,12 +146,19 @@ export function useSpeechRecognition(
       if (interimText) optsRef.current.onInterimTranscript?.(interimText)
     }
     recognition.onerror = (e) => {
+      // Clear the active-session ref on error so a failed session (e.g. a
+      // denied mic) can't permanently block restarts if the engine skips
+      // onend afterward. Identity-guarded so a late event from a previous
+      // session never nulls a newer one's ref.
+      if (recognitionRef.current === recognition) recognitionRef.current = null
       optsRef.current.onError?.(normalizeError(e.error))
       setIsRecording(false)
     }
     recognition.onend = () => {
-      recognitionRef.current = null
-      setIsRecording(false)
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null
+        setIsRecording(false)
+      }
     }
 
     recognitionRef.current = recognition
