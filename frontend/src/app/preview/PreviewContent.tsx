@@ -12,6 +12,7 @@ import {
   SectionPip,
   ProgressBar,
   RotationBar,
+  RotationDots,
   StatCard,
   VoiceInput,
 } from '@/components/ui'
@@ -281,6 +282,14 @@ function Showcase() {
             <RotationBar total={7} current={7} label="7 of 7" />
           </div>
         </div>
+      </Section>
+
+      <Section title="RotationDots — Today rotation position">
+        <Row>
+          <RotationDots total={3} current={2} />
+          <RotationDots total={5} current={1} />
+          <RotationDots total={7} current={7} />
+        </Row>
       </Section>
 
       <Section title="StatCard — session summary row">
