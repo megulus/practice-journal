@@ -40,7 +40,7 @@ function StartSessionInner() {
   if (error) {
     return (
       <div className="py-16 text-center">
-        <p className="mb-3 text-text-secondary">{error}</p>
+        <p className="mb-3 text-danger-text">{error}</p>
         <Button variant="ghost" size="sm" onClick={() => router.push('/today')}>
           Back to Today
         </Button>

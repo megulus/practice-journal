@@ -87,7 +87,7 @@ export default function TodayPage() {
   if (error) {
     return (
       <div className="py-16 text-center">
-        <p className="mb-3 text-text-secondary">{error}</p>
+        <p className="mb-3 text-danger-text">{error}</p>
         <Button variant="ghost" size="sm" onClick={fetchData}>
           Retry
         </Button>
@@ -223,17 +223,13 @@ function SuggestionCard({
   return (
     <Card variant="suggestion" icon={<AlertCircle size={12} strokeWidth={2.5} />}>
       <div className="flex items-start justify-between gap-md">
-        <p
-          className="flex-1 text-sm leading-relaxed"
-          style={{ color: 'var(--amber-text)' }}
-        >
+        <p className="flex-1 text-sm leading-relaxed text-amber-text">
           {suggestion.text}
         </p>
         <button
           onClick={handleDismiss}
           aria-label="Dismiss suggestion"
-          className="flex-shrink-0 p-0.5"
-          style={{ color: 'var(--amber-text-muted)' }}
+          className="flex-shrink-0 p-0.5 text-amber-text-muted"
         >
           <X size={14} />
         </button>
