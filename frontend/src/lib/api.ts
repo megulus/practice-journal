@@ -96,13 +96,17 @@ export class APIError extends Error {
 // Internal: fetch wrapper with auth + JSON handling
 // ---------------------------------------------------------------------------
 
-function createFetchAPI(getToken?: () => Promise<string | null>) {
-  async function fetchAPI(endpoint: string, options?: RequestInit): Promise<void>
-  async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T>
-  async function fetchAPI<T>(
+/** Clerk-compatible token getter; `skipCache` forces a fresh token. */
+export type GetToken = (options?: {
+  skipCache?: boolean
+}) => Promise<string | null>
+
+function createFetchAPI(getToken?: GetToken, onAuthFailure?: () => void) {
+  async function attempt(
     endpoint: string,
-    options?: RequestInit
-  ): Promise<T | void> {
+    options: RequestInit | undefined,
+    skipCache: boolean
+  ): Promise<Response> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
@@ -117,7 +121,7 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
 
     if (getToken) {
       try {
-        const token = await getToken()
+        const token = await getToken(skipCache ? { skipCache: true } : undefined)
         if (token) {
           headers['Authorization'] = `Bearer ${token}`
         }
@@ -126,10 +130,26 @@ function createFetchAPI(getToken?: () => Promise<string | null>) {
       }
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    })
+    return fetch(`${API_URL}${endpoint}`, { ...options, headers })
+  }
+
+  async function fetchAPI(endpoint: string, options?: RequestInit): Promise<void>
+  async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T>
+  async function fetchAPI<T>(
+    endpoint: string,
+    options?: RequestInit
+  ): Promise<T | void> {
+    let response = await attempt(endpoint, options, false)
+
+    // A 401 is often a transient stale-token race on cold load (Clerk's short-
+    // lived session token hadn't refreshed yet). Force-refresh the token and
+    // retry once; only a persistent 401 is treated as a real auth failure.
+    if (response.status === 401 && getToken) {
+      response = await attempt(endpoint, options, true)
+      if (response.status === 401) {
+        onAuthFailure?.()
+      }
+    }
 
     if (!response.ok) {
       let detail: unknown
@@ -168,8 +188,11 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 // Public API
 // ---------------------------------------------------------------------------
 
-export function createAuthenticatedAPI(getToken: () => Promise<string | null>) {
-  const f = createFetchAPI(getToken)
+export function createAuthenticatedAPI(
+  getToken: GetToken,
+  onAuthFailure?: () => void
+) {
+  const f = createFetchAPI(getToken, onAuthFailure)
 
   return {
     // -----------------------------------------------------------------
