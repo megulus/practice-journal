@@ -25,6 +25,9 @@ export type { ProgressBarProps } from './ProgressBar'
 export { RotationBar } from './RotationBar'
 export type { RotationBarProps } from './RotationBar'
 
+export { RotationDots } from './RotationDots'
+export type { RotationDotsProps } from './RotationDots'
+
 export { StatCard } from './StatCard'
 export type { StatCardProps } from './StatCard'
 

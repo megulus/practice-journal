@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
-import { Suspense } from 'react'
+import { Button } from '@/components/ui'
 
 function StartSessionInner() {
   const api = useApi()
@@ -39,34 +39,31 @@ function StartSessionInner() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-6">
-        <div className="text-center">
-          <p className="text-red-600 mb-3">{error}</p>
-          <button
-            onClick={() => router.push('/today')}
-            className="text-primary-600 underline text-sm"
-          >
-            Back to Today
-          </button>
-        </div>
+      <div className="py-16 text-center">
+        <p className="mb-3 text-danger-text">{error}</p>
+        <Button variant="ghost" size="sm" onClick={() => router.push('/today')}>
+          Back to Today
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-      <div className="text-gray-500">Starting session...</div>
+    <div className="flex justify-center py-16 text-text-secondary">
+      Starting session…
     </div>
   )
 }
 
 export default function StartSessionPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16 text-text-secondary">
+          Loading…
+        </div>
+      }
+    >
       <StartSessionInner />
     </Suspense>
   )
