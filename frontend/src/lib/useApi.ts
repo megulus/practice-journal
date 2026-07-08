@@ -2,7 +2,7 @@
 
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { createAuthenticatedAPI } from './api'
 
 /**
@@ -13,9 +13,16 @@ import { createAuthenticatedAPI } from './api'
 export function useApi() {
   const { getToken } = useAuth()
   const router = useRouter()
+  // Several requests can 401 at once on a dead session; redirect only once.
+  const redirectedRef = useRef(false)
 
   const api = useMemo(
-    () => createAuthenticatedAPI(getToken, () => router.push('/sign-in')),
+    () =>
+      createAuthenticatedAPI(getToken, () => {
+        if (redirectedRef.current) return
+        redirectedRef.current = true
+        router.push('/sign-in')
+      }),
     [getToken, router]
   )
 

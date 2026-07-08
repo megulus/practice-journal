@@ -69,6 +69,23 @@ describe('createAuthenticatedAPI — auth + 401 retry', () => {
     expect(getToken).toHaveBeenCalledTimes(2)
   })
 
+  it('reuses the request body when retrying a mutation after 401', async () => {
+    ;(global.fetch as FetchMock)
+      .mockResolvedValueOnce(mockResponse(401, {}))
+      .mockResolvedValueOnce(mockResponse(200, { ok: true }))
+    const getToken = vi.fn().mockResolvedValue('tok')
+
+    const api = createAuthenticatedAPI(getToken)
+    await api.updateSettings({})
+
+    const [, first] = (global.fetch as FetchMock).mock.calls[0]
+    const [, retry] = (global.fetch as FetchMock).mock.calls[1]
+    expect(first.method).toBe('PATCH')
+    expect(retry.method).toBe('PATCH')
+    // Body is a string, so it survives the retry unchanged (no consumed stream).
+    expect(retry.body).toBe(first.body)
+  })
+
   it('does not retry non-401 errors', async () => {
     ;(global.fetch as FetchMock).mockResolvedValue(
       mockResponse(500, { detail: 'server error' })
