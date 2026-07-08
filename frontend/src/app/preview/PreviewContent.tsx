@@ -13,6 +13,7 @@ import {
   ProgressBar,
   RotationBar,
   StatCard,
+  VoiceInput,
 } from '@/components/ui'
 import {
   SECTION_COLORS_BY_NAME,
@@ -48,6 +49,7 @@ function Showcase() {
   const [checked2, setChecked2] = useState(true)
   const [text, setText] = useState('')
   const [area, setArea] = useState('')
+  const [voiceText, setVoiceText] = useState('')
 
   const sectionColorNames: SectionColorName[] = [
     'warmup',
@@ -162,6 +164,22 @@ function Showcase() {
           onChange={(e) => setArea(e.target.value)}
         />
         <TextArea variant="recessed" rows={3} placeholder="Recessed textarea…" />
+      </Section>
+
+      <Section title="VoiceInput — mic button (Web Speech API)">
+        <Row>
+          <VoiceInput
+            onTranscript={(t) =>
+              setVoiceText((v) => (v ? `${v} ` : '') + t.trim())
+            }
+          />
+          <span className="text-text-secondary" style={{ fontSize: 13 }}>
+            {voiceText || 'Tap the mic and speak — transcript appears here.'}
+          </span>
+        </Row>
+        <p className="text-text-tertiary" style={{ fontSize: 11 }}>
+          Hidden entirely in browsers without the Web Speech API (e.g. Firefox).
+        </p>
       </Section>
 
       <Section title="Card — variants">

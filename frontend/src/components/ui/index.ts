@@ -39,3 +39,13 @@ export type {
   UseAutoSaveFieldOptions,
   AutoSaveFieldBinding,
 } from './useAutoSaveField'
+
+export { VoiceInput } from './VoiceInput'
+export type { VoiceInputProps } from './VoiceInput'
+
+export { useSpeechRecognition } from './useSpeechRecognition'
+export type {
+  UseSpeechRecognitionOptions,
+  SpeechRecognitionControls,
+  VoiceInputError,
+} from './useSpeechRecognition'
