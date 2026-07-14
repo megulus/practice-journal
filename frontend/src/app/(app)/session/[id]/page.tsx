@@ -4,11 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
+import { Button, Dialog, ProgressBar } from '@/components/ui'
 import {
   SectionCard,
   AddSectionButton,
   SessionNotes,
 } from '@/components/session'
+import { getSectionColor } from '@/lib/section-colors'
 import type { PracticeLog, FinishResponse } from '@/lib/types'
 
 export default function ActiveSessionPage() {
@@ -24,6 +26,7 @@ export default function ActiveSessionPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
+  const [confirmingEnd, setConfirmingEnd] = useState(false)
   // Track which block_ids are repertoire blocks. Once a block_id is seen
   // with spot_id set, it's repertoire forever (even after collapse removes
   // the spot logs). This survives the collapse→expand round trip.
@@ -79,23 +82,32 @@ export default function ActiveSessionPage() {
     }
   }
 
+  const handleEndSession = async () => {
+    if (!log) return
+    setConfirmingEnd(false)
+    try {
+      await apiRef.current.updatePractice(log.id, { status: 'abandoned' })
+    } catch {
+      // Navigate anyway — the session can be cleaned up later
+    }
+    router.push('/today')
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <div className="text-gray-500">Loading session...</div>
+      <div className="flex justify-center py-16 text-text-secondary">
+        Loading session…
       </div>
     )
   }
 
   if (error || !log) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-6">
-        <div className="text-center">
-          <p className="text-red-600 mb-3">{error || 'Session not found'}</p>
-          <Link href="/today" className="text-primary-600 underline text-sm">
-            Back to Today
-          </Link>
-        </div>
+      <div className="py-16 text-center">
+        <p className="mb-3 text-danger-text">{error || 'Session not found'}</p>
+        <Link href="/today" className="text-sm text-text-link hover:text-text-primary">
+          Back to Today
+        </Link>
       </div>
     )
   }
@@ -109,88 +121,108 @@ export default function ActiveSessionPage() {
     0
   )
 
+  // Section colors: pinned warm-up/cool-down plus the pool by display order.
+  let nonPinnedIndex = 0
+
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Top bar */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 z-40 px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base font-semibold text-gray-900 truncate">
-              {log.session_name ?? log.template_name ?? 'Practice session'}
-            </h1>
-          </div>
-          <button
-            onClick={async () => {
-              if (confirm('Abandon this session?')) {
-                try {
-                  await apiRef.current.updatePractice(log.id, { status: 'abandoned' })
-                } catch {
-                  // Navigate anyway — the session can be cleaned up later
-                }
-                router.push('/today')
-              }
-            }}
-            className="text-sm text-gray-500 hover:text-gray-700 ml-3"
-          >
-            End session
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 border-b border-border-default pb-3">
+        <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">
+          {log.session_name ?? log.template_name ?? 'Practice session'}
+        </h1>
+        <button
+          onClick={() => setConfirmingEnd(true)}
+          className="flex-shrink-0 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        >
+          End session
+        </button>
       </div>
 
-      {/* Progress bar */}
-      <div className="bg-white border-b border-gray-100 px-4 py-2">
-        <div className="max-w-lg mx-auto">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>
-              {completedCount} of {totalCount} done
-            </span>
-            <span>Total: {totalMinutes} min</span>
-          </div>
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary-500 rounded-full transition-all duration-300"
-              style={{
-                width: totalCount > 0
-                  ? `${(completedCount / totalCount) * 100}%`
-                  : '0%',
-              }}
-            />
-          </div>
+      {/* Progress */}
+      <div>
+        <div className="mb-1 flex justify-between text-xs text-text-secondary">
+          <span>
+            {completedCount} of {totalCount} done
+          </span>
+          <span>Total: {totalMinutes} min</span>
         </div>
+        <ProgressBar
+          value={totalCount > 0 ? completedCount / totalCount : 0}
+          label={`${completedCount} of ${totalCount} exercises done`}
+        />
       </div>
 
       {/* Sections */}
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
-        {log.section_logs.map((sl) => (
+      {log.section_logs.map((sl) => {
+        const isPinned =
+          sl.section_type === 'warmup' || sl.section_type === 'cooldown'
+        const color = getSectionColor(sl.section_type, isPinned ? 0 : nonPinnedIndex)
+        if (!isPinned) nonPinnedIndex++
+        return (
           <SectionCard
             key={sl.id}
             logId={log.id}
             sectionLog={sl}
+            color={color}
             onUpdate={fetchLog}
             pendingFlushes={pendingFlushes}
             repertoireBlockIds={repertoireBlockIds}
           />
-        ))}
+        )
+      })}
 
-        {/* Add freeform section */}
-        <AddSectionButton logId={log.id} onAdd={fetchLog} />
+      {/* Add freeform section */}
+      <AddSectionButton logId={log.id} onAdd={fetchLog} />
 
-        {/* Session notes */}
-        <SessionNotes
-          logId={log.id}
-          initialNotes={log.notes ?? ''}
-          pendingFlushes={pendingFlushes}
-        />
+      {/* Session notes */}
+      <SessionNotes
+        logId={log.id}
+        initialNotes={log.notes ?? ''}
+        pendingFlushes={pendingFlushes}
+      />
 
-        {/* Finish button */}
-        <button
-          onClick={handleFinish}
-          disabled={finishing}
-          className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium text-base hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-60"
+      {/* Finish button */}
+      <Button
+        variant="primary"
+        fullWidth
+        onClick={handleFinish}
+        disabled={finishing}
+      >
+        {finishing ? 'Finishing…' : 'Finish session'}
+      </Button>
+
+      {/* End-session confirmation */}
+      {confirmingEnd && (
+        <Dialog
+          onClose={() => setConfirmingEnd(false)}
+          aria-labelledby="end-session-title"
+          className="w-full max-w-sm rounded-xl bg-card-bg p-6 shadow-2xl"
         >
-          {finishing ? 'Finishing...' : 'Finish session'}
-        </button>
-      </div>
-    </main>
+          <h2
+            id="end-session-title"
+            className="mb-2 text-lg font-semibold text-text-primary"
+          >
+            End this session?
+          </h2>
+          <p className="mb-6 text-sm text-text-secondary">
+            Your progress won&apos;t be saved as a completed session. You can
+            start a new one anytime.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmingEnd(false)}
+            >
+              Keep going
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleEndSession}>
+              End session
+            </Button>
+          </div>
+        </Dialog>
+      )}
+    </div>
   )
 }

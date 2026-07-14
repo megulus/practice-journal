@@ -29,13 +29,13 @@ export function QuickAddBlock({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="px-4 py-2 border-t border-gray-100">
+    <form onSubmit={handleSubmit} className="px-4 py-2 border-t border-border-subtle">
       <input
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Add something else..."
-        className="w-full text-xs text-gray-600 bg-transparent py-1 focus:outline-none placeholder-gray-400"
+        className="w-full text-xs text-text-secondary bg-transparent py-1 focus:outline-none placeholder:text-text-tertiary"
       />
     </form>
   )

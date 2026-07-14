@@ -19,19 +19,19 @@ export default function TimeStepper({
         type="button"
         disabled={disabled || value <= 0}
         onClick={() => onChange(Math.max(0, value - 1))}
-        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-[22px] h-[22px] flex items-center justify-center rounded-md border border-border-input text-text-secondary text-sm hover:bg-card-bg-inset disabled:opacity-30 disabled:cursor-not-allowed"
         aria-label="Decrease duration"
       >
         −
       </button>
-      <span className="text-sm text-gray-600 w-12 text-center tabular-nums">
+      <span className="text-[13px] font-medium text-text-primary min-w-[44px] text-center tabular-nums">
         {value} min
       </span>
       <button
         type="button"
         disabled={disabled}
         onClick={() => onChange(value + 1)}
-        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-[22px] h-[22px] flex items-center justify-center rounded-md border border-border-input text-text-secondary text-sm hover:bg-card-bg-inset disabled:opacity-30 disabled:cursor-not-allowed"
         aria-label="Increase duration"
       >
         +

@@ -15,7 +15,10 @@ import {
   RotationDots,
   StatCard,
   VoiceInput,
+  RatingChevrons,
+  TimeStepper,
 } from '@/components/ui'
+import type { Rating } from '@/lib/types'
 import {
   SECTION_COLORS_BY_NAME,
   type SectionColorName,
@@ -51,6 +54,8 @@ function Showcase() {
   const [text, setText] = useState('')
   const [area, setArea] = useState('')
   const [voiceText, setVoiceText] = useState('')
+  const [rating, setRating] = useState<Rating | null>(null)
+  const [minutes, setMinutes] = useState(15)
 
   const sectionColorNames: SectionColorName[] = [
     'warmup',
@@ -181,6 +186,30 @@ function Showcase() {
         <p className="text-text-tertiary" style={{ fontSize: 11 }}>
           Hidden entirely in browsers without the Web Speech API (e.g. Firefox).
         </p>
+      </Section>
+
+      <Section title="RatingChevrons — step back / steady / forward">
+        <Row>
+          <RatingChevrons value={rating} onChange={setRating} />
+          <span className="text-text-secondary" style={{ fontSize: 13 }}>
+            {rating === null
+              ? 'Unrated'
+              : rating === -1
+                ? 'Step back'
+                : rating === 0
+                  ? 'Steady'
+                  : 'Step forward'}
+          </span>
+          <RatingChevrons value={0} onChange={() => {}} disabled />
+        </Row>
+      </Section>
+
+      <Section title="TimeStepper — section duration">
+        <Row>
+          <TimeStepper value={minutes} onChange={setMinutes} />
+          <TimeStepper value={0} onChange={() => {}} />
+          <TimeStepper value={12} onChange={() => {}} disabled />
+        </Row>
       </Section>
 
       <Section title="Card — variants">

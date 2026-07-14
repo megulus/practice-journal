@@ -7,7 +7,7 @@ import type { Rating } from '@/lib/types'
  *
  * Uses shape + color to encode meaning (accessible to colorblind users):
  * - Down arrow = step back (amber)
- * - Horizontal line = steady (gray)
+ * - Horizontal line = steady (neutral)
  * - Up arrow = step forward (teal)
  */
 export default function RatingChevrons({
@@ -24,19 +24,22 @@ export default function RatingChevrons({
       rating: -1,
       label: 'Step back',
       icon: '↓',
-      activeClass: 'bg-amber-100 text-amber-700 border-amber-300',
+      activeClass:
+        'bg-rating-back-bg text-rating-back-icon border-rating-back-border',
     },
     {
       rating: 0,
       label: 'Steady',
       icon: '—',
-      activeClass: 'bg-gray-200 text-gray-700 border-gray-400',
+      activeClass:
+        'bg-rating-steady-bg text-rating-steady-icon border-rating-steady-border',
     },
     {
       rating: 1,
       label: 'Step forward',
       icon: '↑',
-      activeClass: 'bg-teal-100 text-teal-700 border-teal-300',
+      activeClass:
+        'bg-rating-forward-bg text-rating-forward-icon border-rating-forward-border',
     },
   ]
 
@@ -52,10 +55,10 @@ export default function RatingChevrons({
             onClick={() => onChange(btn.rating)}
             aria-label={btn.label}
             aria-pressed={isActive}
-            className={`w-8 h-8 flex items-center justify-center rounded-full border text-sm font-medium transition-colors ${
+            className={`w-7 h-7 flex items-center justify-center rounded-md border text-xs font-medium transition-colors ${
               isActive
                 ? btn.activeClass
-                : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
+                : 'border-border-default text-text-tertiary hover:border-border-input hover:text-text-secondary'
             } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             {btn.icon}
