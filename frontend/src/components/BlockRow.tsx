@@ -2,7 +2,7 @@
 
 import type { Block } from '@/lib/types'
 import { AutoSaveInput } from './ui'
-import TimeStepper from './TimeStepper'
+import TimeStepper from './ui/TimeStepper'
 
 /**
  * Standard (non-repertoire) block row in the template editor.

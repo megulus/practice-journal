@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useApi } from '@/lib/useApi'
-import RatingChevrons from './RatingChevrons'
+import RatingChevrons from './ui/RatingChevrons'
 import type { BlockLog, Rating } from '@/lib/types'
 
 /**

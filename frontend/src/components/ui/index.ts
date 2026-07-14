@@ -52,3 +52,7 @@ export type {
   SpeechRecognitionControls,
   VoiceInputError,
 } from './useSpeechRecognition'
+
+export { default as RatingChevrons } from './RatingChevrons'
+
+export { default as TimeStepper } from './TimeStepper'
