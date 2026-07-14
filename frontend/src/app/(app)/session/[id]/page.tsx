@@ -149,7 +149,7 @@ export default function ActiveSessionPage() {
         </div>
         <ProgressBar
           value={totalCount > 0 ? completedCount / totalCount : 0}
-          label={`${completedCount} of ${totalCount} exercises done`}
+          label={`${completedCount} of ${totalCount} done`}
         />
       </div>
 
