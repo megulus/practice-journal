@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
-import { RatingChevrons } from '@/components/ui'
+import { Checkbox, RatingChevrons, TextArea } from '@/components/ui'
 import type { BlockLog, Rating } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -59,32 +59,23 @@ export function BlockRow({
   }, [showNotes, notes, blockLog.notes, handleSaveNotes, pendingFlushes])
 
   return (
-    <div className={`px-4 py-3 ${!blockLog.completed ? '' : 'bg-gray-50/50'}`}>
+    <div className={`px-4 py-3 ${blockLog.completed ? 'bg-card-bg-inset' : ''}`}>
       <div className="flex items-center gap-3">
         {/* Checkbox */}
-        <button
-          onClick={handleToggleCompleted}
-          className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
-            blockLog.completed
-              ? 'bg-primary-600 border-primary-600 text-white'
-              : 'border-gray-300 hover:border-primary-400'
-          }`}
+        <Checkbox
+          checked={blockLog.completed}
+          onChange={handleToggleCompleted}
           aria-label={blockLog.completed ? 'Mark incomplete' : 'Mark complete'}
-        >
-          {blockLog.completed && (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-          )}
-        </button>
+          className="flex-shrink-0"
+        />
 
         {/* Name + metadata */}
         <div className="flex-1 min-w-0">
-          <p className={`text-sm ${blockLog.completed ? 'text-gray-500' : 'text-gray-900'}`}>
+          <p className={`text-sm ${blockLog.completed ? 'text-text-tertiary' : 'text-text-primary'}`}>
             {blockLog.block_name}
           </p>
           {blockLog.last_tempo_bpm && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-text-tertiary">
               Last tempo: {blockLog.last_tempo_bpm} bpm
             </p>
           )}
@@ -102,22 +93,22 @@ export function BlockRow({
         {!showNotes ? (
           <button
             onClick={() => setShowNotes(true)}
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
           >
             + add note
           </button>
         ) : (
           <div className="mt-1">
-            <textarea
+            <TextArea
+              variant="recessed"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               onBlur={handleSaveNotes}
               placeholder="Notes..."
               rows={2}
-              className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-primary-400"
             />
             {savingNotes && (
-              <span className="text-xs text-gray-400">Saving...</span>
+              <span className="text-xs text-text-tertiary">Saving...</span>
             )}
           </div>
         )}

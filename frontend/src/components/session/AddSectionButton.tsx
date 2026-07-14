@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useApi } from '@/lib/useApi'
+import { Button, TextInput } from '@/components/ui'
 import type { SectionType } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -48,7 +49,7 @@ export function AddSectionButton({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+        className="w-full py-2.5 border-2 border-dashed border-border-default rounded-xl text-sm text-text-secondary hover:border-border-input hover:text-text-primary transition-colors"
       >
         + Add a section
       </button>
@@ -58,15 +59,13 @@ export function AddSectionButton({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3"
+      className="bg-card-bg rounded-xl border border-border-default p-4 space-y-3"
     >
-      <input
-        type="text"
+      <TextInput
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Section name..."
         autoFocus
-        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-primary-400"
       />
       <div className="flex flex-wrap gap-2">
         {sectionTypes.map((st) => (
@@ -74,10 +73,10 @@ export function AddSectionButton({
             key={st.value}
             type="button"
             onClick={() => setType(st.value)}
-            className={`px-3 py-1 rounded-full text-xs transition-colors ${
+            className={`px-3 py-1 rounded-pill text-xs transition-colors ${
               type === st.value
-                ? 'bg-primary-100 text-primary-700 font-medium'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-primary-subtle-bg text-primary-subtle-text font-medium'
+                : 'bg-card-bg-inset text-text-secondary hover:text-text-primary'
             }`}
           >
             {st.label}
@@ -85,19 +84,12 @@ export function AddSectionButton({
         ))}
       </div>
       <div className="flex gap-2">
-        <button
-          type="submit"
-          className="px-4 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
-        >
+        <Button type="submit" size="sm">
           Add
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="px-4 py-1.5 text-gray-500 text-sm hover:text-gray-700"
-        >
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   )

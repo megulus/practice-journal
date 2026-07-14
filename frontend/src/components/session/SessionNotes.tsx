@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
+import { TextArea } from '@/components/ui'
 
 // ---------------------------------------------------------------------------
 // Session notes
@@ -34,13 +35,12 @@ export function SessionNotes({
 
   return (
     <div>
-      <textarea
+      <TextArea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         onBlur={handleSave}
         placeholder="Notes — breakthroughs, challenges, ideas..."
         rows={3}
-        className="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-primary-400"
       />
     </div>
   )

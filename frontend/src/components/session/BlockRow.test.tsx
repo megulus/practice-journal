@@ -47,7 +47,7 @@ describe('BlockRow', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'Mark complete' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Mark complete' }))
     expect(mockUpdateBlockLog).toHaveBeenCalledExactlyOnceWith(1, 7, {
       completed: true,
     })

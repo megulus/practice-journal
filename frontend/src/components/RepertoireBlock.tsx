@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { Check, Minus, ChevronDown } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import RatingChevrons from './ui/RatingChevrons'
+import { Checkbox, RatingChevrons, TextArea, TextInput } from '@/components/ui'
 import type { BlockLog, Rating } from '@/lib/types'
 
 /**
@@ -101,12 +102,12 @@ export default function RepertoireBlock({
             isWholePieceMode ? 'true' : checkboxState === 'indeterminate' ? 'mixed' : 'false'
           }
           onClick={handlePieceCheckbox}
-          className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
+          className={`w-5 h-5 rounded-[4px] border flex items-center justify-center flex-shrink-0 transition-colors ${
             isWholePieceMode
-              ? 'bg-teal-600 border-teal-600 text-white'
+              ? 'bg-primary border-primary text-text-on-primary-action'
               : checkboxState === 'indeterminate'
-                ? 'bg-gray-400 border-gray-400 text-white'
-                : 'border-gray-300 hover:border-gray-400'
+                ? 'bg-text-tertiary border-text-tertiary text-text-on-primary-action'
+                : 'border-border-input hover:border-border-input-focus'
           }`}
           aria-label={
             isWholePieceMode
@@ -114,20 +115,14 @@ export default function RepertoireBlock({
               : 'Log as one piece'
           }
         >
-          {isWholePieceMode && (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-          )}
+          {isWholePieceMode && <Check size={12} strokeWidth={3} aria-hidden />}
           {checkboxState === 'indeterminate' && (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
-            </svg>
+            <Minus size={12} strokeWidth={3} aria-hidden />
           )}
         </button>
 
         {/* Piece name */}
-        <span className="flex-1 font-medium text-sm text-gray-900">
+        <span className="flex-1 font-medium text-sm text-text-primary">
           {pieceName}
         </span>
 
@@ -135,18 +130,14 @@ export default function RepertoireBlock({
         {!isWholePieceMode && (
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="text-gray-400 hover:text-gray-600 p-1"
+            className="text-text-tertiary hover:text-text-secondary p-1 transition-colors"
             aria-label={collapsed ? 'Expand spots' : 'Collapse spots'}
           >
-            <svg
-              className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-            </svg>
+            <ChevronDown
+              size={16}
+              className={`transition-transform ${collapsed ? '-rotate-90' : ''}`}
+              aria-hidden
+            />
           </button>
         )}
       </div>
@@ -178,41 +169,36 @@ export default function RepertoireBlock({
           {!addingSpot ? (
             <button
               onClick={() => setAddingSpot(true)}
-              className="px-4 py-1.5 text-xs text-gray-400 hover:text-gray-600"
+              className="px-4 py-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
             >
               + Add spot
             </button>
           ) : (
             <form onSubmit={handleAddSpot} className="px-4 py-2 space-y-2">
-              <input
-                type="text"
+              <TextInput
+                variant="recessed"
                 value={newSpotName}
                 onChange={(e) => setNewSpotName(e.target.value)}
                 placeholder="Add a spot..."
                 autoFocus
-                className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-primary-400"
               />
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={saveForNextTime}
-                  onChange={(e) => setSaveForNextTime(e.target.checked)}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-xs text-gray-600">Save for next time</span>
-              </label>
-              <div className="flex gap-2">
+              <Checkbox
+                checked={saveForNextTime}
+                onChange={(e) => setSaveForNextTime(e.target.checked)}
+                label="Save for next time"
+              />
+              <div className="flex gap-3 items-center">
                 <button
                   type="submit"
                   disabled={!newSpotName.trim()}
-                  className="text-xs text-primary-600 font-medium disabled:text-gray-400"
+                  className="text-xs text-text-link font-medium disabled:text-text-tertiary"
                 >
                   Add
                 </button>
                 <button
                   type="button"
                   onClick={() => { setAddingSpot(false); setNewSpotName('') }}
-                  className="text-xs text-gray-500"
+                  className="text-xs text-text-secondary hover:text-text-primary transition-colors"
                 >
                   Cancel
                 </button>
@@ -224,7 +210,7 @@ export default function RepertoireBlock({
 
       {/* Collapsed count */}
       {!isWholePieceMode && collapsed && (
-        <p className="px-4 ml-8 text-xs text-gray-400">
+        <p className="px-4 ml-8 text-xs text-text-tertiary">
           {spotLogs.length} spot{spotLogs.length !== 1 ? 's' : ''}
         </p>
       )}
@@ -253,8 +239,8 @@ function SpotRow({
   const [savingNotes, setSavingNotes] = useState(false)
 
   // Extract spot name from "Piece — Spot" format
-  const parts = blockLog.block_name.split(' \u2014 ')
-  const spotName = parts.length > 1 ? parts.slice(1).join(' \u2014 ') : blockLog.block_name
+  const parts = blockLog.block_name.split(' — ')
+  const spotName = parts.length > 1 ? parts.slice(1).join(' — ') : blockLog.block_name
 
   const handleToggle = async () => {
     await api.updateBlockLog(logId, blockLog.id, {
@@ -289,25 +275,17 @@ function SpotRow({
   }, [showNotes, notes, blockLog.notes, handleSaveNotes, pendingFlushes])
 
   return (
-    <div className={`px-4 py-2 ${blockLog.completed ? 'bg-gray-50/50' : ''}`}>
+    <div className={`px-4 py-2 ${blockLog.completed ? 'bg-card-bg-inset' : ''}`}>
       <div className="flex items-center gap-3">
-        <button
-          onClick={handleToggle}
-          className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-            blockLog.completed
-              ? 'bg-primary-600 border-primary-600 text-white'
-              : 'border-gray-300 hover:border-primary-400'
-          }`}
-        >
-          {blockLog.completed && (
-            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-          )}
-        </button>
+        <Checkbox
+          checked={blockLog.completed}
+          onChange={handleToggle}
+          aria-label={blockLog.completed ? 'Mark incomplete' : 'Mark complete'}
+          className="flex-shrink-0"
+        />
 
         <div className="flex-1 min-w-0">
-          <p className={`text-sm ${blockLog.completed ? 'text-gray-500' : 'text-gray-900'}`}>
+          <p className={`text-sm ${blockLog.completed ? 'text-text-tertiary' : 'text-text-primary'}`}>
             {spotName}
           </p>
         </div>
@@ -315,26 +293,26 @@ function SpotRow({
         <RatingChevrons value={blockLog.rating} onChange={handleRating} />
       </div>
 
-      <div className="mt-1 ml-7">
+      <div className="mt-1 ml-8">
         {!showNotes ? (
           <button
             onClick={() => setShowNotes(true)}
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
           >
             + add note
           </button>
         ) : (
           <div className="mt-1">
-            <textarea
+            <TextArea
+              variant="recessed"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               onBlur={handleSaveNotes}
               placeholder="Notes..."
               rows={2}
-              className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-primary-400"
             />
             {savingNotes && (
-              <span className="text-xs text-gray-400">Saving...</span>
+              <span className="text-xs text-text-tertiary">Saving...</span>
             )}
           </div>
         )}
@@ -385,7 +363,7 @@ function WholePieceRating({
   return (
     <div className="px-4 py-2 ml-8">
       <div className="flex items-center gap-3">
-        <span className="text-xs text-gray-500 italic flex-1">
+        <span className="text-xs text-text-tertiary italic flex-1">
           Logging as one piece
         </span>
         <RatingChevrons value={blockLog.rating} onChange={handleRating} />
@@ -394,18 +372,18 @@ function WholePieceRating({
         {!showNotes ? (
           <button
             onClick={() => setShowNotes(true)}
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
           >
             + add note
           </button>
         ) : (
-          <textarea
+          <TextArea
+            variant="recessed"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             onBlur={handleSaveNotes}
             placeholder="Notes..."
             rows={2}
-            className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-primary-400"
           />
         )}
       </div>
