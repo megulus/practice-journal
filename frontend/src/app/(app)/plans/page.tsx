@@ -182,24 +182,15 @@ function PlanRow({
         onClick={onOpen}
         className="block w-full rounded-xl border border-border-default bg-card-bg p-4 text-left transition-colors hover:border-border-input focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate font-medium text-text-primary">{t.name}</p>
-            {t.description && (
-              <p className="truncate text-sm text-text-secondary">
-                {t.description}
-              </p>
-            )}
-            <p className="mt-1 text-xs text-text-tertiary">
-              {sessionLabel} · ~{t.estimated_total_minutes} min total
-            </p>
-          </div>
-          {t.is_active && (
-            <span className="shrink-0 rounded-pill bg-primary-subtle-bg px-2 py-0.5 text-xs font-medium text-primary-subtle-text">
-              Active
-            </span>
-          )}
-        </div>
+        <p className="truncate font-medium text-text-primary">{t.name}</p>
+        {t.description && (
+          <p className="truncate text-sm text-text-secondary">
+            {t.description}
+          </p>
+        )}
+        <p className="mt-1 text-xs text-text-tertiary">
+          {sessionLabel} · ~{t.estimated_total_minutes} min total
+        </p>
       </button>
     </li>
   )
