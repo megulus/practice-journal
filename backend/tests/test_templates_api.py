@@ -72,6 +72,49 @@ class TestListTemplates:
         assert item["session_count"] == 2
         assert item["estimated_total_minutes"] == 5 + 7 + 8
 
+    async def test_aggregates_zero_for_session_less_plan(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_instrument,
+        test_user,
+    ):
+        t = Template(
+            user_id=test_user.id, instrument_id=test_instrument.id, name="Bare plan"
+        )
+        db_session.add(t)
+        await db_session.commit()
+
+        resp = await client.get(f"/api/instruments/{test_instrument.id}/templates")
+        assert resp.status_code == 200
+        item = next(x for x in resp.json() if x["name"] == "Bare plan")
+        assert item["session_count"] == 0
+        assert item["estimated_total_minutes"] == 0
+
+    async def test_estimated_total_zero_for_section_less_session(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_instrument,
+        test_user,
+    ):
+        t = Template(
+            user_id=test_user.id, instrument_id=test_instrument.id, name="No sections"
+        )
+        db_session.add(t)
+        await db_session.commit()
+        await db_session.refresh(t)
+        db_session.add(
+            TemplateSession(template_id=t.id, name="Session 1", display_order=0)
+        )
+        await db_session.commit()
+
+        resp = await client.get(f"/api/instruments/{test_instrument.id}/templates")
+        assert resp.status_code == 200
+        item = next(x for x in resp.json() if x["name"] == "No sections")
+        assert item["session_count"] == 1
+        assert item["estimated_total_minutes"] == 0
+
     async def test_excludes_deleted_templates(
         self, client: AsyncClient, db_session: AsyncSession, test_instrument, test_user
     ):
