@@ -4,7 +4,15 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
+import { Button, Card, StatCard, TextArea } from '@/components/ui'
 import type { FinishResponse } from '@/lib/types'
+
+// Token-driven CTA styles for navigation links (mirrors the Today retone).
+const PRIMARY_LINK =
+  'block w-full rounded-lg bg-primary px-4 py-3 text-center text-sm font-medium ' +
+  'text-text-on-primary-action transition-colors hover:bg-primary-hover'
+const SECONDARY_LINK =
+  'block w-full py-2 text-center text-sm text-text-link transition-colors hover:text-text-primary'
 
 export default function SessionSummaryPage() {
   const router = useRouter()
@@ -77,104 +85,124 @@ export default function SessionSummaryPage() {
 
   if (!data) return null
 
-  const { summary, coaching_suggestion, reflection_prompt } = data
+  const { practice_log, summary, coaching_suggestion, reflection_prompt } = data
   const { ratings } = summary
 
+  const subtitle = [
+    practice_log.session_name ?? practice_log.template_name,
+    practice_log.instrument_name,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-6">
-      <div className="max-w-lg mx-auto">
-        <h1 className="text-xl font-semibold text-gray-900 mb-6">
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold text-text-primary">
           Session complete
         </h1>
-
-        {/* Stat cards */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <StatCard label="Minutes" value={String(summary.total_duration_minutes)} />
-          <StatCard
-            label="Completed"
-            value={`${summary.exercises_completed}/${summary.exercises_total}`}
-          />
-          <StatCard label="Streak" value={`${summary.day_streak} day${summary.day_streak !== 1 ? 's' : ''}`} />
-        </div>
-
-        {/* Ratings breakdown */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">
-            How it went
-          </h2>
-          <div className="space-y-2">
-            {ratings.step_forward > 0 && (
-              <RatingRow color="bg-teal-400" label="Step forward" count={ratings.step_forward} />
-            )}
-            {ratings.steady > 0 && (
-              <RatingRow color="bg-gray-400" label="Steady" count={ratings.steady} />
-            )}
-            {ratings.step_back > 0 && (
-              <RatingRow color="bg-amber-400" label="Step back" count={ratings.step_back} />
-            )}
-            {ratings.skipped > 0 && (
-              <RatingRow color="bg-gray-200" label="Skipped" count={ratings.skipped} />
-            )}
-          </div>
-        </div>
-
-        {/* Coaching suggestion */}
-        {coaching_suggestion && (
-          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-4">
-            <p className="text-sm text-teal-900 leading-relaxed">
-              {coaching_suggestion.text}
-            </p>
-          </div>
+        {subtitle && (
+          <p className="mt-1 text-sm text-text-secondary">{subtitle}</p>
         )}
+      </div>
 
-        {/* Reflection prompt */}
-        {reflection_prompt && !reflectionSaved && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-            <p className="text-sm font-medium text-gray-700 mb-1">
-              {reflection_prompt}
-            </p>
-            <p className="text-xs text-gray-400 mb-3">
-              Optional — a moment to notice what you might forget later.
-            </p>
-            <textarea
-              value={reflection}
-              onChange={(e) => setReflection(e.target.value)}
-              placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
-              rows={3}
-              className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-primary-400 mb-2"
+      {/* Stat cards */}
+      <div className="grid grid-cols-3 gap-md">
+        <StatCard label="Minutes" value={summary.total_duration_minutes} />
+        <StatCard
+          label="Completed"
+          value={`${summary.exercises_completed}/${summary.exercises_total}`}
+        />
+        <StatCard
+          label="Streak"
+          value={`${summary.day_streak} day${summary.day_streak !== 1 ? 's' : ''}`}
+        />
+      </div>
+
+      {/* Ratings breakdown */}
+      <Card>
+        <h2 className="mb-3 text-sm font-medium text-text-secondary">
+          How it went
+        </h2>
+        <div className="space-y-2">
+          {ratings.step_forward > 0 && (
+            <RatingRow
+              color="bg-rating-forward-border"
+              label="Step forward"
+              count={ratings.step_forward}
             />
-            <button
-              onClick={handleSaveReflection}
-              disabled={!reflection.trim()}
-              className="text-sm text-primary-600 font-medium hover:text-primary-700 disabled:text-gray-400"
-            >
-              Save reflection
-            </button>
-          </div>
-        )}
-        {reflectionSaved && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-            <p className="text-sm text-gray-500">Reflection saved.</p>
-          </div>
-        )}
+          )}
+          {ratings.steady > 0 && (
+            <RatingRow
+              color="bg-rating-steady-border"
+              label="Steady"
+              count={ratings.steady}
+            />
+          )}
+          {ratings.step_back > 0 && (
+            <RatingRow
+              color="bg-rating-back-border"
+              label="Step back"
+              count={ratings.step_back}
+            />
+          )}
+          {ratings.skipped > 0 && (
+            <RatingRow
+              color="bg-rating-unselected-border"
+              label="Skipped"
+              count={ratings.skipped}
+            />
+          )}
+        </div>
+      </Card>
 
-        {/* Actions */}
-        <Link
-          href="/today"
-          className="block w-full text-center py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm"
-        >
+      {/* Coaching suggestion */}
+      {coaching_suggestion && (
+        <Card variant="coaching">{coaching_suggestion.text}</Card>
+      )}
+
+      {/* Reflection prompt */}
+      {reflection_prompt && !reflectionSaved && (
+        <Card>
+          <p className="text-sm font-medium text-text-primary">
+            {reflection_prompt}
+          </p>
+          <p className="mb-3 mt-1 text-xs text-text-tertiary">
+            Optional — a moment to notice what you might forget later.
+          </p>
+          <TextArea
+            variant="recessed"
+            value={reflection}
+            onChange={(e) => setReflection(e.target.value)}
+            placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
+            rows={3}
+            className="mb-2"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSaveReflection}
+            disabled={!reflection.trim()}
+          >
+            Save reflection
+          </Button>
+        </Card>
+      )}
+      {reflectionSaved && (
+        <Card>
+          <p className="text-sm text-text-secondary">Reflection saved.</p>
+        </Card>
+      )}
+
+      {/* Actions */}
+      <div className="space-y-1 pt-2">
+        <Link href="/today" className={PRIMARY_LINK}>
           Done
         </Link>
+        <Link href={`/session/${logId}`} className={SECONDARY_LINK}>
+          Edit this session
+        </Link>
       </div>
-    </main>
-  )
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 text-center">
-      <p className="text-lg font-semibold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
     </div>
   )
 }
@@ -190,9 +218,9 @@ function RatingRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
-      <span className="text-sm text-gray-600 flex-1">{label}</span>
-      <span className="text-sm text-gray-900 font-medium">{count}</span>
+      <span className={`h-2.5 w-2.5 rounded-round ${color}`} />
+      <span className="flex-1 text-sm text-text-secondary">{label}</span>
+      <span className="text-sm font-medium text-text-primary">{count}</span>
     </div>
   )
 }
