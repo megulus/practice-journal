@@ -183,7 +183,11 @@ async def list_templates(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List templates for an instrument (lightweight, no nested sessions)."""
+    """List templates for an instrument with per-plan aggregates.
+
+    Eager-loads sessions → sections (durations only) so each row can report
+    its session count and estimated total time without an N+1.
+    """
     await _get_owned_instrument(session, instrument_id, current_user.id)
 
     result = await session.exec(
@@ -194,8 +198,30 @@ async def list_templates(
             Template.deleted_at == None,  # noqa: E711
         )
         .order_by(col(Template.created_at).desc())
+        .options(
+            selectinload(Template.sessions)  # type: ignore[arg-type]
+            .selectinload(TemplateSession.sections)  # type: ignore[arg-type]
+        )
     )
-    return result.all()
+    templates = result.all()
+
+    return [
+        TemplateListItem(
+            id=t.id,
+            instrument_id=t.instrument_id,
+            name=t.name,
+            description=t.description,
+            is_active=t.is_active,
+            current_rotation_index=t.current_rotation_index,
+            session_count=len(t.sessions),
+            estimated_total_minutes=sum(
+                (sec.estimated_duration_minutes or 0)
+                for ts in t.sessions
+                for sec in ts.sections
+            ),
+        )
+        for t in templates
+    ]
 
 
 @router.post(

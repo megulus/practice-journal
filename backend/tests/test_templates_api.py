@@ -23,6 +23,55 @@ class TestListTemplates:
         # List endpoint uses TemplateListItem (no sessions)
         assert "sessions" not in data[0]
 
+    async def test_includes_session_count_and_estimated_total(
+        self, client: AsyncClient, test_template, test_instrument
+    ):
+        # Fixture has one session with one 5-minute section.
+        resp = await client.get(f"/api/instruments/{test_instrument.id}/templates")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[0]["session_count"] == 1
+        assert data[0]["estimated_total_minutes"] == 5
+
+    async def test_estimated_total_sums_across_all_sessions(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_template,
+        test_instrument,
+    ):
+        ts2 = TemplateSession(
+            template_id=test_template.id, name="Session 2", display_order=1
+        )
+        db_session.add(ts2)
+        await db_session.commit()
+        await db_session.refresh(ts2)
+        db_session.add(
+            Section(
+                template_session_id=ts2.id,
+                name="Scales",
+                section_type="scales",
+                estimated_duration_minutes=7,
+                display_order=0,
+            )
+        )
+        db_session.add(
+            Section(
+                template_session_id=ts2.id,
+                name="Repertoire",
+                section_type="repertoire",
+                estimated_duration_minutes=8,
+                display_order=1,
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.get(f"/api/instruments/{test_instrument.id}/templates")
+        assert resp.status_code == 200
+        item = next(t for t in resp.json() if t["id"] == test_template.id)
+        assert item["session_count"] == 2
+        assert item["estimated_total_minutes"] == 5 + 7 + 8
+
     async def test_excludes_deleted_templates(
         self, client: AsyncClient, db_session: AsyncSession, test_instrument, test_user
     ):

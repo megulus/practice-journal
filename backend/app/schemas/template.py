@@ -159,7 +159,12 @@ class TemplateRead(BaseModel):
 
 
 class TemplateListItem(BaseModel):
-    """Lightweight template for list views (no nested sessions)."""
+    """Lightweight template for list views (no nested sessions).
+
+    `session_count` and `estimated_total_minutes` are computed aggregates:
+    the number of sessions in the plan and the sum of every section's
+    estimated duration across all of them.
+    """
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -168,6 +173,8 @@ class TemplateListItem(BaseModel):
     description: Optional[str] = None
     is_active: bool
     current_rotation_index: int
+    session_count: int = 0
+    estimated_total_minutes: int = 0
 
 
 class TemplateCreate(BaseModel):

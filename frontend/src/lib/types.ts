@@ -262,6 +262,8 @@ export interface TemplateListItem {
   description: string | null
   is_active: boolean
   current_rotation_index: number
+  session_count: number
+  estimated_total_minutes: number
 }
 
 export interface TemplateCreate {
