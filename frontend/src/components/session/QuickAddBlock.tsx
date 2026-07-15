@@ -34,7 +34,7 @@ export function QuickAddBlock({
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Add something else..."
+        placeholder="Add an exercise…"
         className="w-full text-xs text-text-secondary bg-transparent py-1 focus:outline-none placeholder:text-text-tertiary"
       />
     </form>

@@ -20,7 +20,7 @@ describe('QuickAddBlock', () => {
     const user = userEvent.setup()
     render(<QuickAddBlock logId={1} sectionLogId={2} onAdd={onAdd} />)
 
-    const input = screen.getByPlaceholderText('Add something else...')
+    const input = screen.getByPlaceholderText('Add an exercise…')
     await user.type(input, '  Long tones  {Enter}')
 
     expect(mockAddFreeformBlock).toHaveBeenCalledExactlyOnceWith(1, 2, {
@@ -35,7 +35,7 @@ describe('QuickAddBlock', () => {
     const user = userEvent.setup()
     render(<QuickAddBlock logId={1} sectionLogId={2} onAdd={onAdd} />)
 
-    const input = screen.getByPlaceholderText('Add something else...')
+    const input = screen.getByPlaceholderText('Add an exercise…')
     await user.type(input, '   {Enter}')
 
     expect(mockAddFreeformBlock).not.toHaveBeenCalled()
