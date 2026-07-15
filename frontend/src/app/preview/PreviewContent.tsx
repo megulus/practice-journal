@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Lightbulb } from 'lucide-react'
+import { Lightbulb, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 import {
   Button,
   Pill,
@@ -17,6 +17,7 @@ import {
   VoiceInput,
   RatingChevrons,
   TimeStepper,
+  Menu,
 } from '@/components/ui'
 import type { Rating } from '@/lib/types'
 import {
@@ -56,6 +57,7 @@ function Showcase() {
   const [voiceText, setVoiceText] = useState('')
   const [rating, setRating] = useState<Rating | null>(null)
   const [minutes, setMinutes] = useState(15)
+  const [menuAction, setMenuAction] = useState('—')
 
   const sectionColorNames: SectionColorName[] = [
     'warmup',
@@ -201,6 +203,56 @@ function Showcase() {
                   : 'Step forward'}
           </span>
           <RatingChevrons value={0} onChange={() => {}} disabled />
+        </Row>
+      </Section>
+
+      <Section title="Menu — overflow actions (Radix)">
+        <Row>
+          <Menu
+            triggerLabel="Block actions"
+            items={[
+              {
+                label: 'Edit',
+                icon: <Pencil size={14} />,
+                onSelect: () => setMenuAction('Edit'),
+              },
+              {
+                label: 'Move up',
+                icon: <ArrowUp size={14} />,
+                onSelect: () => setMenuAction('Move up'),
+              },
+              {
+                label: 'Move down',
+                icon: <ArrowDown size={14} />,
+                onSelect: () => setMenuAction('Move down'),
+              },
+              {
+                label: 'Delete',
+                icon: <Trash2 size={14} />,
+                destructive: true,
+                onSelect: () => setMenuAction('Delete'),
+              },
+            ]}
+          />
+          <Menu
+            trigger={
+              <Button variant="secondary" size="sm">
+                Custom trigger
+              </Button>
+            }
+            align="start"
+            items={[
+              { label: 'Duplicate', onSelect: () => setMenuAction('Duplicate') },
+              {
+                label: 'Delete',
+                destructive: true,
+                onSelect: () => setMenuAction('Delete'),
+              },
+            ]}
+          />
+          <span className="text-text-secondary" style={{ fontSize: 13 }}>
+            Last action: {menuAction}
+          </span>
         </Row>
       </Section>
 
