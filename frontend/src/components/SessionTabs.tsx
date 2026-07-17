@@ -1,6 +1,8 @@
 'use client'
 
+import { Plus } from 'lucide-react'
 import type { TemplateSession } from '@/lib/types'
+import { Pill } from './ui'
 
 export default function SessionTabs({
   sessions,
@@ -17,29 +19,24 @@ export default function SessionTabs({
 }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-      {sessions.map((s) => {
-        const active = s.id === selectedSessionId
-        return (
-          <button
-            key={s.id}
-            onClick={() => onSelect(s.id)}
-            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap border transition-colors ${
-              active
-                ? 'bg-primary-100 border-primary-300 text-primary-800'
-                : 'bg-white border-gray-200 text-gray-600'
-            }`}
-          >
-            {s.name}
-          </button>
-        )
-      })}
+      {sessions.map((s) => (
+        <Pill
+          key={s.id}
+          variant="instrument"
+          active={s.id === selectedSessionId}
+          onClick={() => onSelect(s.id)}
+          className="whitespace-nowrap"
+        >
+          {s.name}
+        </Pill>
+      ))}
       <button
         onClick={onAdd}
         disabled={addDisabled}
-        className="shrink-0 w-9 h-9 rounded-full border border-dashed border-gray-300 text-gray-400 text-sm flex items-center justify-center hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 touch-manipulation"
+        className="shrink-0 flex h-9 w-9 items-center justify-center rounded-md border border-dashed border-border-default text-text-tertiary transition-colors hover:border-border-input hover:text-text-secondary disabled:opacity-50"
         aria-label="Add session"
       >
-        +
+        <Plus size={16} aria-hidden />
       </button>
     </div>
   )
