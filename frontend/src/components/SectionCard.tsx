@@ -1,11 +1,14 @@
 'use client'
 
+import { ArrowUp, ArrowDown, Trash2 } from 'lucide-react'
 import type { Section } from '@/lib/types'
-import { AutoSaveInput, useAutoSaveField } from './ui'
+import type { SectionColor } from '@/lib/section-colors'
+import { AutoSaveInput, Menu, SectionPip, useAutoSaveField, type MenuItem } from './ui'
 import BlockRow from './BlockRow'
 
 export default function SectionCard({
   section,
+  color,
   isFirst,
   isLast,
   onMove,
@@ -19,6 +22,7 @@ export default function SectionCard({
   onDeleteBlock,
 }: {
   section: Section
+  color: SectionColor
   isFirst: boolean
   isLast: boolean
   onMove: (direction: 'up' | 'down') => void
@@ -38,35 +42,37 @@ export default function SectionCard({
     rollbackWhenEmpty: false,
   })
 
+  const menuItems: MenuItem[] = [
+    {
+      label: 'Move up',
+      icon: <ArrowUp size={14} />,
+      onSelect: () => onMove('up'),
+      disabled: isFirst,
+    },
+    {
+      label: 'Move down',
+      icon: <ArrowDown size={14} />,
+      onSelect: () => onMove('down'),
+      disabled: isLast,
+    },
+    {
+      label: 'Delete',
+      icon: <Trash2 size={14} />,
+      onSelect: onDelete,
+      destructive: true,
+    },
+  ]
+
   return (
-    <section className="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
+    <section className="bg-card-bg rounded-xl border border-border-default mb-3 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
-        <div className="flex flex-col shrink-0">
-          <button
-            type="button"
-            disabled={isFirst}
-            onClick={() => onMove('up')}
-            className="w-9 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs touch-manipulation"
-            aria-label="Move section up"
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            disabled={isLast}
-            onClick={() => onMove('down')}
-            className="w-9 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed text-xs touch-manipulation"
-            aria-label="Move section down"
-          >
-            ▼
-          </button>
-        </div>
+      <div className="flex items-center gap-2 px-3 py-2 bg-card-bg-inset border-b border-border-default">
+        <SectionPip color={color} size={10} />
         <AutoSaveInput
           value={section.name}
           onCommit={onRename}
           placeholder="Section name"
-          className="flex-1 min-w-0 bg-transparent text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none"
+          className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary placeholder:text-text-tertiary focus:outline-none"
         />
         <input
           type="number"
@@ -75,23 +81,18 @@ export default function SectionCard({
           onChange={duration.onChange}
           onFocus={duration.onFocus}
           onBlur={duration.onBlur}
-          className="w-12 bg-transparent text-sm text-gray-500 text-right tabular-nums focus:outline-none"
+          className="w-12 bg-transparent text-sm text-text-secondary text-right tabular-nums focus:outline-none"
           aria-label="Section duration in minutes"
         />
-        <span className="text-xs text-gray-400">min</span>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="shrink-0 w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 text-sm touch-manipulation"
-          aria-label="Remove section"
-        >
-          ✕
-        </button>
+        <span className="text-xs text-text-tertiary">min</span>
+        <Menu triggerLabel="Section actions" items={menuItems} />
       </div>
 
       {/* Blocks */}
       {section.blocks.length === 0 ? (
-        <p className="px-4 py-3 text-xs text-gray-400 italic">No blocks yet.</p>
+        <p className="px-4 py-3 text-xs text-text-tertiary italic">
+          No blocks yet.
+        </p>
       ) : (
         <ul>
           {section.blocks.map((b, i) => (
@@ -113,7 +114,7 @@ export default function SectionCard({
       <button
         type="button"
         onClick={onAddBlock}
-        className="w-full py-2.5 text-sm text-primary-600 border-t border-gray-100 hover:bg-gray-50"
+        className="w-full py-2.5 text-sm text-text-link border-t border-border-subtle hover:bg-card-bg-inset"
       >
         + Add block
       </button>
