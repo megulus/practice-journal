@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # Clerk authentication settings
     clerk_secret_key: str = ""
     clerk_publishable_key: str = ""
+    # JWT verification. Both are optional: when unset they're derived from the
+    # publishable key (which encodes the Clerk Frontend API host). Set either to
+    # override — e.g. behind a proxy or for a non-standard issuer.
+    clerk_jwks_url: str = ""
+    clerk_issuer: str = ""
 
     @field_validator("database_url")
     @classmethod

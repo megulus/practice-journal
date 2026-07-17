@@ -1,9 +1,15 @@
 """
 Authentication utilities for Clerk JWT validation
 """
+import base64
+import binascii
+from functools import lru_cache
 from typing import Optional
+
 import jwt
+from jwt import PyJWKClient, PyJWKClientError
 from fastapi import Depends, Header, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -14,15 +20,55 @@ from app.database import get_session
 settings = get_settings()
 
 
+def _frontend_api_from_publishable_key(pk: str) -> Optional[str]:
+    """Clerk publishable keys encode the Frontend API host: the part after the
+    ``pk_test_`` / ``pk_live_`` prefix is base64 of ``<host>$``. Return the host
+    (e.g. ``clerk.example.com``) or None if the key isn't in that shape.
+    """
+    for prefix in ("pk_test_", "pk_live_"):
+        if pk.startswith(prefix):
+            encoded = pk[len(prefix):]
+            try:
+                decoded = base64.b64decode(encoded).decode("utf-8")
+            except (binascii.Error, UnicodeDecodeError, ValueError):
+                return None
+            host = decoded.rstrip("$")
+            return host or None
+    return None
+
+
+def _resolve_verification() -> tuple[Optional[str], Optional[str]]:
+    """Resolve (jwks_url, issuer) for verification, preferring explicit config
+    and falling back to derivation from the publishable key. Both come from
+    server configuration — never from the token itself.
+    """
+    host = _frontend_api_from_publishable_key(settings.clerk_publishable_key)
+    jwks_url = settings.clerk_jwks_url or (
+        f"https://{host}/.well-known/jwks.json" if host else None
+    )
+    issuer = settings.clerk_issuer or (f"https://{host}" if host else None)
+    return jwks_url, issuer
+
+
+@lru_cache(maxsize=4)
+def _get_jwks_client(jwks_url: str) -> PyJWKClient:
+    """Cache one PyJWKClient per JWKS URL. The client caches the fetched key set
+    (default lifespan 300s), so signature checks don't hit the network per call.
+    """
+    return PyJWKClient(jwks_url)
+
+
 async def verify_clerk_token(authorization: Optional[str] = Header(None)) -> Optional[dict]:
     """
-    Verify Clerk JWT token from Authorization header.
-    Returns the decoded token payload if valid, None if no token provided.
-    Raises HTTPException if token is invalid.
+    Verify a Clerk JWT from the Authorization header.
+
+    Validates the RS256 signature against Clerk's JWKS (public keys), plus
+    expiry and issuer. Returns the decoded payload, or None if no token was
+    provided. Raises 401 for any invalid/forged/expired token.
     """
     if not authorization:
         return None
-    
+
     # Extract token from "Bearer <token>" format
     try:
         scheme, token = authorization.split()
@@ -30,35 +76,46 @@ async def verify_clerk_token(authorization: Optional[str] = Header(None)) -> Opt
             return None
     except ValueError:
         return None
-    
-    # Verify token hasn't been provided but Clerk isn't configured
-    if not settings.clerk_secret_key:
+
+    jwks_url, issuer = _resolve_verification()
+    if not jwks_url:
+        # Can't verify anything without a key source — fail closed.
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication is not configured"
+            detail="Authentication is not configured",
         )
-    
-    # Verify JWT token
+
     try:
-        # Clerk uses RS256 algorithm - we need to fetch the public key from JWKS
-        # For now, we'll use a simpler approach with the secret key
-        # In production, you'd want to verify using Clerk's JWKS endpoint
-        payload = jwt.decode(
-            token,
-            settings.clerk_secret_key,
-            algorithms=["RS256"],
-            options={"verify_signature": False}  # Temporary - should verify in production
+        client = _get_jwks_client(jwks_url)
+        # PyJWKClient does a (cached) blocking HTTP fetch; keep it off the loop.
+        signing_key = await run_in_threadpool(
+            client.get_signing_key_from_jwt, token
         )
-        return payload
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=issuer,
+            # Clerk session tokens are short-lived; tolerate minor clock skew
+            # between this server and Clerk so valid tokens aren't rejected.
+            leeway=10,
+            options={
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iss": issuer is not None,
+                "verify_aud": False,  # Clerk session tokens carry no aud
+                "require": ["exp", "iat", "sub"],
+            },
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired"
+            detail="Token has expired",
         )
-    except jwt.InvalidTokenError as e:
+    except (jwt.InvalidTokenError, PyJWKClientError) as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}"
+            detail=f"Invalid token: {str(e)}",
         )
 
 

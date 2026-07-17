@@ -43,9 +43,14 @@ This guide walks through deploying the Kantelo backend (FastAPI) and frontend (N
    |----------|-------|
    | `DATABASE_URL` | Click **"Add Reference"** → select the Postgres service's `DATABASE_URL` |
    | `CLERK_SECRET_KEY` | Your Clerk secret key (from [dashboard.clerk.com](https://dashboard.clerk.com)) |
-   | `CLERK_PUBLISHABLE_KEY` | Your Clerk publishable key |
+   | `CLERK_PUBLISHABLE_KEY` | Your Clerk publishable key — **required**: the backend derives Clerk's JWKS/issuer from it to verify JWT signatures |
    | `CORS_ORIGINS` | The frontend's Railway URL (you'll get this in step 4 — come back and set it) |
    | `ENVIRONMENT` | `production` |
+
+   > The backend verifies each request's Clerk JWT signature against Clerk's
+   > JWKS (public keys), derived from `CLERK_PUBLISHABLE_KEY`. To override the
+   > derivation (proxy / custom issuer), set `CLERK_JWKS_URL` and/or
+   > `CLERK_ISSUER` explicitly.
 
 4. Deploy. The Dockerfile runs `alembic upgrade head` before starting uvicorn, so migrations run automatically on every deploy.
 
