@@ -55,6 +55,9 @@ vi.mock('@clerk/nextjs', () => ({
       primaryEmailAddress: { emailAddress: 'test@example.com' },
     },
   }),
+  useClerk: () => ({
+    signOut: vi.fn(),
+  }),
   ClerkProvider: ({ children }: { children: ReactNode }) => children,
   SignedIn: ({ children }: { children: ReactNode }) => children,
   SignedOut: ({ children }: { children: ReactNode }) => null,

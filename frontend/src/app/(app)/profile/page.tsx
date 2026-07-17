@@ -2,6 +2,7 @@
 
 import { Monitor, Sun, Moon } from 'lucide-react'
 import { Pill } from '@/components/ui'
+import SignOutButton from '@/components/SignOutButton'
 import { useTheme } from '@/hooks/useTheme'
 import type { ThemePreference } from '@/components/ThemeProvider'
 
@@ -68,6 +69,16 @@ export default function ProfilePage() {
           Choose how Kantelo looks. &ldquo;Match system&rdquo; follows your
           operating system preference.
         </p>
+      </section>
+
+      <section className="mb-2xl">
+        <h2
+          className="text-text-primary font-semibold mb-md"
+          style={{ fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.35 }}
+        >
+          Account
+        </h2>
+        <SignOutButton />
       </section>
 
       <p
