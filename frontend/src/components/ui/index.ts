@@ -56,3 +56,6 @@ export type {
 export { default as RatingChevrons } from './RatingChevrons'
 
 export { default as TimeStepper } from './TimeStepper'
+
+export { Menu } from './Menu'
+export type { MenuProps, MenuItem } from './Menu'

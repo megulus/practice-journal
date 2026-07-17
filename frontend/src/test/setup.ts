@@ -7,6 +7,20 @@ import { vi } from 'vitest'
 // ---------------------------------------------------------------------------
 Element.prototype.scrollIntoView = vi.fn()
 
+// Radix (dropdown menu / popper) touches pointer-capture, ResizeObserver, and
+// DOMRect APIs that jsdom doesn't implement. Stub them so menu tests can run.
+Element.prototype.hasPointerCapture = vi.fn(() => false)
+Element.prototype.setPointerCapture = vi.fn()
+Element.prototype.releasePointerCapture = vi.fn()
+
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mock next/navigation (App Router)
 // ---------------------------------------------------------------------------
