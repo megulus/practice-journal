@@ -13,6 +13,14 @@ npm test           # Run tests (Vitest)
 npm run test:watch # Run tests in watch mode
 ```
 
+**Docker Node version is pinned.** `frontend/Dockerfile` uses `node:20.20.2-alpine`
+(not the floating `node:20-alpine`). A silent bump to a newer Node can reintroduce
+the dev-mode Clerk middleware `EvalError` from #192 — Next 14's Edge Runtime runs
+middleware in a `vm` context with `codeGeneration.strings=false`, and stricter vm
+enforcement in some Node builds rejects the `eval()`-based HMR source maps, 404-ing
+every protected route under `docker compose up`. To move the pin, bump it deliberately
+and re-test `docker compose up` while signed in (a protected route must load, HMR intact).
+
 ## Architecture
 
 This is a **Next.js 14 App Router** application (TypeScript, Tailwind CSS) for tracking music practice sessions across multiple instruments. It connects to a backend API (default: `http://localhost:8000`).
