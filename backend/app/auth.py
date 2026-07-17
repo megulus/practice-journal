@@ -3,6 +3,7 @@ Authentication utilities for Clerk JWT validation
 """
 import base64
 import binascii
+import logging
 from functools import lru_cache
 from typing import Optional
 
@@ -17,7 +18,20 @@ from app.config import get_settings
 from app.models import User
 from app.database import get_session
 
+logger = logging.getLogger(__name__)
+
 settings = get_settings()
+
+
+@lru_cache(maxsize=1)
+def _warn_issuer_verification_disabled() -> None:
+    """Warn once: signatures are still verified, but the extra issuer check is
+    off because a JWKS URL is configured without a resolvable issuer."""
+    logger.warning(
+        "Clerk JWT issuer verification is DISABLED — a JWKS URL is set but no "
+        "issuer could be resolved. Signatures are still verified. Set "
+        "CLERK_ISSUER (or CLERK_PUBLISHABLE_KEY) to re-enable the issuer check."
+    )
 
 
 def _frontend_api_from_publishable_key(pk: str) -> Optional[str]:
@@ -84,6 +98,9 @@ async def verify_clerk_token(authorization: Optional[str] = Header(None)) -> Opt
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication is not configured",
         )
+    if issuer is None:
+        # Signature is still verified below; only the issuer check is off.
+        _warn_issuer_verification_disabled()
 
     try:
         client = _get_jwks_client(jwks_url)
