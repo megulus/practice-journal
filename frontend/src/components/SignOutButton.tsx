@@ -15,6 +15,7 @@ export default function SignOutButton() {
     <Button
       variant="secondary"
       size="sm"
+      className="gap-sm"
       onClick={() => signOut({ redirectUrl: '/sign-in' })}
     >
       <LogOut size={14} strokeWidth={1.5} aria-hidden />
