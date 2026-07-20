@@ -112,8 +112,11 @@ export default function ActiveSessionPage() {
     )
   }
 
-  // Compute progress
-  const allBlocks = log.section_logs.flatMap((sl) => sl.block_logs)
+  // Compute progress. Skipped sections drop out of the ratio entirely, so a
+  // skip doesn't make 100% unreachable.
+  const allBlocks = log.section_logs
+    .filter((sl) => !sl.skipped)
+    .flatMap((sl) => sl.block_logs)
   const completedCount = allBlocks.filter((bl) => bl.completed).length
   const totalCount = allBlocks.length
   const totalMinutes = log.section_logs.reduce(

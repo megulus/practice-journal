@@ -47,12 +47,14 @@ class SectionLogRead(BaseModel):
     actual_duration_minutes: int
     display_order: int
     completed: bool
+    skipped: bool
     block_logs: List[BlockLogRead] = []
 
 
 class SectionLogUpdate(BaseModel):
     actual_duration_minutes: Optional[int] = Field(default=None, ge=0)
     completed: Optional[bool] = None
+    skipped: Optional[bool] = None
     mark_all_done: Optional[bool] = None
 
 
