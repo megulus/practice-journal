@@ -96,6 +96,13 @@ class SectionLog(SQLModel, table=True):
     actual_duration_minutes: int = Field(default=0)
     display_order: int = Field(default=0)
     completed: bool = Field(default=True)
+    # Explicitly skipped by the user (distinct from "not started"). Lossless —
+    # skipping only sets this flag; block completion/ratings are preserved so
+    # unskipping restores the section exactly.
+    skipped: bool = Field(
+        default=False,
+        sa_column_kwargs={"server_default": sa.text("false")},
+    )
     created_at: datetime = Field(default_factory=utcnow)
 
     # Relationships

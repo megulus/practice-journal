@@ -519,19 +519,55 @@ class TestUpdateSectionLog:
         # Ratings should remain null (mark_all_done doesn't set ratings)
         assert all(b["rating"] is None for b in result["block_logs"])
 
-    async def test_skip_section(self, client: AsyncClient, started_session):
-        """Setting completed=false cascades to all block logs."""
+    async def test_skip_section_is_lossless(
+        self, client: AsyncClient, started_session
+    ):
+        """Skipping sets skipped=true but preserves block completion + ratings."""
         data, _, _, _, _ = started_session
-        sl = data["section_logs"][0]
+        sl = data["section_logs"][1]  # Scales — has blocks
+        block = sl["block_logs"][0]
+
+        # Do some work in the section first.
+        await client.put(
+            f"/api/practice/{data['id']}/blocks/{block['id']}",
+            json={"completed": True, "rating": 1},
+        )
 
         resp = await client.put(
             f"/api/practice/{data['id']}/sections/{sl['id']}",
-            json={"completed": False},
+            json={"skipped": True},
         )
         assert resp.status_code == 200
         result = resp.json()
-        assert result["completed"] is False
-        assert all(b["completed"] is False for b in result["block_logs"])
+        assert result["skipped"] is True
+        # Lossless: the block's completion + rating survive the skip.
+        saved = next(b for b in result["block_logs"] if b["id"] == block["id"])
+        assert saved["completed"] is True
+        assert saved["rating"] == 1
+
+    async def test_unskip_section(self, client: AsyncClient, started_session):
+        """Unskipping clears the flag; block state is untouched throughout."""
+        data, _, _, _, _ = started_session
+        sl = data["section_logs"][1]
+        block = sl["block_logs"][0]
+        await client.put(
+            f"/api/practice/{data['id']}/blocks/{block['id']}",
+            json={"completed": True},
+        )
+        await client.put(
+            f"/api/practice/{data['id']}/sections/{sl['id']}",
+            json={"skipped": True},
+        )
+
+        resp = await client.put(
+            f"/api/practice/{data['id']}/sections/{sl['id']}",
+            json={"skipped": False},
+        )
+        assert resp.status_code == 200
+        result = resp.json()
+        assert result["skipped"] is False
+        saved = next(b for b in result["block_logs"] if b["id"] == block["id"])
+        assert saved["completed"] is True
 
     async def test_not_found(self, client: AsyncClient, started_session):
         data, _, _, _, _ = started_session
@@ -605,7 +641,7 @@ class TestUpdateSectionLog:
         sl_id = data["section_logs"][0]["id"]
         resp = await client.put(
             f"/api/practice/{data['id']}/sections/{sl_id}",
-            json={"mark_all_done": True, "completed": False},
+            json={"mark_all_done": True, "skipped": True},
         )
         assert resp.status_code == 422
 

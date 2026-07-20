@@ -328,12 +328,14 @@ export interface SectionLog {
   actual_duration_minutes: number
   display_order: number
   completed: boolean
+  skipped: boolean
   block_logs: BlockLog[]
 }
 
 export interface SectionLogUpdate {
   actual_duration_minutes?: number
   completed?: boolean
+  skipped?: boolean
   mark_all_done?: boolean
 }
 

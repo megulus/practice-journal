@@ -29,8 +29,8 @@ export function SectionCard({
   repertoireBlockIds: React.RefObject<Set<number>>
 }) {
   const api = useApi()
-  const isCompleted = sectionLog.completed
-  const isSkipped = !sectionLog.completed && sectionLog.block_logs.every((bl) => !bl.completed)
+  const isSkipped = sectionLog.skipped
+  const isCompleted = !isSkipped && sectionLog.completed
 
   const handleTimeChange = async (minutes: number) => {
     await api.updateSectionLog(logId, sectionLog.id, {
@@ -44,12 +44,10 @@ export function SectionCard({
     onUpdate()
   }
 
-  const handleSkipSection = async () => {
-    const hasRatings = sectionLog.block_logs.some((bl) => bl.rating !== null)
-    if (hasRatings && !confirm('Skipping will clear ratings in this section. Continue?')) {
-      return
-    }
-    await api.updateSectionLog(logId, sectionLog.id, { completed: false })
+  // Skip is a persistent, reversible flag — it doesn't clear checkmarks or
+  // ratings, so unskip restores the section exactly.
+  const handleToggleSkip = async () => {
+    await api.updateSectionLog(logId, sectionLog.id, { skipped: !isSkipped })
     onUpdate()
   }
 
@@ -68,7 +66,11 @@ export function SectionCard({
             {sectionLog.section_name}
           </h3>
         </div>
-        {isCompleted ? (
+        {isSkipped ? (
+          <span className="flex-shrink-0 rounded-pill bg-card-bg-inset px-2 py-0.5 text-xs font-medium text-text-tertiary">
+            Skipped
+          </span>
+        ) : isCompleted ? (
           <span className="text-xs text-text-tertiary tabular-nums flex-shrink-0">
             {sectionLog.actual_duration_minutes} min
             {sectionLog.planned_duration_minutes != null &&
@@ -91,10 +93,10 @@ export function SectionCard({
           Mark all done
         </button>
         <button
-          onClick={handleSkipSection}
+          onClick={handleToggleSkip}
           className="text-xs text-text-secondary hover:text-text-primary transition-colors"
         >
-          Skip section
+          {isSkipped ? 'Unskip section' : 'Skip section'}
         </button>
       </div>
 

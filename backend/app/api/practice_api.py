@@ -189,6 +189,7 @@ async def _build_log_read(
             actual_duration_minutes=sl.actual_duration_minutes,
             display_order=sl.display_order,
             completed=sl.completed,
+            skipped=sl.skipped,
             block_logs=block_reads,
         ))
 
@@ -468,7 +469,7 @@ async def update_section_log(
     update_data = body.model_dump(exclude_unset=True, mode="json")
 
     # Reject conflicting mark_all_done + skip
-    if update_data.get("mark_all_done") is True and update_data.get("completed") is False:
+    if update_data.get("mark_all_done") is True and update_data.get("skipped") is True:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Cannot mark_all_done and skip the section in the same request",
@@ -483,15 +484,9 @@ async def update_section_log(
             bl.completed = True
             session.add(bl)
 
-    # Handle skip section: cascade completed=false to all child block logs
-    if update_data.get("completed") is False:
-        result = await session.exec(
-            select(BlockLog).where(BlockLog.section_log_id == sl.id)
-        )
-        for bl in result.all():
-            bl.completed = False
-            session.add(bl)
-
+    # Skip is lossless: `skipped` is a plain field set by the loop below, and
+    # it deliberately does NOT touch block completion or ratings, so unskipping
+    # restores the section exactly.
     for field, value in update_data.items():
         setattr(sl, field, value)
 
@@ -516,6 +511,7 @@ async def update_section_log(
         actual_duration_minutes=loaded.actual_duration_minutes,
         display_order=loaded.display_order,
         completed=loaded.completed,
+        skipped=loaded.skipped,
         block_logs=sorted_blocks,
     )
 
@@ -714,6 +710,7 @@ async def add_freeform_section(
         actual_duration_minutes=sl.actual_duration_minutes,
         display_order=sl.display_order,
         completed=sl.completed,
+        skipped=sl.skipped,
         block_logs=[],
     )
 
