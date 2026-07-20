@@ -175,27 +175,39 @@ class TestVerifyClerkToken:
         assert exc.value.status_code == 500
 
 
+def _clerk_pk(prefix: str, host: str) -> str:
+    """Build a publishable key the way Clerk does: base64 of ``<host>$`` with
+    the padding stripped. Using hosts whose length forces padding is what makes
+    these a regression guard for the unpadded-decode bug."""
+    return prefix + base64.b64encode(f"{host}$".encode()).decode().rstrip("=")
+
+
 class TestPublishableKeyDerivation:
+    # These hosts encode to lengths that require base64 padding, so the
+    # unpadded keys below only decode if the padding is restored first.
     def test_derives_host_from_test_key(self):
-        host = "clerk.example.com"
-        pk = "pk_test_" + base64.b64encode(f"{host}$".encode()).decode()
-        assert auth._frontend_api_from_publishable_key(pk) == host
+        host = "trusty-seagull-17.clerk.accounts.dev"
+        assert auth._frontend_api_from_publishable_key(
+            _clerk_pk("pk_test_", host)
+        ) == host
 
     def test_derives_host_from_live_key(self):
         host = "moving-tiger-42.clerk.accounts.dev"
-        pk = "pk_live_" + base64.b64encode(f"{host}$".encode()).decode()
-        assert auth._frontend_api_from_publishable_key(pk) == host
+        assert auth._frontend_api_from_publishable_key(
+            _clerk_pk("pk_live_", host)
+        ) == host
 
     def test_returns_none_for_garbage(self):
         assert auth._frontend_api_from_publishable_key("not-a-key") is None
         assert auth._frontend_api_from_publishable_key("") is None
 
     def test_resolve_derives_jwks_and_issuer(self, monkeypatch):
-        host = "clerk.example.com"
-        pk = "pk_test_" + base64.b64encode(f"{host}$".encode()).decode()
-        monkeypatch.setattr(auth.settings, "clerk_publishable_key", pk)
+        host = "trusty-seagull-17.clerk.accounts.dev"
+        monkeypatch.setattr(
+            auth.settings, "clerk_publishable_key", _clerk_pk("pk_test_", host)
+        )
         monkeypatch.setattr(auth.settings, "clerk_jwks_url", "")
         monkeypatch.setattr(auth.settings, "clerk_issuer", "")
         jwks_url, issuer = auth._resolve_verification()
-        assert jwks_url == "https://clerk.example.com/.well-known/jwks.json"
-        assert issuer == "https://clerk.example.com"
+        assert jwks_url == f"https://{host}/.well-known/jwks.json"
+        assert issuer == f"https://{host}"

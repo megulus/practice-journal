@@ -42,6 +42,9 @@ def _frontend_api_from_publishable_key(pk: str) -> Optional[str]:
     for prefix in ("pk_test_", "pk_live_"):
         if pk.startswith(prefix):
             encoded = pk[len(prefix):]
+            # Clerk keys are base64 WITHOUT padding; restore it so b64decode
+            # (which requires a length that's a multiple of 4) accepts them.
+            encoded += "=" * (-len(encoded) % 4)
             try:
                 decoded = base64.b64decode(encoded).decode("utf-8")
             except (binascii.Error, UnicodeDecodeError, ValueError):
