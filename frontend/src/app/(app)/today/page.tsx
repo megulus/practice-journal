@@ -7,6 +7,7 @@ import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill, RotationDots } from '@/components/ui'
 import { cx } from '@/lib/cx'
 import { getSectionColor } from '@/lib/section-colors'
+import { formatStartedAt } from '@/lib/dates'
 import type {
   TodayResponse,
   TodayInstrumentDue,
@@ -138,10 +139,13 @@ export default function TodayPage() {
           <p className="text-sm font-medium text-text-primary">
             You have a session in progress
           </p>
-          <p className="mb-3 mt-1 text-xs text-text-secondary">
+          <p className="mt-1 text-xs text-text-secondary">
             {data.active_session.instrument_name}
             {data.active_session.session_name &&
               ` — ${data.active_session.session_name}`}
+          </p>
+          <p className="mb-3 mt-0.5 text-xs text-text-tertiary">
+            Started {formatStartedAt(data.active_session.started_at)}
           </p>
           <Link
             href={`/session/${data.active_session.practice_log_id}`}
