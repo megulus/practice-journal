@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
 import { Button } from '@/components/ui'
@@ -10,13 +10,23 @@ function StartSessionInner() {
   const router = useRouter()
   const params = useSearchParams()
   const [error, setError] = useState<string | null>(null)
+  // Start the session exactly once. Without this guard the effect can fire
+  // twice — React Strict Mode double-invokes effects in dev, and `api`'s
+  // identity can change across renders — each call to startPractice creating a
+  // separate practice log, leaving one stranded as an orphaned in-progress
+  // session.
+  const startedRef = useRef(false)
 
   useEffect(() => {
+    if (startedRef.current) return
+
     const instrumentId = params.get('instrument')
     if (!instrumentId) {
       setError('Missing instrument parameter')
       return
     }
+
+    startedRef.current = true
 
     const templateId = params.get('template')
     const sessionId = params.get('session')
