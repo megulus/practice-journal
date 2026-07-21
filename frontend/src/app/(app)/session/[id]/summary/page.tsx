@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, StatCard, TextArea } from '@/components/ui'
+import { formatSessionDate } from '@/lib/dates'
 import type { FinishResponse } from '@/lib/types'
 
 // Token-driven CTA styles for navigation links (mirrors the Today retone).
@@ -89,6 +90,7 @@ export default function SessionSummaryPage() {
   const { ratings } = summary
 
   const subtitle = [
+    formatSessionDate(practice_log.practice_date),
     practice_log.session_name ?? practice_log.template_name,
     practice_log.instrument_name,
   ]
