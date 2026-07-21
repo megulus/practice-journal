@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
 import { SectionCard } from './SectionCard'
 import { getSectionColor } from '@/lib/section-colors'
-import type { SectionLog } from '@/lib/types'
+import type { SectionLog, BlockLog } from '@/lib/types'
 
 const { mockUpdateSectionLog } = vi.hoisted(() => ({
   mockUpdateSectionLog: vi.fn().mockResolvedValue(undefined),
@@ -12,6 +12,7 @@ vi.mock('@/lib/useApi', () => ({
   useApi: () => ({
     updateSectionLog: mockUpdateSectionLog,
     addFreeformBlock: vi.fn(),
+    updateBlockLog: vi.fn(),
   }),
 }))
 
@@ -27,6 +28,21 @@ function makeSection(overrides: Partial<SectionLog> = {}): SectionLog {
     completed: false,
     skipped: false,
     block_logs: [],
+    ...overrides,
+  }
+}
+
+function makeBlock(overrides: Partial<BlockLog> = {}): BlockLog {
+  return {
+    id: 1,
+    block_id: null,
+    spot_id: null,
+    block_name: 'G major scale',
+    rating: null,
+    notes: null,
+    completed: false,
+    display_order: 0,
+    last_tempo_bpm: null,
     ...overrides,
   }
 }
@@ -94,5 +110,47 @@ describe('SectionCard — skip / unskip', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Unskip section' }))
     expect(mockUpdateSectionLog).toHaveBeenCalledWith(5, 9, { skipped: false })
+  })
+})
+
+describe('SectionCard — completed derived from blocks (#233)', () => {
+  it('shows the editable duration stepper while blocks are incomplete', () => {
+    render(
+      <SectionCard
+        logId={1}
+        sectionLog={makeSection({ block_logs: [makeBlock({ completed: false })] })}
+        color={color}
+        onUpdate={vi.fn()}
+        {...refs()}
+      />
+    )
+    // Not yet "done": editable stepper, no static completed summary.
+    expect(
+      screen.getByRole('button', { name: 'Increase duration' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/plan:/)).not.toBeInTheDocument()
+  })
+
+  it('shows the static completed summary once every block is complete', () => {
+    render(
+      <SectionCard
+        logId={1}
+        sectionLog={makeSection({
+          actual_duration_minutes: 12,
+          planned_duration_minutes: 10,
+          block_logs: [
+            makeBlock({ id: 1, completed: true }),
+            makeBlock({ id: 2, completed: true }),
+          ],
+        })}
+        color={color}
+        onUpdate={vi.fn()}
+        {...refs()}
+      />
+    )
+    expect(screen.getByText(/12 min/)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Increase duration' })
+    ).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,6 @@
 'use client'
 
+import { Check } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { Card, SectionPip, TimeStepper } from '@/components/ui'
 import RepertoireBlock from '@/components/RepertoireBlock'
@@ -30,7 +31,12 @@ export function SectionCard({
 }) {
   const api = useApi()
   const isSkipped = sectionLog.skipped
-  const isCompleted = !isSkipped && sectionLog.completed
+  // Derive "completed" from the blocks, not the section's `completed` flag —
+  // that flag defaults True at session start and nothing maintains it (#233),
+  // so a fresh section would otherwise render as already done.
+  const blocks = sectionLog.block_logs
+  const isCompleted =
+    !isSkipped && blocks.length > 0 && blocks.every((bl) => bl.completed)
 
   const handleTimeChange = async (minutes: number) => {
     await api.updateSectionLog(logId, sectionLog.id, {
@@ -67,11 +73,17 @@ export function SectionCard({
           </h3>
         </div>
         {isSkipped ? (
-          <span className="flex-shrink-0 rounded-pill bg-card-bg-inset px-2 py-0.5 text-xs font-medium text-text-tertiary">
+          <span className="flex-shrink-0 rounded-pill bg-card-bg-inset px-2 py-0.5 text-xs font-medium text-text-secondary">
             Skipped
           </span>
         ) : isCompleted ? (
-          <span className="text-xs text-text-tertiary tabular-nums flex-shrink-0">
+          <span className="flex flex-shrink-0 items-center gap-1 text-xs text-text-secondary tabular-nums">
+            <Check
+              size={13}
+              strokeWidth={2.5}
+              className="text-primary-subtle-text"
+              aria-hidden
+            />
             {sectionLog.actual_duration_minutes} min
             {sectionLog.planned_duration_minutes != null &&
               ` (plan: ${sectionLog.planned_duration_minutes})`}
