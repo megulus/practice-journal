@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@/test/utils'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, userEvent } from '@/test/utils'
 import SideNav from './SideNav'
+
+const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }))
+vi.mock('@/hooks/useSignOut', () => ({ useSignOut: () => mockSignOut }))
 
 describe('SideNav', () => {
   it('renders the wordmark and the three primary links', () => {
@@ -20,14 +23,24 @@ describe('SideNav', () => {
     )
   })
 
-  it('shows Profile in the footer, not as a primary nav link', () => {
+  it('exposes Profile + Sign out via the footer menu (not as a primary link)', async () => {
+    const user = userEvent.setup()
     render(<SideNav />)
-    // From the mocked Clerk user: Test User / test@example.com / TU.
-    const footer = screen.getByRole('link', { name: /Test User/ })
-    expect(footer).toHaveAttribute('href', '/profile')
-    expect(screen.getByText('test@example.com')).toBeInTheDocument()
-    expect(screen.getByText('TU')).toBeInTheDocument()
-    // Profile is not one of the primary links.
+    // Profile is not one of the primary nav links.
     expect(screen.queryByRole('link', { name: 'Profile' })).not.toBeInTheDocument()
+    // The footer is a menu trigger showing the user (mocked: Test User / TU).
+    await user.click(screen.getByRole('button', { name: /Test User/ }))
+    expect(
+      await screen.findByRole('menuitem', { name: 'Profile' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
+  })
+
+  it('signs out from the footer menu', async () => {
+    const user = userEvent.setup()
+    render(<SideNav />)
+    await user.click(screen.getByRole('button', { name: /Test User/ }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
+    expect(mockSignOut).toHaveBeenCalledOnce()
   })
 })
