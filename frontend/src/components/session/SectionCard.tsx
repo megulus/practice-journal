@@ -30,7 +30,12 @@ export function SectionCard({
 }) {
   const api = useApi()
   const isSkipped = sectionLog.skipped
-  const isCompleted = !isSkipped && sectionLog.completed
+  // Derive "completed" from the blocks, not the section's `completed` flag —
+  // that flag defaults True at session start and nothing maintains it (#233),
+  // so a fresh section would otherwise render as already done.
+  const blocks = sectionLog.block_logs
+  const isCompleted =
+    !isSkipped && blocks.length > 0 && blocks.every((bl) => bl.completed)
 
   const handleTimeChange = async (minutes: number) => {
     await api.updateSectionLog(logId, sectionLog.id, {
