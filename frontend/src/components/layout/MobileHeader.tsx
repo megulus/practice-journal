@@ -1,16 +1,21 @@
 'use client'
 
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { LogOut, User } from 'lucide-react'
+import { Menu } from '@/components/ui'
+import { useSignOut } from '@/hooks/useSignOut'
 import { getUserDisplay } from './userDisplay'
 
 /**
- * Mobile / tablet top header: Kantelo wordmark + avatar linking to the profile
- * page. Hidden at the desktop breakpoint (`lg`), where {@link SideNav} carries
- * the wordmark and profile access.
+ * Mobile / tablet top header: Kantelo wordmark + an avatar that opens a menu
+ * (Profile + Sign out). Hidden at the desktop breakpoint (`lg`), where
+ * {@link SideNav} carries the wordmark and profile access.
  */
 export default function MobileHeader() {
+  const router = useRouter()
   const { user } = useUser()
+  const signOut = useSignOut()
   const { name, initials } = getUserDisplay(user)
 
   return (
@@ -21,13 +26,30 @@ export default function MobileHeader() {
       >
         Kantelo
       </span>
-      <Link
-        href="/profile"
-        aria-label={`${name} — profile`}
-        className="flex h-8 w-8 items-center justify-center rounded-round bg-card-bg-inset text-xs font-semibold text-text-secondary"
-      >
-        {initials}
-      </Link>
+      <Menu
+        align="end"
+        trigger={
+          <button
+            type="button"
+            aria-label={`${name} — menu`}
+            className="flex h-8 w-8 items-center justify-center rounded-round bg-card-bg-inset text-xs font-semibold text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            {initials}
+          </button>
+        }
+        items={[
+          {
+            label: 'Profile',
+            icon: <User size={14} />,
+            onSelect: () => router.push('/profile'),
+          },
+          {
+            label: 'Sign out',
+            icon: <LogOut size={14} />,
+            onSelect: signOut,
+          },
+        ]}
+      />
     </header>
   )
 }

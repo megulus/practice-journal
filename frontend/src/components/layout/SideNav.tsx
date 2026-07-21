@@ -1,20 +1,25 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { LogOut, User } from 'lucide-react'
+import { Menu } from '@/components/ui'
+import { useSignOut } from '@/hooks/useSignOut'
 import { primaryNavItems } from './navItems'
 import { isActivePath } from './isActivePath'
 import { getUserDisplay } from './userDisplay'
 
 /**
  * Desktop (`lg`+) side nav: wordmark, primary nav links, and a profile footer
- * row that replaces the mobile Profile tab (design-tokens §11). Hidden below
- * `lg`, where {@link BottomNav} + {@link MobileHeader} take over.
+ * that opens a menu (Profile + Sign out). Hidden below `lg`, where
+ * {@link BottomNav} + {@link MobileHeader} take over.
  */
 export default function SideNav() {
   const pathname = usePathname()
+  const router = useRouter()
   const { user } = useUser()
+  const signOut = useSignOut()
   const { name, email, initials } = getUserDisplay(user)
 
   return (
@@ -51,29 +56,45 @@ export default function SideNav() {
         })}
       </nav>
 
-      {/* Profile footer — replaces the mobile Profile tab */}
-      <Link
-        href="/profile"
-        aria-current={isActivePath(pathname, '/profile') ? 'page' : undefined}
-        className="flex items-center gap-3 border-t border-border-default px-5 py-4 transition-colors hover:bg-card-bg-inset"
-      >
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-round bg-card-bg-inset text-xs font-semibold text-text-secondary"
-        >
-          {initials}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-[13px] font-medium text-text-primary">
-            {name}
-          </span>
-          {email && (
-            <span className="block truncate text-[11px] text-text-tertiary">
-              {email}
+      {/* Profile footer — opens a menu (Profile + Sign out) */}
+      <Menu
+        align="start"
+        trigger={
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 border-t border-border-default px-5 py-4 text-left transition-colors hover:bg-card-bg-inset focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+          >
+            <span
+              aria-hidden
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-round bg-card-bg-inset text-xs font-semibold text-text-secondary"
+            >
+              {initials}
             </span>
-          )}
-        </span>
-      </Link>
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-medium text-text-primary">
+                {name}
+              </span>
+              {email && (
+                <span className="block truncate text-[11px] text-text-tertiary">
+                  {email}
+                </span>
+              )}
+            </span>
+          </button>
+        }
+        items={[
+          {
+            label: 'Profile',
+            icon: <User size={14} />,
+            onSelect: () => router.push('/profile'),
+          },
+          {
+            label: 'Sign out',
+            icon: <LogOut size={14} />,
+            onSelect: signOut,
+          },
+        ]}
+      />
     </aside>
   )
 }
