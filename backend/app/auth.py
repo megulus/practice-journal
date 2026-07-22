@@ -11,11 +11,12 @@ import jwt
 from jwt import PyJWKClient, PyJWKClientError
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import get_settings
+from app.enums import utcnow
 from app.models import User
 from app.database import get_session
 
@@ -182,39 +183,34 @@ async def get_or_create_user(
             await session.refresh(user)
         return user
 
-    # Create new user
-    user = User(
-        clerk_user_id=clerk_user_id,
-        email=email,
-        first_name=first_name,
-        last_name=last_name
-    )
-    session.add(user)
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        # A concurrent first request for this user won the insert race (the
-        # unique clerk_user_id constraint fired). Recover by rolling back and
-        # returning the row the winner created — otherwise the loser bubbles a
-        # 500 that escapes before CORS headers attach, surfacing on the client
-        # as an opaque "failed to fetch". This happens on a brand-new user's
-        # first page load, where several authenticated requests reach
-        # get_or_create_user at once.
-        await session.rollback()
-        # Only the clerk_user_id unique conflict is the expected race. Any other
-        # integrity violation (a future unique/NOT NULL column) is a real error
-        # we must surface, not mask by re-fetching an unrelated existing row.
-        if "clerk_user_id" not in str(getattr(exc, "orig", exc)):
-            raise
-        result = await session.exec(
-            select(User).where(User.clerk_user_id == clerk_user_id)
+    # Create the user with an atomic upsert. A brand-new user's first page load
+    # fires several authenticated requests at once, all reaching this branch
+    # together; a plain INSERT would let one win and the others hit the unique
+    # clerk_user_id constraint, raising a 500 that escapes before CORS headers
+    # attach (an opaque "failed to fetch" on the client). INSERT ... ON CONFLICT
+    # DO NOTHING resolves the collision in a single statement — the losers no-op
+    # instead of erroring — so no request fails. We then read the row back
+    # (whichever request actually inserted it) to return a session-managed
+    # instance. created_at is set explicitly because a Core insert doesn't run
+    # the model's Python-side default_factory.
+    stmt = (
+        pg_insert(User)
+        .values(
+            clerk_user_id=clerk_user_id,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            created_at=utcnow(),
         )
-        user = result.first()
-        if user is None:
-            raise
-        return user
-    await session.refresh(user)
-    return user
+        .on_conflict_do_nothing(index_elements=["clerk_user_id"])
+    )
+    await session.exec(stmt)
+    await session.commit()
+
+    result = await session.exec(
+        select(User).where(User.clerk_user_id == clerk_user_id)
+    )
+    return result.first()
 
 
 async def get_current_user_optional(

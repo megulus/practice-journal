@@ -18,7 +18,6 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import auth
@@ -217,103 +216,93 @@ class TestPublishableKeyDerivation:
         assert issuer == f"https://{host}"
 
 
-# The unique-index violation asyncpg raises for the clerk_user_id race; the
-# recovery path keys off the constraint name in the error text.
-_CLERK_CONFLICT = 'duplicate key value violates unique constraint "ix_users_clerk_user_id"'
+async def _count_users(db_session, clerk_id: str) -> int:
+    from sqlalchemy import func, select as sa_select
+
+    return await db_session.scalar(
+        sa_select(func.count())
+        .select_from(User)
+        .where(User.clerk_user_id == clerk_id)
+    )
 
 
-class _RaceSession:
-    """Minimal AsyncSession stand-in for the first-request creation race.
-
-    The initial SELECT misses (user not found), the INSERT commit raises the
-    unique-constraint IntegrityError the concurrent winner triggered, and the
-    retry SELECT returns the winner's row.
-    """
-
-    def __init__(self, winner, conflict=_CLERK_CONFLICT):
-        self._winner = winner
-        self._conflict = conflict
-        self._selects = 0
-        self.rolled_back = False
-
-    async def exec(self, _stmt):
-        self._selects += 1
-        found = None if self._selects == 1 else self._winner
-        return namedtuple("_Result", ["first"])(lambda: found)
-
-    def add(self, _obj):
-        pass
-
-    async def commit(self):
-        raise IntegrityError("insert", {}, Exception(self._conflict))
-
-    async def rollback(self):
-        self.rolled_back = True
-
-    async def refresh(self, _obj):
-        pass
-
-
-class TestGetOrCreateUserRace:
-    """A brand-new user's first page load fires several authenticated requests
-    at once; only one can win the insert. The losers must recover, not 500.
+class TestGetOrCreateUser:
+    """Behavior of get_or_create_user against the migrated test DB: create on
+    first sight, a read-only fast path for unchanged repeat calls (it runs on
+    every authenticated request), and profile-field updates from fresh claims.
     """
 
     @pytest.mark.asyncio
-    async def test_recovers_from_concurrent_insert(self):
-        winner = User(
-            id=7, clerk_user_id="user_race", email="race@example.com"
+    async def test_creates_new_user(self, db_session):
+        user = await auth.get_or_create_user(
+            db_session, "user_new", "new@example.com", "Ada", "Byron"
         )
-        session = _RaceSession(winner)
+        assert user is not None
+        assert user.id is not None
+        assert user.email == "new@example.com"
+        assert user.first_name == "Ada"
+        assert await _count_users(db_session, "user_new") == 1
 
+    @pytest.mark.asyncio
+    async def test_repeat_call_is_read_only(self, db_session):
+        # get_or_create_user runs on every request; an unchanged repeat must not
+        # write. updated_at stays None (its onupdate only fires on an UPDATE).
+        first = await auth.get_or_create_user(
+            db_session, "user_hot", "hot@example.com", "Grace", "Hopper"
+        )
+        assert first.updated_at is None
+
+        again = await auth.get_or_create_user(
+            db_session, "user_hot", "hot@example.com", "Grace", "Hopper"
+        )
+        assert again.id == first.id
+        assert again.updated_at is None
+        assert await _count_users(db_session, "user_hot") == 1
+
+    @pytest.mark.asyncio
+    async def test_updates_changed_fields(self, db_session):
+        created = await auth.get_or_create_user(
+            db_session, "user_upd", "old@example.com", "Old", None
+        )
+        assert created.updated_at is None
+
+        updated = await auth.get_or_create_user(
+            db_session, "user_upd", "new@example.com", "New", "Name"
+        )
+        assert updated.id == created.id
+        assert updated.email == "new@example.com"
+        assert updated.first_name == "New"
+        assert updated.last_name == "Name"
+        # The update path ran, so onupdate stamped updated_at.
+        assert updated.updated_at is not None
+
+    @pytest.mark.asyncio
+    async def test_empty_claims_do_not_overwrite(self, db_session):
+        created = await auth.get_or_create_user(
+            db_session, "user_keep", "keep@example.com", "Keep", "Me"
+        )
+
+        # Empty email / missing names (as anonymous-ish claims might arrive)
+        # must not blank out the stored profile.
         result = await auth.get_or_create_user(
-            session, "user_race", "race@example.com"
+            db_session, "user_keep", "", None, None
         )
-
-        # Returns the winner's row instead of propagating the IntegrityError.
-        assert result is winner
-        assert session.rolled_back is True
-
-    @pytest.mark.asyncio
-    async def test_reraises_when_row_still_absent(self):
-        # A clerk_user_id conflict but the retry SELECT is still empty — this
-        # isn't the race we expected, so surface the error rather than swallow.
-        session = _RaceSession(winner=None)
-        with pytest.raises(IntegrityError):
-            await auth.get_or_create_user(
-                session, "user_ghost", "ghost@example.com"
-            )
-        assert session.rolled_back is True
-
-    @pytest.mark.asyncio
-    async def test_reraises_unrelated_integrity_error(self):
-        # An integrity violation on some *other* constraint must not be masked
-        # by re-fetching — even if a row with this clerk_user_id happens to
-        # exist. The recovery is scoped to the clerk_user_id conflict only.
-        winner = User(id=9, clerk_user_id="user_other", email="o@example.com")
-        session = _RaceSession(
-            winner,
-            conflict='null value in column "email" violates not-null constraint',
-        )
-        with pytest.raises(IntegrityError):
-            await auth.get_or_create_user(
-                session, "user_other", "o@example.com"
-            )
+        assert result.email == "keep@example.com"
+        assert result.first_name == "Keep"
+        assert result.last_name == "Me"
 
 
 class TestGetOrCreateUserConcurrencyIntegration:
-    """Real-Postgres coverage for the creation race, against the migrated test
-    DB. Complements the fake-session unit tests above, which can't prove that a
-    real async session is reusable after a failed commit + rollback, or that
-    Postgres actually raises IntegrityError (not something else) on the unique
-    index under genuine concurrency.
+    """Real-Postgres coverage for the creation race against the migrated test
+    DB — the payoff of the ON CONFLICT DO NOTHING upsert. Several concurrent
+    first requests (each its own session, as separate HTTP requests would have)
+    must all resolve to the same single row with no unhandled error.
     """
 
     @pytest.mark.asyncio
     async def test_concurrent_first_requests_resolve_to_one_row(
         self, db_session, test_engine
     ):
-        from sqlalchemy import func, select as sa_select
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
         clerk_id = "user_concurrent_signup"
@@ -322,9 +311,8 @@ class TestGetOrCreateUserConcurrencyIntegration:
         )
 
         async def create_once():
-            # Each concurrent request gets its own session, as separate HTTP
-            # requests would. All await the SELECT first (and miss), so they
-            # then race on the INSERT — exactly the first-load scenario.
+            # All await the SELECT first (and miss), so they then race on the
+            # insert — exactly the first-load scenario.
             async with factory() as s:
                 return await auth.get_or_create_user(
                     s, clerk_id, "concurrent@example.com"
@@ -335,10 +323,4 @@ class TestGetOrCreateUserConcurrencyIntegration:
         # None raised, and all resolved to the same single row.
         ids = {u.id for u in results}
         assert len(ids) == 1, f"expected one shared user row, got ids={ids}"
-
-        count = await db_session.scalar(
-            sa_select(func.count())
-            .select_from(User)
-            .where(User.clerk_user_id == clerk_id)
-        )
-        assert count == 1
+        assert await _count_users(db_session, clerk_id) == 1
