@@ -191,8 +191,9 @@ async def get_or_create_user(
     # DO NOTHING resolves the collision in a single statement — the losers no-op
     # instead of erroring — so no request fails. We then read the row back
     # (whichever request actually inserted it) to return a session-managed
-    # instance. created_at is set explicitly because a Core insert doesn't run
-    # the model's Python-side default_factory.
+    # instance. created_at is set explicitly so the row carries the app's naive-
+    # UTC clock (utcnow()) rather than the column's tz-aware now() server_default
+    # — a Core insert bypasses the model's Python-side default_factory.
     stmt = (
         pg_insert(User)
         .values(
@@ -210,7 +211,16 @@ async def get_or_create_user(
     result = await session.exec(
         select(User).where(User.clerk_user_id == clerk_user_id)
     )
-    return result.first()
+    user = result.first()
+    if user is None:
+        # The row we just upserted must exist; a miss means something is deeply
+        # wrong (not the benign race). Fail loudly rather than return None into
+        # a non-optional contract the caller would dereference.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load user after creation",
+        )
+    return user
 
 
 async def get_current_user_optional(

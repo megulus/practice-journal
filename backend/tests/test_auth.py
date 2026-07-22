@@ -241,6 +241,8 @@ class TestGetOrCreateUser:
         assert user.id is not None
         assert user.email == "new@example.com"
         assert user.first_name == "Ada"
+        # The Core-insert path stamps created_at explicitly (no ORM default runs).
+        assert user.created_at is not None
         assert await _count_users(db_session, "user_new") == 1
 
     @pytest.mark.asyncio
@@ -311,8 +313,10 @@ class TestGetOrCreateUserConcurrencyIntegration:
         )
 
         async def create_once():
-            # All await the SELECT first (and miss), so they then race on the
-            # insert — exactly the first-load scenario.
+            # Each runs on its own session; interleaving at await points means
+            # they typically all miss the initial SELECT and then race on the
+            # insert (the first-load scenario). Whatever the interleaving, they
+            # must all resolve to one row with no raised error.
             async with factory() as s:
                 return await auth.get_or_create_user(
                     s, clerk_id, "concurrent@example.com"
