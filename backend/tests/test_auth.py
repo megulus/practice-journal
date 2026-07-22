@@ -17,8 +17,10 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 from app import auth
+from app.models import User
 
 ISSUER = "https://clerk.test.example.com"
 
@@ -211,3 +213,65 @@ class TestPublishableKeyDerivation:
         jwks_url, issuer = auth._resolve_verification()
         assert jwks_url == f"https://{host}/.well-known/jwks.json"
         assert issuer == f"https://{host}"
+
+
+class _RaceSession:
+    """Minimal AsyncSession stand-in for the first-request creation race.
+
+    The initial SELECT misses (user not found), the INSERT commit raises the
+    unique-constraint IntegrityError the concurrent winner triggered, and the
+    retry SELECT returns the winner's row.
+    """
+
+    def __init__(self, winner):
+        self._winner = winner
+        self._selects = 0
+        self.rolled_back = False
+
+    async def exec(self, _stmt):
+        self._selects += 1
+        found = None if self._selects == 1 else self._winner
+        return namedtuple("_Result", ["first"])(lambda: found)
+
+    def add(self, _obj):
+        pass
+
+    async def commit(self):
+        raise IntegrityError("insert", {}, Exception("duplicate key"))
+
+    async def rollback(self):
+        self.rolled_back = True
+
+    async def refresh(self, _obj):
+        pass
+
+
+class TestGetOrCreateUserRace:
+    """A brand-new user's first page load fires several authenticated requests
+    at once; only one can win the insert. The losers must recover, not 500.
+    """
+
+    @pytest.mark.asyncio
+    async def test_recovers_from_concurrent_insert(self):
+        winner = User(
+            id=7, clerk_user_id="user_race", email="race@example.com"
+        )
+        session = _RaceSession(winner)
+
+        result = await auth.get_or_create_user(
+            session, "user_race", "race@example.com"
+        )
+
+        # Returns the winner's row instead of propagating the IntegrityError.
+        assert result is winner
+        assert session.rolled_back is True
+
+    @pytest.mark.asyncio
+    async def test_reraises_when_row_still_absent(self):
+        # If the conflict wasn't the expected race (retry SELECT still empty),
+        # don't swallow it — the IntegrityError must surface.
+        session = _RaceSession(winner=None)
+        with pytest.raises(IntegrityError):
+            await auth.get_or_create_user(
+                session, "user_ghost", "ghost@example.com"
+            )

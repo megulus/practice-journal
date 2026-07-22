@@ -11,6 +11,7 @@ import jwt
 from jwt import PyJWKClient, PyJWKClientError
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -189,7 +190,24 @@ async def get_or_create_user(
         last_name=last_name
     )
     session.add(user)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # A concurrent first request for this user won the insert race (the
+        # unique clerk_user_id constraint fired). Recover by rolling back and
+        # returning the row the winner created — otherwise the loser bubbles a
+        # 500 that escapes before CORS headers attach, surfacing on the client
+        # as an opaque "failed to fetch". This happens on a brand-new user's
+        # first page load, where several authenticated requests reach
+        # get_or_create_user at once.
+        await session.rollback()
+        result = await session.exec(
+            select(User).where(User.clerk_user_id == clerk_user_id)
+        )
+        user = result.first()
+        if user is None:
+            raise
+        return user
     await session.refresh(user)
     return user
 
