@@ -5,6 +5,7 @@ test RSA key and pointing verification at a fake JWKS that serves the matching
 public key. The forged-signature case is the security-critical one — a token
 signed by a key the JWKS does not serve must be rejected.
 """
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -18,6 +19,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import auth
 from app.models import User
@@ -215,6 +217,11 @@ class TestPublishableKeyDerivation:
         assert issuer == f"https://{host}"
 
 
+# The unique-index violation asyncpg raises for the clerk_user_id race; the
+# recovery path keys off the constraint name in the error text.
+_CLERK_CONFLICT = 'duplicate key value violates unique constraint "ix_users_clerk_user_id"'
+
+
 class _RaceSession:
     """Minimal AsyncSession stand-in for the first-request creation race.
 
@@ -223,8 +230,9 @@ class _RaceSession:
     retry SELECT returns the winner's row.
     """
 
-    def __init__(self, winner):
+    def __init__(self, winner, conflict=_CLERK_CONFLICT):
         self._winner = winner
+        self._conflict = conflict
         self._selects = 0
         self.rolled_back = False
 
@@ -237,7 +245,7 @@ class _RaceSession:
         pass
 
     async def commit(self):
-        raise IntegrityError("insert", {}, Exception("duplicate key"))
+        raise IntegrityError("insert", {}, Exception(self._conflict))
 
     async def rollback(self):
         self.rolled_back = True
@@ -268,10 +276,69 @@ class TestGetOrCreateUserRace:
 
     @pytest.mark.asyncio
     async def test_reraises_when_row_still_absent(self):
-        # If the conflict wasn't the expected race (retry SELECT still empty),
-        # don't swallow it — the IntegrityError must surface.
+        # A clerk_user_id conflict but the retry SELECT is still empty — this
+        # isn't the race we expected, so surface the error rather than swallow.
         session = _RaceSession(winner=None)
         with pytest.raises(IntegrityError):
             await auth.get_or_create_user(
                 session, "user_ghost", "ghost@example.com"
             )
+        assert session.rolled_back is True
+
+    @pytest.mark.asyncio
+    async def test_reraises_unrelated_integrity_error(self):
+        # An integrity violation on some *other* constraint must not be masked
+        # by re-fetching — even if a row with this clerk_user_id happens to
+        # exist. The recovery is scoped to the clerk_user_id conflict only.
+        winner = User(id=9, clerk_user_id="user_other", email="o@example.com")
+        session = _RaceSession(
+            winner,
+            conflict='null value in column "email" violates not-null constraint',
+        )
+        with pytest.raises(IntegrityError):
+            await auth.get_or_create_user(
+                session, "user_other", "o@example.com"
+            )
+
+
+class TestGetOrCreateUserConcurrencyIntegration:
+    """Real-Postgres coverage for the creation race, against the migrated test
+    DB. Complements the fake-session unit tests above, which can't prove that a
+    real async session is reusable after a failed commit + rollback, or that
+    Postgres actually raises IntegrityError (not something else) on the unique
+    index under genuine concurrency.
+    """
+
+    @pytest.mark.asyncio
+    async def test_concurrent_first_requests_resolve_to_one_row(
+        self, db_session, test_engine
+    ):
+        from sqlalchemy import func, select as sa_select
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        clerk_id = "user_concurrent_signup"
+        factory = async_sessionmaker(
+            test_engine, class_=AsyncSession, expire_on_commit=False
+        )
+
+        async def create_once():
+            # Each concurrent request gets its own session, as separate HTTP
+            # requests would. All await the SELECT first (and miss), so they
+            # then race on the INSERT — exactly the first-load scenario.
+            async with factory() as s:
+                return await auth.get_or_create_user(
+                    s, clerk_id, "concurrent@example.com"
+                )
+
+        results = await asyncio.gather(*(create_once() for _ in range(5)))
+
+        # None raised, and all resolved to the same single row.
+        ids = {u.id for u in results}
+        assert len(ids) == 1, f"expected one shared user row, got ids={ids}"
+
+        count = await db_session.scalar(
+            sa_select(func.count())
+            .select_from(User)
+            .where(User.clerk_user_id == clerk_id)
+        )
+        assert count == 1

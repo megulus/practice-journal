@@ -192,7 +192,7 @@ async def get_or_create_user(
     session.add(user)
     try:
         await session.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         # A concurrent first request for this user won the insert race (the
         # unique clerk_user_id constraint fired). Recover by rolling back and
         # returning the row the winner created — otherwise the loser bubbles a
@@ -201,6 +201,11 @@ async def get_or_create_user(
         # first page load, where several authenticated requests reach
         # get_or_create_user at once.
         await session.rollback()
+        # Only the clerk_user_id unique conflict is the expected race. Any other
+        # integrity violation (a future unique/NOT NULL column) is a real error
+        # we must surface, not mask by re-fetching an unrelated existing row.
+        if "clerk_user_id" not in str(getattr(exc, "orig", exc)):
+            raise
         result = await session.exec(
             select(User).where(User.clerk_user_id == clerk_user_id)
         )
