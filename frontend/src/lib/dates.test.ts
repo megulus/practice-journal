@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { formatStartedAt, formatSessionDate } from './dates'
+import { formatStartedAt, formatSessionDate, formatRelativeDay } from './dates'
 
 const DAY = 86_400_000
 
@@ -58,6 +58,25 @@ describe('dates', () => {
 
     it('returns empty for invalid input', () => {
       expect(formatStartedAt('garbage')).toBe('')
+    })
+  })
+
+  describe('formatRelativeDay', () => {
+    it('labels recent days relatively, older ones as a date', () => {
+      expect(formatRelativeDay(new Date().toISOString())).toBe('today')
+      expect(formatRelativeDay(new Date(Date.now() - DAY).toISOString())).toBe(
+        'yesterday',
+      )
+      expect(
+        formatRelativeDay(new Date(Date.now() - 3 * DAY).toISOString()),
+      ).toBe('3 days ago')
+      expect(
+        formatRelativeDay(new Date(Date.now() - 30 * DAY).toISOString()),
+      ).not.toMatch(/ago|today|yesterday/i)
+    })
+
+    it('returns empty for invalid input', () => {
+      expect(formatRelativeDay('nope')).toBe('')
     })
   })
 })

@@ -3,6 +3,7 @@
 import { Monitor, Sun, Moon } from 'lucide-react'
 import { Pill } from '@/components/ui'
 import SignOutButton from '@/components/SignOutButton'
+import { InstrumentManager } from '@/components/profile/InstrumentManager'
 import { useTheme } from '@/hooks/useTheme'
 import type { ThemePreference } from '@/components/ThemeProvider'
 
@@ -46,13 +47,23 @@ function ThemePicker() {
 
 export default function ProfilePage() {
   return (
-    <main className="min-h-screen bg-page-bg px-4xl py-3xl">
+    <div>
       <h1
         className="text-text-primary font-semibold mb-2xl"
         style={{ fontSize: 24, letterSpacing: '-0.5px', lineHeight: 1.35 }}
       >
         Profile
       </h1>
+
+      <section className="mb-2xl">
+        <h2
+          className="text-text-primary font-semibold mb-md"
+          style={{ fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.35 }}
+        >
+          Instruments
+        </h2>
+        <InstrumentManager />
+      </section>
 
       <section className="mb-2xl">
         <h2
@@ -87,6 +98,6 @@ export default function ProfilePage() {
       >
         More settings coming soon &mdash; tracked in #148.
       </p>
-    </main>
+    </div>
   )
 }
