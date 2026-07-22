@@ -18,6 +18,7 @@ export function InstrumentManager() {
   const load = useCallback(async () => {
     try {
       setInstruments(await api.listInstruments())
+      setError(null) // clear any prior (load or write) error on success
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load instruments')
     }
@@ -27,29 +28,43 @@ export function InstrumentManager() {
     load()
   }, [load])
 
-  if (error) {
-    return <p className="text-sm text-danger-text">{error}</p>
-  }
-  if (instruments === null) {
-    return <p className="text-sm text-text-secondary">Loading…</p>
-  }
-
   return (
     <div className="space-y-3">
-      {instruments.length === 0 ? (
+      {/* Non-blocking error banner (load or write failures) */}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-lg bg-card-bg-inset px-3 py-2 text-sm text-danger-text"
+        >
+          {error}
+        </p>
+      )}
+
+      {instruments === null && !error && (
+        <p className="text-sm text-text-secondary">Loading…</p>
+      )}
+
+      {instruments !== null && instruments.length === 0 && (
         <p className="text-sm text-text-secondary">
           No instruments yet — add one to start planning.
         </p>
-      ) : (
+      )}
+
+      {instruments !== null && instruments.length > 0 && (
         <ul className="space-y-3">
           {instruments.map((instrument) => (
             <li key={instrument.id}>
-              <InstrumentCard instrument={instrument} onChange={load} />
+              <InstrumentCard
+                instrument={instrument}
+                onChange={load}
+                onError={setError}
+              />
             </li>
           ))}
         </ul>
       )}
-      <AddInstrument onAdded={load} />
+
+      <AddInstrument onAdded={load} onError={setError} />
     </div>
   )
 }

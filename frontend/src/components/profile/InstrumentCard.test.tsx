@@ -93,4 +93,21 @@ describe('InstrumentCard', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     expect(mockDelete).toHaveBeenCalledWith(1)
   })
+
+  it('reports a write failure via onError and resyncs', async () => {
+    mockUpdate.mockRejectedValueOnce(new Error('nope'))
+    const onError = vi.fn()
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <InstrumentCard
+        instrument={makeInstrument()}
+        onChange={onChange}
+        onError={onError}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Daily' }))
+    expect(onError).toHaveBeenCalledWith(expect.stringMatching(/frequency/i))
+    expect(onChange).toHaveBeenCalled() // still resyncs to server truth
+  })
 })

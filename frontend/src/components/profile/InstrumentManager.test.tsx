@@ -48,4 +48,15 @@ describe('InstrumentManager', () => {
       screen.getByRole('button', { name: '+ Add instrument' }),
     ).toBeInTheDocument()
   })
+
+  it('surfaces a load failure as a non-blocking alert banner', async () => {
+    mockList.mockReset()
+    mockList.mockRejectedValue(new Error('boom'))
+    render(<InstrumentManager />)
+    // The add affordance still renders alongside the error.
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: '+ Add instrument' }),
+    ).toBeInTheDocument()
+  })
 })

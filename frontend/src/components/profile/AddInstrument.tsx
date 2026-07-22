@@ -12,7 +12,13 @@ const DEFAULT_FREQUENCY: PracticeFrequency = 'few_times_a_week'
  * Inline-expand "+ Add instrument" affordance (name + cadence), mirroring the
  * template editor's "+ Add section" pattern (spec §5.8).
  */
-export function AddInstrument({ onAdded }: { onAdded: () => void }) {
+export function AddInstrument({
+  onAdded,
+  onError,
+}: {
+  onAdded: () => void
+  onError?: (message: string) => void
+}) {
   const api = useApi()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -34,6 +40,9 @@ export function AddInstrument({ onAdded }: { onAdded: () => void }) {
       await api.createInstrument({ name: trimmed, practice_frequency: frequency })
       reset()
       onAdded()
+    } catch {
+      // Keep the form open (with the entered name) so the user can retry.
+      onError?.("Couldn't add the instrument. Please try again.")
     } finally {
       setBusy(false)
     }

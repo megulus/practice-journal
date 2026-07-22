@@ -17,28 +17,46 @@ import { PRACTICE_FREQUENCIES } from './frequencies'
 export function InstrumentCard({
   instrument,
   onChange,
+  onError,
 }: {
   instrument: Instrument
   onChange: () => void
+  onError?: (message: string) => void
 }) {
   const api = useApi()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const rename = async (name: string) => {
-    await api.updateInstrument(instrument.id, { name })
-    onChange()
+    try {
+      await api.updateInstrument(instrument.id, { name })
+      onChange()
+    } catch {
+      onError?.("Couldn't rename the instrument. Please try again.")
+      onChange() // resync the field back to the server value
+    }
   }
 
   const setFrequency = async (frequency: PracticeFrequency) => {
     if (frequency === instrument.practice_frequency) return
-    await api.updateInstrument(instrument.id, { practice_frequency: frequency })
-    onChange()
+    try {
+      await api.updateInstrument(instrument.id, {
+        practice_frequency: frequency,
+      })
+      onChange()
+    } catch {
+      onError?.("Couldn't update the practice frequency. Please try again.")
+      onChange() // resync the pills to the server value
+    }
   }
 
   const remove = async () => {
     setConfirmingDelete(false)
-    await api.deleteInstrument(instrument.id)
-    onChange()
+    try {
+      await api.deleteInstrument(instrument.id)
+      onChange()
+    } catch {
+      onError?.("Couldn't delete the instrument. Please try again.")
+    }
   }
 
   const planCount = instrument.active_template_count

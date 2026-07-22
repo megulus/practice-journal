@@ -58,4 +58,19 @@ describe('AddInstrument', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
     expect(mockCreate).not.toHaveBeenCalled()
   })
+
+  it('reports a failure via onError and keeps the form open', async () => {
+    mockCreate.mockRejectedValueOnce(new Error('nope'))
+    const onError = vi.fn()
+    const user = userEvent.setup()
+    render(<AddInstrument onAdded={vi.fn()} onError={onError} />)
+
+    await user.click(screen.getByRole('button', { name: '+ Add instrument' }))
+    await user.type(screen.getByLabelText('New instrument name'), 'Cello')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(onError).toHaveBeenCalledWith(expect.stringMatching(/add/i))
+    // Form stays open with the entered name so the user can retry.
+    expect(screen.getByLabelText('New instrument name')).toHaveValue('Cello')
+  })
 })
