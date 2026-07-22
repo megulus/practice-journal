@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill } from '@/components/ui'
 import type { Instrument, TemplateListItem } from '@/lib/types'
@@ -86,8 +87,16 @@ export default function PlansPage() {
 
   if (instruments.length === 0) {
     return (
-      <div className="py-16 text-center text-text-secondary">
-        Add an instrument to start planning.
+      <div className="py-16 text-center">
+        <p className="mb-6 text-text-secondary">
+          Add an instrument to start planning.
+        </p>
+        <Link
+          href="/profile"
+          className="inline-block rounded-lg bg-primary px-6 py-2.5 font-medium text-text-on-primary-action transition-colors hover:bg-primary-hover"
+        >
+          Go to Profile
+        </Link>
       </div>
     )
   }
