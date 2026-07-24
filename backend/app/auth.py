@@ -11,10 +11,12 @@ import jwt
 from jwt import PyJWKClient, PyJWKClientError
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import get_settings
+from app.enums import utcnow
 from app.models import User
 from app.database import get_session
 
@@ -181,16 +183,43 @@ async def get_or_create_user(
             await session.refresh(user)
         return user
 
-    # Create new user
-    user = User(
-        clerk_user_id=clerk_user_id,
-        email=email,
-        first_name=first_name,
-        last_name=last_name
+    # Create the user with an atomic upsert. A brand-new user's first page load
+    # fires several authenticated requests at once, all reaching this branch
+    # together; a plain INSERT would let one win and the others hit the unique
+    # clerk_user_id constraint, raising a 500 that escapes before CORS headers
+    # attach (an opaque "failed to fetch" on the client). INSERT ... ON CONFLICT
+    # DO NOTHING resolves the collision in a single statement — the losers no-op
+    # instead of erroring — so no request fails. We then read the row back
+    # (whichever request actually inserted it) to return a session-managed
+    # instance. created_at is set explicitly so the row carries the app's naive-
+    # UTC clock (utcnow()) rather than the column's tz-aware now() server_default
+    # — a Core insert bypasses the model's Python-side default_factory.
+    stmt = (
+        pg_insert(User)
+        .values(
+            clerk_user_id=clerk_user_id,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            created_at=utcnow(),
+        )
+        .on_conflict_do_nothing(index_elements=["clerk_user_id"])
     )
-    session.add(user)
+    await session.exec(stmt)
     await session.commit()
-    await session.refresh(user)
+
+    result = await session.exec(
+        select(User).where(User.clerk_user_id == clerk_user_id)
+    )
+    user = result.first()
+    if user is None:
+        # The row we just upserted must exist; a miss means something is deeply
+        # wrong (not the benign race). Fail loudly rather than return None into
+        # a non-optional contract the caller would dereference.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load user after creation",
+        )
     return user
 
 

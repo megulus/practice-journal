@@ -5,6 +5,7 @@ test RSA key and pointing verification at a fake JWKS that serves the matching
 public key. The forged-signature case is the security-critical one — a token
 signed by a key the JWKS does not serve must be rejected.
 """
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -17,8 +18,10 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import auth
+from app.models import User
 
 ISSUER = "https://clerk.test.example.com"
 
@@ -211,3 +214,117 @@ class TestPublishableKeyDerivation:
         jwks_url, issuer = auth._resolve_verification()
         assert jwks_url == f"https://{host}/.well-known/jwks.json"
         assert issuer == f"https://{host}"
+
+
+async def _count_users(db_session, clerk_id: str) -> int:
+    from sqlalchemy import func, select as sa_select
+
+    return await db_session.scalar(
+        sa_select(func.count())
+        .select_from(User)
+        .where(User.clerk_user_id == clerk_id)
+    )
+
+
+class TestGetOrCreateUser:
+    """Behavior of get_or_create_user against the migrated test DB: create on
+    first sight, a read-only fast path for unchanged repeat calls (it runs on
+    every authenticated request), and profile-field updates from fresh claims.
+    """
+
+    @pytest.mark.asyncio
+    async def test_creates_new_user(self, db_session):
+        user = await auth.get_or_create_user(
+            db_session, "user_new", "new@example.com", "Ada", "Byron"
+        )
+        assert user is not None
+        assert user.id is not None
+        assert user.email == "new@example.com"
+        assert user.first_name == "Ada"
+        # The Core-insert path stamps created_at explicitly (no ORM default runs).
+        assert user.created_at is not None
+        assert await _count_users(db_session, "user_new") == 1
+
+    @pytest.mark.asyncio
+    async def test_repeat_call_is_read_only(self, db_session):
+        # get_or_create_user runs on every request; an unchanged repeat must not
+        # write. updated_at stays None (its onupdate only fires on an UPDATE).
+        first = await auth.get_or_create_user(
+            db_session, "user_hot", "hot@example.com", "Grace", "Hopper"
+        )
+        assert first.updated_at is None
+
+        again = await auth.get_or_create_user(
+            db_session, "user_hot", "hot@example.com", "Grace", "Hopper"
+        )
+        assert again.id == first.id
+        assert again.updated_at is None
+        assert await _count_users(db_session, "user_hot") == 1
+
+    @pytest.mark.asyncio
+    async def test_updates_changed_fields(self, db_session):
+        created = await auth.get_or_create_user(
+            db_session, "user_upd", "old@example.com", "Old", None
+        )
+        assert created.updated_at is None
+
+        updated = await auth.get_or_create_user(
+            db_session, "user_upd", "new@example.com", "New", "Name"
+        )
+        assert updated.id == created.id
+        assert updated.email == "new@example.com"
+        assert updated.first_name == "New"
+        assert updated.last_name == "Name"
+        # The update path ran, so onupdate stamped updated_at.
+        assert updated.updated_at is not None
+
+    @pytest.mark.asyncio
+    async def test_empty_claims_do_not_overwrite(self, db_session):
+        created = await auth.get_or_create_user(
+            db_session, "user_keep", "keep@example.com", "Keep", "Me"
+        )
+
+        # Empty email / missing names (as anonymous-ish claims might arrive)
+        # must not blank out the stored profile.
+        result = await auth.get_or_create_user(
+            db_session, "user_keep", "", None, None
+        )
+        assert result.email == "keep@example.com"
+        assert result.first_name == "Keep"
+        assert result.last_name == "Me"
+
+
+class TestGetOrCreateUserConcurrencyIntegration:
+    """Real-Postgres coverage for the creation race against the migrated test
+    DB — the payoff of the ON CONFLICT DO NOTHING upsert. Several concurrent
+    first requests (each its own session, as separate HTTP requests would have)
+    must all resolve to the same single row with no unhandled error.
+    """
+
+    @pytest.mark.asyncio
+    async def test_concurrent_first_requests_resolve_to_one_row(
+        self, db_session, test_engine
+    ):
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        clerk_id = "user_concurrent_signup"
+        factory = async_sessionmaker(
+            test_engine, class_=AsyncSession, expire_on_commit=False
+        )
+
+        async def create_once():
+            # Each runs on its own session; interleaving at await points means
+            # they typically all miss the initial SELECT and then race on the
+            # insert (the first-load scenario). Whatever the interleaving, they
+            # must all resolve to one row with no raised error.
+            async with factory() as s:
+                return await auth.get_or_create_user(
+                    s, clerk_id, "concurrent@example.com"
+                )
+
+        results = await asyncio.gather(*(create_once() for _ in range(5)))
+
+        # None raised, and all resolved to the same single row.
+        ids = {u.id for u in results}
+        assert len(ids) == 1, f"expected one shared user row, got ids={ids}"
+        assert await _count_users(db_session, clerk_id) == 1
