@@ -33,6 +33,20 @@ export function formatStartedAt(iso: string): string {
 }
 
 /**
+ * Day-granularity relative label for a UTC datetime (no time-of-day), for
+ * "last practiced" copy: "today", "yesterday", "3 days ago", else "Jul 12".
+ */
+export function formatRelativeDay(iso: string): string {
+  const d = parseUtc(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const diff = calendarDayDiff(d, new Date())
+  if (diff <= 0) return 'today'
+  if (diff === 1) return 'yesterday'
+  if (diff < 7) return `${diff} days ago`
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+/**
  * Label for a completed session's `practice_date` (a `YYYY-MM-DD` date):
  * "Today", "Yesterday", else "Jul 21, 2026".
  */
