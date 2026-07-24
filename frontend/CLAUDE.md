@@ -25,7 +25,7 @@ and re-test `docker compose up` while signed in (a protected route must load, HM
 
 This is a **Next.js 14 App Router** application (TypeScript, Tailwind CSS) for tracking music practice sessions across multiple instruments. It connects to a backend API (default: `http://localhost:8000`).
 
-The frontend is mid-rebuild against the new Kantelo schema and design system. See `docs/kantelo-frontend-plan.md` for the phased plan and `docs/phase-0-audit.md` for the design-system gap audit.
+The frontend's Phase-0 rebuild against the new Kantelo schema and design system is complete — all core screens are retoned to the token/primitive system (PRs #203–#210). See `docs/kantelo-frontend-plan.md` for the (now historical) phased plan. Current work is post-Phase-0 features; for what's built vs. planned, see the GitHub Project board rather than the design docs.
 
 ### Authentication
 
@@ -103,7 +103,7 @@ Design tokens live in `src/lib/tokens.css` as CSS custom properties (light by de
 
 Section type colors aren't exposed as Tailwind utilities — they're applied via `getSectionColor()` and inline `style={{}}` because they encode an assignment rule (pinned warm-up/cool-down + 8-color pool by display order). See `src/lib/section-colors.ts`.
 
-Existing screens (Today, Active session, Plans, etc.) still use stock Tailwind classes from the previous indigo theme. Those colors no longer exist after the foundation PR — affected buttons will look unstyled until each screen is retoned (Phase 0 PR 9+). This jank is intentional and tracked in `docs/phase-0-audit.md`.
+All core screens (Today, Active session, Session summary, Plans list, Plans editor, Profile) have been retoned to the token/primitive system (PRs #203–#210); the previous indigo-theme Tailwind classes are gone. If you find a screen still using stock/legacy classes, treat it as a bug to retone, not intended jank.
 
 ### Previewing primitives
 
