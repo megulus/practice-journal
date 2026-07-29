@@ -1,4 +1,6 @@
-# Kantelo — Frontend Implementation Plan
+# Kantelo — Phase 0 Frontend Rebuild Plan (historical)
+
+> **📦 Historical — Phase 0 completed July 2026.** This plan guided the phased frontend rebuild (Phase 0 scaffolding: design tokens, theme provider, app shell, UI primitives, and the per-screen retones landed in PRs #203–#210). It's retained as a record of the rebuild's rationale and phase structure, **not** as an active task list. For current status and what's next, see the GitHub Project board; for what's built, see git history. Post-Phase-0 feature work is tracked in its own issues.
 
 > Phased build plan for the Kantelo frontend. Each phase is independently shippable and testable. Hand this to Claude Code alongside the product spec, schema/API doc, and design tokens doc. The backend is built separately — see kantelo-schema-api.md for the full API contract that the frontend consumes.
 

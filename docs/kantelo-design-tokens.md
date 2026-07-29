@@ -2,7 +2,7 @@
 
 > The complete design system reference for implementing Kantelo's frontend. Every value here is a decision — don't improvise.
 
-**Last updated:** March 2026
+**Last updated:** July 2026 — verified in sync with `frontend/src/lib/tokens.css` and `frontend/tailwind.config.ts`
 **Direction:** Clean Edge + Warm Stone (IBM Plex Sans, tight radii, warm neutral palette)
 **Modes:** Light and Dark, both first-class
 

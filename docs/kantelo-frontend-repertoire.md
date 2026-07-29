@@ -6,6 +6,8 @@ This document supersedes the earlier `kantelo-frontend-repertoire-active-session
 
 The third repertoire surface — the **Profile repertoire library** (browsing pieces, viewing spot history, retiring/un-retiring, deleting) — is not yet designed. It is the lowest-stakes surface (used occasionally for management) and will inherit components from the two designed here.
 
+> **This is design intent, not build status.** The active-session surface is built (#145); the template-editor spot management is designed but not yet built (#167); the Profile repertoire library is not yet designed. For what's actually shipped vs. planned, see the GitHub Project board and open issues — not this document.
+
 **Status:** Active session and template editor surfaces both settled. Profile repertoire library still to design.
 **Last updated:** April 2026
 
@@ -204,7 +206,7 @@ The pattern is also consistent with the existing custom block creation flow on t
 
 ## Components introduced
 
-This design adds the following to the Phase 1 and Phase 2 component inventories in `kantelo-frontend-plan.md`:
+This design adds the following to the Phase 1 and Phase 2 component inventories in `kantelo-frontend-phase-0-plan.md`:
 
 ### Active session
 

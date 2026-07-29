@@ -4,6 +4,8 @@
 
 This document captures the product decisions, information architecture, user flows, and UX design for Kantelo. It is intended as a reference for developers (human or AI) building or iterating on the application.
 
+> **This is design intent, not build status.** Some flows described here (e.g. the quick-start wizard, the full Progress tab, repertoire management in the template editor) are designed but not yet built. For what's actually shipped vs. planned, see the GitHub Project board and open issues — not this document.
+
 **Last updated:** April 2026
 **Domain:** kantelo.app
 **Origin:** The name comes from the Finnish *kantele*, the mythic stringed instrument from the Kalevala epic. When Väinämöinen played the kantele, every creature in nature fell silent to listen. That's what great practice leads to.

@@ -2,7 +2,7 @@
 
 > Technical reference for implementing the Kantelo backend. Designed from the product spec (kantelo-product-spec.md) as a greenfield schema.
 
-**Last updated:** April 2026
+**Last updated:** July 2026
 **Stack:** FastAPI / SQLModel / PostgreSQL / Alembic / Clerk
 
 ---
@@ -192,6 +192,7 @@ Practice plan belonging to an instrument. **At most one template per instrument 
 |--------|------|-------------|-------|
 | id | serial | PK | |
 | instrument_id | int | FK → instruments, not null, indexed | |
+| user_id | int | FK → users, not null, indexed | Denormalized owner for user-scoped queries (avoids joining through instruments) |
 | name | varchar(200) | not null | e.g. "Learn the Bruch concerto" |
 | description | text | nullable | |
 | is_active | bool | not null, default true | Active vs. archived |
@@ -306,6 +307,7 @@ A logged practice session. One row per practice event.
 | instrument_id | int | FK → instruments, not null, indexed | |
 | template_id | int | nullable, FK → templates | Null for freeform sessions |
 | template_session_id | int | nullable, FK → template_sessions | Which rotation session was practiced |
+| status | varchar(20) | not null, default 'in_progress' | Session lifecycle (`SessionStatus` enum): `'in_progress'` while active, `'completed'` once finished, `'abandoned'` if discarded. Indexed via `(user_id, status)` for active-session lookups |
 | practice_date | date | not null | |
 | total_duration_minutes | int | not null | Summed from section logs |
 | notes | text | nullable | Session-level freeform notes |
@@ -318,6 +320,7 @@ A logged practice session. One row per practice event.
 Indexes:
 - `(user_id, instrument_id, practice_date)` — history queries, heatmap
 - `(user_id, practice_date)` — streak calculation, cross-instrument analytics
+- `(user_id, status)` — active ("in_progress") session lookup for the Today tab resume banner
 
 ### section_logs
 
@@ -334,6 +337,7 @@ Logged section within a practice session. Captures the per-section time stepper 
 | actual_duration_minutes | int | not null | Adjusted via time stepper |
 | display_order | int | not null, default 0 | |
 | completed | bool | not null, default true | False if section was skipped |
+| skipped | bool | not null, default false | Explicitly skipped by the user (distinct from "not started"). Lossless — skipping only sets this flag; child block completion and ratings are preserved, so un-skipping restores the section exactly |
 | created_at | timestamptz | not null, default now() | |
 
 ### block_logs

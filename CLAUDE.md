@@ -10,15 +10,43 @@ guide at `frontend/CLAUDE.md` — read that for anything UI-related.
 `practice-journal` for historical reasons; the product is Kantelo. The
 authoritative product/spec/design docs live in `docs/`:
 
-- `docs/kantelo-product-spec.md` — full product spec (future scope in §10)
+- `docs/kantelo-product-spec.md` — full product spec (future scope in §10);
+  design intent, not build status
 - `docs/kantelo-schema-api.md` — canonical DB schema + API contract
 - `docs/kantelo-design-tokens.md` — design tokens (source of truth for the UI)
-- `docs/kantelo-frontend-plan.md` / `docs/phase-0-audit.md` — the phased
-  frontend rebuild and its design-system gap audit
+- `docs/kantelo-frontend-repertoire.md` — repertoire surface designs
+- `docs/kantelo-frontend-phase-0-plan.md` — the Phase 0 frontend rebuild plan
+  (historical: Phase 0 completed July 2026; there is no active plan doc)
 - `docs/railway-deployment.md` — production deploy (Railway)
+- `docs/adr/` — architecture decision records (why the stack/schema choices were
+  made); reconstructed set, see `docs/adr/README.md`
 
 When a question touches schema, API shape, or design tokens, treat the relevant
-doc as the source of truth over ad-hoc code reading.
+doc as the source of truth over ad-hoc code reading. For **what's built vs.
+planned** (status/roadmap), the docs are *not* authoritative — see "Orienting:
+sources of truth" below.
+
+## Orienting: sources of truth
+
+Design/contract docs describe intent and shape; they deliberately do **not**
+track project status. To assess current state and what's next — especially from
+a fresh checkout or a parallel/cloud agent — derive it from the live sources
+rather than any committed status file (there isn't one, by design — it would
+rot and conflict across branches):
+
+- **What's shipped / recent history** → `git log --oneline -20` and merged PRs:
+  `gh pr list --state merged --limit 20`
+- **What's in flight / open work** → `gh pr list` and `gh issue list`
+- **Roadmap / prioritization (the source of truth for "what's next")** → the
+  GitHub Project board: `gh project item-list <n> --owner <owner>` (needs a
+  token with `read:project`; in a cloud/CI sandbox, provide it as an env var so
+  `gh` can auth).
+- **Conventions / architecture** → this file and `frontend/CLAUDE.md`.
+- **Schema / API / tokens contracts** → the `docs/` files above.
+
+Keep the contract docs (schema-api, design-tokens) current in the same PR that
+changes the underlying model/tokens — that's the one kind of doc freshness worth
+enforcing.
 
 ## Layout
 
@@ -102,9 +130,11 @@ These are easy to get wrong from code-reading alone:
 See `frontend/CLAUDE.md` for the full guide (Next.js App Router structure, the
 `createAuthenticatedAPI()` client in `src/lib/api.ts`, shared types in
 `src/lib/types.ts`, the Tailwind/token system, and the dev-only `/preview`
-route). Key context: the frontend is mid Phase-0 rebuild against the new Kantelo
-schema and design system, so some not-yet-retoned screens look intentionally
-unstyled — that jank is tracked in `docs/phase-0-audit.md`, not a bug.
+route). Key context: the Phase-0 rebuild against the new Kantelo schema and
+design system is complete (all core screens retoned to tokens/primitives, PRs
+#203–#210); current work is post-Phase-0 features (Progress tab, quick-start
+wizard, repertoire library, profile preferences). The Progress tab is still a
+`ComingSoonPlaceholder`.
 
 ## Conventions for working here
 
