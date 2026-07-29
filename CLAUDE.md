@@ -28,6 +28,12 @@ sources of truth" below.
 
 ## Orienting: sources of truth
 
+> **Already dispatched on a specific ticket?** (e.g. a Niteshift run launched from
+> an issue, or you were told "work on #N.") Then that ticket **is** your task —
+> read the issue and its linked docs/PRs and get to work; **skip the "what's next"
+> roadmap query below.** The roadmap query is only for when you need to *choose*
+> what to work on, not when the work has already been chosen for you.
+
 Design/contract docs describe intent and shape; they deliberately do **not**
 track project status. To assess current state and what's next — especially from
 a fresh checkout or a parallel/cloud agent — derive it from the live sources
