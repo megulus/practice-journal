@@ -67,6 +67,39 @@ Keep the contract docs (schema-api, design-tokens) current in the same PR that
 changes the underlying model/tokens — that's the one kind of doc freshness worth
 enforcing.
 
+## Grooming the backlog
+
+Grooming is a distinct task from picking up work: you're *maintaining the tracker
+to match reality*, which means mutating issues and board items — so it is
+**propose-then-confirm, never autonomous**. Produce a triage report and let a
+human approve the actual closes/edits/moves. Do not close, edit, or re-status
+tickets directly unless explicitly told to; closing an issue is outward-facing
+and awkward to reverse.
+
+Procedure:
+
+1. **Load the whole backlog** — `gh project item-list 2 --owner megulus --limit
+   300 --format json` (the `--limit` is mandatory; the default 30 silently
+   truncates and you'll groom a fraction thinking you're done). Filter to
+   `Backlog`.
+2. **Diff each ticket against current reality** — the highest-value move is
+   catching tickets *silently resolved or overtaken* by shipped work. For each,
+   cross-check `git log`, merged PRs (`gh pr list --state merged --limit 40`), and
+   the `docs/` contracts. A ticket describing something already built/changed is a
+   close/rescope candidate.
+3. **Classify** each into: `close` (done/overtaken/won't-do), `dedupe` (links to
+   another), `rescope` (drifted or unclear acceptance criteria), `promote` (belongs
+   in `Ready`), or `keep` (still valid, stays in Backlog). Give a one-line reason
+   and cite the evidence (commit/PR/doc).
+4. **Output a report, then stop.** Group by classification with the reasons. The
+   human reviews and says which to action; only then make the changes.
+
+Board writes (status moves) need a `project`-scoped token (`gh auth refresh -s
+project`); closing issues needs repo write. Known groom candidates as of this
+writing: **#80** (docs consolidation — largely overtaken by the docs refresh +
+ADRs), **#156** (reconcile schema-api — addressed by that same work), **#33**
+(ancient, needs rethink).
+
 ## Layout
 
 ```
