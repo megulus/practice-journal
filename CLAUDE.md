@@ -18,6 +18,8 @@ authoritative product/spec/design docs live in `docs/`:
 - `docs/kantelo-frontend-plan.md` — the phased frontend rebuild plan
   (historical: Phase 0 completed July 2026)
 - `docs/railway-deployment.md` — production deploy (Railway)
+- `docs/adr/` — architecture decision records (why the stack/schema choices were
+  made); reconstructed set, see `docs/adr/README.md`
 
 When a question touches schema, API shape, or design tokens, treat the relevant
 doc as the source of truth over ad-hoc code reading. For **what's built vs.
