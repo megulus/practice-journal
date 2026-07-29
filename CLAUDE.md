@@ -36,11 +36,22 @@ rot and conflict across branches):
 
 - **What's shipped / recent history** → `git log --oneline -20` and merged PRs:
   `gh pr list --state merged --limit 20`
-- **What's in flight / open work** → `gh pr list` and `gh issue list`
+- **What's in flight / open work** → `gh pr list` and
+  `gh issue list --label frontend-rebuild --limit 100`
 - **Roadmap / prioritization (the source of truth for "what's next")** → the
-  GitHub Project board: `gh project item-list <n> --owner <owner>` (needs a
-  token with `read:project`; in a cloud/CI sandbox, provide it as an env var so
-  `gh` can auth).
+  GitHub Project board (Kantelo board is project `2`, owner `megulus`). The
+  current frontend work is the `frontend-rebuild` epic **#141** and its children;
+  cross-check the board's `Ready`/`Backlog`/`Done` columns against the epic's
+  checklist (which can lag). Query with an explicit `--limit` — **`gh project
+  item-list` defaults to 30 items and silently truncates**, which will hide most
+  of the board:
+  ```bash
+  gh project item-list 2 --owner megulus --limit 300 --format json \
+    | jq -r '.items[] | select(.content.number != null)
+             | "\(.status)\t#\(.content.number)\t\(.content.title)"' | sort
+  ```
+  (Needs a token with `read:project`; in a cloud/CI sandbox, provide it as an env
+  var so `gh` can auth.)
 - **Conventions / architecture** → this file and `frontend/CLAUDE.md`.
 - **Schema / API / tokens contracts** → the `docs/` files above.
 
