@@ -206,7 +206,7 @@ The pattern is also consistent with the existing custom block creation flow on t
 
 ## Components introduced
 
-This design adds the following to the Phase 1 and Phase 2 component inventories in `kantelo-frontend-plan.md`:
+This design adds the following to the Phase 1 and Phase 2 component inventories in `kantelo-frontend-phase-0-plan.md`:
 
 ### Active session
 

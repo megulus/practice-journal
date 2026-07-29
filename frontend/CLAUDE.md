@@ -25,7 +25,7 @@ and re-test `docker compose up` while signed in (a protected route must load, HM
 
 This is a **Next.js 14 App Router** application (TypeScript, Tailwind CSS) for tracking music practice sessions across multiple instruments. It connects to a backend API (default: `http://localhost:8000`).
 
-The frontend's Phase-0 rebuild against the new Kantelo schema and design system is complete — all core screens are retoned to the token/primitive system (PRs #203–#210). See `docs/kantelo-frontend-plan.md` for the (now historical) phased plan. Current work is post-Phase-0 features; for what's built vs. planned, see the GitHub Project board rather than the design docs.
+The frontend's Phase-0 rebuild against the new Kantelo schema and design system is complete — all core screens are retoned to the token/primitive system (PRs #203–#210). See `docs/kantelo-frontend-phase-0-plan.md` for the (historical) Phase 0 plan. Current work is post-Phase-0 features; for what's built vs. planned, see the GitHub Project board rather than the design docs.
 
 ### Authentication
 

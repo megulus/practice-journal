@@ -25,7 +25,7 @@ labels: frontend-rebuild
 
 - **Tokens**: docs/kantelo-design-tokens.md §<section>
 - **Wireframe(s)**: docs/wireframes/<filename>.png
-- **Plan**: docs/kantelo-frontend-plan.md Phase <N>, task <N.M>
+- **Plan** (historical reference only): docs/kantelo-frontend-phase-0-plan.md Phase <N>, task <N.M>
 - **Spec**: docs/kantelo-product-spec.md §<section>
 - **Repertoire doc** (if relevant): docs/kantelo-frontend-repertoire.md Part <N>
 

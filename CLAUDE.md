@@ -15,8 +15,8 @@ authoritative product/spec/design docs live in `docs/`:
 - `docs/kantelo-schema-api.md` — canonical DB schema + API contract
 - `docs/kantelo-design-tokens.md` — design tokens (source of truth for the UI)
 - `docs/kantelo-frontend-repertoire.md` — repertoire surface designs
-- `docs/kantelo-frontend-plan.md` — the phased frontend rebuild plan
-  (historical: Phase 0 completed July 2026)
+- `docs/kantelo-frontend-phase-0-plan.md` — the Phase 0 frontend rebuild plan
+  (historical: Phase 0 completed July 2026; there is no active plan doc)
 - `docs/railway-deployment.md` — production deploy (Railway)
 - `docs/adr/` — architecture decision records (why the stack/schema choices were
   made); reconstructed set, see `docs/adr/README.md`
