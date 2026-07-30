@@ -42,17 +42,21 @@ rot and conflict across branches):
 
 - **What's shipped / recent history** → `git log --oneline -20` and merged PRs:
   `gh pr list --state merged --limit 20`
-- **What's in flight / open work** → `gh pr list` and
-  `gh issue list --label frontend-rebuild --limit 100`
+- **What's in flight / open work** → `gh pr list` and `gh issue list --state open
+  --limit 100` (to focus one workstream add `--label <name>`; discover the active
+  labels with `gh label list`)
 - **Roadmap / prioritization (the source of truth for "what's next")** → the
   GitHub Project board (Kantelo board is project `2`, owner `megulus`). The
   **`Ready` column is the curated next-up queue — start there** to answer "what
   should I pick up?"; `Backlog` is everything not yet promoted, `Done` is shipped.
-  The current frontend work is the `frontend-rebuild` epic **#141** and its
-  children; use the epic for structure/sequence, but treat its checklist as a lagging
-  indicator (the board columns are authoritative for status). Query with an
-  explicit `--limit` — **`gh project item-list` defaults to 30 items and silently
-  truncates**, which will hide most of the board:
+  The Ready column is label-agnostic, so it stays the "what's next" signal no
+  matter which workstream is active. For structure/sequence, find the current
+  epic(s) via `gh issue list --label epic --state open` — as of 2026-07 the active
+  one is **#141** (the frontend rebuild), but verify it's still current and watch
+  for others (workstream labels like `frontend-rebuild` eventually retire). Treat
+  an epic's checklist as a lagging indicator; the board columns are authoritative
+  for status. Query the board with an explicit `--limit` — **`gh project item-list`
+  defaults to 30 items and silently truncates**, which will hide most of the board:
   ```bash
   gh project item-list 2 --owner megulus --limit 300 --format json \
     | jq -r '.items[] | select(.content.number != null)
@@ -83,10 +87,12 @@ Procedure:
    truncates and you'll groom a fraction thinking you're done). Filter to
    `Backlog`.
 2. **Diff each ticket against current reality** — the highest-value move is
-   catching tickets *silently resolved or overtaken* by shipped work. For each,
-   cross-check `git log`, merged PRs (`gh pr list --state merged --limit 40`), and
-   the `docs/` contracts. A ticket describing something already built/changed is a
-   close/rescope candidate.
+   catching tickets *silently resolved or overtaken* by shipped work. Don't lean on
+   a fixed recent-PR window; grooming targets *old* stragglers a recent window
+   would miss. Check **per ticket**: search for its number in merged PRs and
+   commits (`gh pr list --search <NNN> --state merged`, `git log --grep '#<NNN>'`),
+   and look for the feature directly in the code and `docs/`. A ticket describing
+   something already built or changed is a close/rescope candidate.
 3. **Classify** each into: `close` (done/overtaken/won't-do), `dedupe` (links to
    another), `rescope` (drifted or unclear acceptance criteria), `promote` (belongs
    in `Ready`), or `keep` (still valid, stays in Backlog). Give a one-line reason
