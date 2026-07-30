@@ -28,6 +28,12 @@ sources of truth" below.
 
 ## Orienting: sources of truth
 
+> **Already dispatched on a specific ticket?** (e.g. a Niteshift run launched from
+> an issue, or you were told "work on #N.") Then that ticket **is** your task —
+> read the issue and its linked docs/PRs and get to work; **skip the "what's next"
+> roadmap query below.** The roadmap query is only for when you need to *choose*
+> what to work on, not when the work has already been chosen for you.
+
 Design/contract docs describe intent and shape; they deliberately do **not**
 track project status. To assess current state and what's next — especially from
 a fresh checkout or a parallel/cloud agent — derive it from the live sources
@@ -36,17 +42,69 @@ rot and conflict across branches):
 
 - **What's shipped / recent history** → `git log --oneline -20` and merged PRs:
   `gh pr list --state merged --limit 20`
-- **What's in flight / open work** → `gh pr list` and `gh issue list`
+- **What's in flight / open work** → `gh pr list` and `gh issue list --state open
+  --limit 100` (to focus one workstream add `--label <name>`; discover the active
+  labels with `gh label list`)
 - **Roadmap / prioritization (the source of truth for "what's next")** → the
-  GitHub Project board: `gh project item-list <n> --owner <owner>` (needs a
-  token with `read:project`; in a cloud/CI sandbox, provide it as an env var so
-  `gh` can auth).
+  GitHub Project board (Kantelo board is project `2`, owner `megulus`). The
+  **`Ready` column is the curated next-up queue — start there** to answer "what
+  should I pick up?"; `Backlog` is everything not yet promoted, `Done` is shipped.
+  The Ready column is label-agnostic, so it stays the "what's next" signal no
+  matter which workstream is active. For structure/sequence, find the current
+  epic(s) via `gh issue list --label epic --state open` — as of 2026-07 the active
+  one is **#141** (the frontend rebuild), but verify it's still current and watch
+  for others (workstream labels like `frontend-rebuild` eventually retire). Treat
+  an epic's checklist as a lagging indicator; the board columns are authoritative
+  for status. Query the board with an explicit `--limit` — **`gh project item-list`
+  defaults to 30 items and silently truncates**, which will hide most of the board:
+  ```bash
+  gh project item-list 2 --owner megulus --limit 300 --format json \
+    | jq -r '.items[] | select(.content.number != null)
+             | "\(.status)\t#\(.content.number)\t\(.content.title)"' | sort
+  ```
+  (Needs a token with `read:project`; in a cloud/CI sandbox, provide it as an env
+  var so `gh` can auth.)
 - **Conventions / architecture** → this file and `frontend/CLAUDE.md`.
 - **Schema / API / tokens contracts** → the `docs/` files above.
 
 Keep the contract docs (schema-api, design-tokens) current in the same PR that
 changes the underlying model/tokens — that's the one kind of doc freshness worth
 enforcing.
+
+## Grooming the backlog
+
+Grooming is a distinct task from picking up work: you're *maintaining the tracker
+to match reality*, which means mutating issues and board items — so it is
+**propose-then-confirm, never autonomous**. Produce a triage report and let a
+human approve the actual closes/edits/moves. Do not close, edit, or re-status
+tickets directly unless explicitly told to; closing an issue is outward-facing
+and awkward to reverse.
+
+Procedure:
+
+1. **Load the whole backlog** — `gh project item-list 2 --owner megulus --limit
+   300 --format json` (the `--limit` is mandatory; the default 30 silently
+   truncates and you'll groom a fraction thinking you're done). Filter to
+   `Backlog`.
+2. **Diff each ticket against current reality** — the highest-value move is
+   catching tickets *silently resolved or overtaken* by shipped work. Don't lean on
+   a fixed recent-PR window; grooming targets *old* stragglers a recent window
+   would miss. Check **per ticket**: search for its number in merged PRs and
+   commits (`gh pr list --search <NNN> --state merged`, `git log --grep '#<NNN>'`),
+   and look for the feature directly in the code and `docs/`. A ticket describing
+   something already built or changed is a close/rescope candidate.
+3. **Classify** each into: `close` (done/overtaken/won't-do), `dedupe` (links to
+   another), `rescope` (drifted or unclear acceptance criteria), `promote` (belongs
+   in `Ready`), or `keep` (still valid, stays in Backlog). Give a one-line reason
+   and cite the evidence (commit/PR/doc).
+4. **Output a report, then stop.** Group by classification with the reasons. The
+   human reviews and says which to action; only then make the changes.
+
+Board writes (status moves) need a `project`-scoped token (`gh auth refresh -s
+project`); closing issues needs repo write. Known groom candidates as of this
+writing: **#80** (docs consolidation — largely overtaken by the docs refresh +
+ADRs), **#156** (reconcile schema-api — addressed by that same work), **#33**
+(ancient, needs rethink).
 
 ## Layout
 
