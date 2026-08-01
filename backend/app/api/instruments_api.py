@@ -12,6 +12,10 @@ from app.models import User, Instrument, Template, PracticeLog
 from app.auth import get_current_user
 from app.enums import utcnow
 from app.schemas.instrument import InstrumentCreate, InstrumentRead, InstrumentUpdate
+from app.services.instrument_category import (
+    CANONICAL_INSTRUMENT_CATEGORIES,
+    derive_instrument_category,
+)
 
 router = APIRouter(prefix="/instruments", tags=["instruments"])
 
@@ -43,6 +47,7 @@ async def _enrich_instrument(
     return InstrumentRead(
         id=instrument.id,
         name=instrument.name,
+        instrument_category=instrument.instrument_category,
         practice_frequency=instrument.practice_frequency,
         display_order=instrument.display_order,
         active_template_count=active_template_count,
@@ -79,10 +84,19 @@ async def create_instrument(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new instrument for the current user."""
+    """Create a new instrument for the current user.
+
+    `instrument_category` is derived from the name unless the client sends one
+    explicitly.
+    """
     instrument = Instrument(
         user_id=current_user.id,
         name=body.name,
+        instrument_category=(
+            body.instrument_category.strip().lower()
+            if body.instrument_category
+            else None
+        ),
         practice_frequency=body.practice_frequency.value,
     )
     session.add(instrument)
@@ -104,6 +118,15 @@ async def update_instrument(
     update_data = body.model_dump(exclude_unset=True, mode="json")
     for field, value in update_data.items():
         setattr(instrument, field, value)
+
+    # A canonical category is sticky: renaming "Violin" to "Mom's Violin" must
+    # not change it. A fallback category (the name itself, because nothing
+    # matched) is re-derived, so fixing a typo'd name can recover one.
+    if (
+        "name" in update_data
+        and instrument.instrument_category not in CANONICAL_INSTRUMENT_CATEGORIES
+    ):
+        instrument.instrument_category = derive_instrument_category(instrument.name)
 
     session.add(instrument)
     await session.commit()

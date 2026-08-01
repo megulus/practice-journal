@@ -44,7 +44,7 @@ async def browse_curated_blocks(
     instrument category whose templates include this curated block.
     """
     # Case-insensitive on both sides — seed data uses lowercase categories
-    # ("violin"), but Instrument.name is title case from the user ("Violin").
+    # ("violin") but nothing enforces the casing of a stored category.
     instrument_lower = instrument.lower()
     query = select(CuratedBlock).where(
         func.lower(CuratedBlock.instrument_category) == instrument_lower
@@ -66,7 +66,7 @@ async def browse_curated_blocks(
     # block. Two queries total (denominator + batched numerator), not N+1.
     denom_result = await session.exec(
         select(func.count(func.distinct(Instrument.user_id))).where(
-            func.lower(Instrument.name) == instrument_lower,
+            func.lower(Instrument.instrument_category) == instrument_lower,
             Instrument.deleted_at == None,  # noqa: E711
         )
     )
@@ -90,7 +90,7 @@ async def browse_curated_blocks(
             .join(Instrument, Instrument.id == Template.instrument_id)
             .where(
                 Block.curated_block_id.in_(cb_ids),  # type: ignore[attr-defined]
-                func.lower(Instrument.name) == instrument_lower,
+                func.lower(Instrument.instrument_category) == instrument_lower,
                 Template.deleted_at == None,  # noqa: E711
                 Instrument.deleted_at == None,  # noqa: E711
             )

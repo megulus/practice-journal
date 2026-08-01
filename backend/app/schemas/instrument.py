@@ -10,6 +10,9 @@ from app.enums import PracticeFrequency
 class InstrumentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     practice_frequency: PracticeFrequency = PracticeFrequency.few_times_a_week
+    # Optional escape hatch: normally derived from `name`. Lets a client set
+    # the canonical category directly (e.g. "violin" for "Stage Strad").
+    instrument_category: Optional[str] = Field(default=None, max_length=100)
 
 
 class InstrumentRead(BaseModel):
@@ -17,6 +20,9 @@ class InstrumentRead(BaseModel):
 
     id: int
     name: str
+    # Canonical category for curated-block lookups — see
+    # app/services/instrument_category.py.
+    instrument_category: str
     practice_frequency: str
     display_order: int
     # Computed fields — populated by the API layer

@@ -133,6 +133,74 @@ class TestCreateInstrument:
         assert resp.status_code == 422
 
 
+class TestInstrumentCategory:
+    async def test_category_derived_from_name(self, client: AsyncClient):
+        resp = await client.post("/api/instruments", json={"name": "Violin"})
+        assert resp.status_code == 201
+        assert resp.json()["instrument_category"] == "violin"
+
+    async def test_category_derived_from_decorated_name(self, client: AsyncClient):
+        resp = await client.post("/api/instruments", json={"name": "Mom's Violin"})
+        assert resp.status_code == 201
+        assert resp.json()["instrument_category"] == "violin"
+
+    async def test_category_falls_back_to_normalized_name(self, client: AsyncClient):
+        resp = await client.post("/api/instruments", json={"name": "Stage Strad"})
+        assert resp.status_code == 201
+        assert resp.json()["instrument_category"] == "stage strad"
+
+    async def test_explicit_category_wins(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/instruments",
+            json={"name": "Stage Strad", "instrument_category": "Violin"},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["instrument_category"] == "violin"
+
+    async def test_category_round_trips_through_list(self, client: AsyncClient):
+        await client.post("/api/instruments", json={"name": "Backup viola"})
+        resp = await client.get("/api/instruments")
+        assert resp.status_code == 200
+        assert resp.json()[0]["instrument_category"] == "viola"
+
+    async def test_rename_keeps_canonical_category(self, client: AsyncClient):
+        created = await client.post("/api/instruments", json={"name": "Violin"})
+        instrument_id = created.json()["id"]
+
+        resp = await client.patch(
+            f"/api/instruments/{instrument_id}",
+            json={"name": "Mom's fiddle"},
+        )
+        assert resp.status_code == 200
+        # The whole point of the column: renaming must not break curated search.
+        assert resp.json()["instrument_category"] == "violin"
+
+    async def test_rename_re_derives_a_fallback_category(self, client: AsyncClient):
+        created = await client.post("/api/instruments", json={"name": "Violn"})
+        instrument_id = created.json()["id"]
+        assert created.json()["instrument_category"] == "violn"
+
+        resp = await client.patch(
+            f"/api/instruments/{instrument_id}",
+            json={"name": "Violin"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["instrument_category"] == "violin"
+
+    async def test_non_name_update_leaves_category_alone(
+        self, client: AsyncClient
+    ):
+        created = await client.post("/api/instruments", json={"name": "Stage Strad"})
+        instrument_id = created.json()["id"]
+
+        resp = await client.patch(
+            f"/api/instruments/{instrument_id}",
+            json={"practice_frequency": "daily"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["instrument_category"] == "stage strad"
+
+
 class TestUpdateInstrument:
     async def test_update_name(self, client: AsyncClient, test_instrument):
         resp = await client.patch(

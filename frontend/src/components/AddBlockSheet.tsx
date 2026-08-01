@@ -20,13 +20,15 @@ type Tab = 'curated' | 'recent' | 'repertoire'
  */
 export default function AddBlockSheet({
   sectionName,
-  instrumentName,
+  instrumentCategory,
   instrumentId,
   onAdd,
   onClose,
 }: {
   sectionName: string
-  instrumentName: string
+  /** Canonical category (`Instrument.instrument_category`), not the name — the
+   * curated library is keyed by category and users rename instruments. */
+  instrumentCategory: string
   instrumentId: number
   onAdd: (data: StandardBlockCreate) => Promise<void>
   onClose: () => void
@@ -44,7 +46,7 @@ export default function AddBlockSheet({
       setLoading(true)
       api
         .browseCuratedBlocks({
-          instrument: instrumentName.toLowerCase(),
+          instrument: instrumentCategory,
           q: query || undefined,
         })
         .then(setCurated)
@@ -58,7 +60,7 @@ export default function AddBlockSheet({
         .catch(() => setRecent([]))
         .finally(() => setLoading(false))
     }
-  }, [tab, query, api, instrumentName, instrumentId])
+  }, [tab, query, api, instrumentCategory, instrumentId])
 
   const submit = async (data: StandardBlockCreate) => {
     if (submitting) return
