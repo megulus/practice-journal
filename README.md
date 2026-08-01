@@ -257,5 +257,30 @@ See `docs/kantelo-product-spec.md` §10 for the full future-scope list.
 - Check if backend is accessible: http://localhost:8000/health
 - Verify API calls in browser devtools network tab
 
+### API calls fail on preview URLs or behind a proxy ("Failed to fetch")
 
+The API client (`frontend/src/lib/api.ts`) calls the backend at
+`NEXT_PUBLIC_API_URL`. An **absolute** value (e.g. `http://localhost:8000`, or a
+public backend URL) is a cross-origin request that relies on CORS — fine for
+local Docker and Railway, but it **breaks** where the browser can't reach that
+origin directly. The classic case is a cloud sandbox serving the frontend and
+backend on **different preview subdomains** (e.g. `ns-3000-…` vs `ns-8000-…`):
+every `/api/*` request fails, the UI shows "Failed to fetch," and **zero**
+requests reach the backend (check the network tab).
+
+**Fix — serve the API same-origin.** Give `NEXT_PUBLIC_API_URL` a **relative**
+value so the browser calls the frontend's own origin, and route those calls to
+the backend. `api.ts` treats an empty `NEXT_PUBLIC_API_URL` as relative/
+same-origin (it uses `??`, so only an *unset* value falls back to localhost). The
+Niteshift cloud setup does this with `NEXT_PUBLIC_API_URL=/kantelo-api` (a path
+prefix) plus a small proxy that forwards `/kantelo-api/*` to the backend.
+
+**Speculative cleanup (not applied).** `next.config.js`'s `/api/*` rewrite still
+derives its destination from `NEXT_PUBLIC_API_URL`, so a bare `""` makes it a
+same-origin no-op that never reaches the backend — which is why the same-origin
+setups above still need an external proxy. Giving the rewrite its own
+`BACKEND_ORIGIN` target (decoupled from `NEXT_PUBLIC_API_URL`) would let you set
+`NEXT_PUBLIC_API_URL=""` + `BACKEND_ORIGIN=http://localhost:8000` and have Next's
+*built-in* rewrite proxy `/api/*` to the backend — dropping the custom proxy
+entirely. Not yet validated end-to-end in a preview environment.
 

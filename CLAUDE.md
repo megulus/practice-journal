@@ -49,6 +49,8 @@ rot and conflict across branches):
   GitHub Project board (Kantelo board is project `2`, owner `megulus`). The
   **`Ready` column is the curated next-up queue — start there** to answer "what
   should I pick up?"; `Backlog` is everything not yet promoted, `Done` is shipped.
+  **Agents: skip any `Ready` item labeled `human-only`** — those need a person
+  (dashboard access, secret rotation, etc.), not an agent.
   The Ready column is label-agnostic, so it stays the "what's next" signal no
   matter which workstream is active. For structure/sequence, find the current
   epic(s) via `gh issue list --label epic --state open` — as of 2026-07 the active
