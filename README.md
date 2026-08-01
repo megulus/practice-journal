@@ -284,5 +284,3 @@ setups above still need an external proxy. Giving the rewrite its own
 *built-in* rewrite proxy `/api/*` to the backend — dropping the custom proxy
 entirely. Not yet validated end-to-end in a preview environment.
 
-
-
