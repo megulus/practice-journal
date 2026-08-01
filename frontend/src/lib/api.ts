@@ -75,7 +75,11 @@ import type {
   LibraryRepertoireResponse,
 } from './types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// `??` (not `||`) so an explicitly *empty* NEXT_PUBLIC_API_URL means
+// "relative / same-origin" (calls go to the frontend's own origin, e.g. behind
+// a reverse proxy or a cloud preview URL). Only an unset value falls back to
+// localhost. See README "API calls fail on preview URLs or behind a proxy".
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 /**
  * Custom error thrown for non-2xx responses. Includes the HTTP status
