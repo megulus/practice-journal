@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { formatStartedAt, formatSessionDate, formatRelativeDay } from './dates'
+import {
+  formatStartedAt,
+  formatSessionDate,
+  formatRelativeDay,
+  formatHistoryDate,
+} from './dates'
 
 const DAY = 86_400_000
 
@@ -77,6 +82,26 @@ describe('dates', () => {
 
     it('returns empty for invalid input', () => {
       expect(formatRelativeDay('nope')).toBe('')
+    })
+  })
+
+  describe('formatHistoryDate', () => {
+    it('keeps the calendar date alongside the relative prefix', () => {
+      expect(formatHistoryDate('2026-07-21')).toBe('Today, Jul 21')
+      expect(formatHistoryDate('2026-07-20')).toBe('Yesterday, Jul 20')
+    })
+
+    it('uses weekday + date for older days in the current year', () => {
+      // Sat Jul 18 2026.
+      expect(formatHistoryDate('2026-07-18')).toBe('Sat, Jul 18')
+    })
+
+    it('adds the year once the date falls outside the current one', () => {
+      expect(formatHistoryDate('2025-11-03')).toBe('Mon, Nov 3, 2025')
+    })
+
+    it('returns the raw string for malformed input', () => {
+      expect(formatHistoryDate('not-a-date')).toBe('not-a-date')
     })
   })
 })
