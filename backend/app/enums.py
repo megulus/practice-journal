@@ -43,6 +43,12 @@ class WeekStart(str, Enum):
     sunday = "sunday"
 
 
+class ThemePreference(str, Enum):
+    system = "system"
+    light = "light"
+    dark = "dark"
+
+
 class SuggestionTier(str, Enum):
     pre_session = "pre_session"
     in_the_moment = "in_the_moment"

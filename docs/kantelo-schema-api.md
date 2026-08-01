@@ -86,6 +86,11 @@ class WeekStart(str, Enum):
     monday = "monday"
     sunday = "sunday"
 
+class ThemePreference(str, Enum):
+    system = "system"    # follow the OS light/dark setting
+    light = "light"
+    dark = "dark"
+
 class SuggestionTier(str, Enum):
     pre_session = "pre_session"
     in_the_moment = "in_the_moment"
@@ -128,6 +133,7 @@ One row per user, auto-created on first access.
 | suggestions_preference | varchar(20) | not null, default 'all' | SuggestionsPreference enum |
 | default_session_duration_minutes | int | not null, default 30 | Used by quick-start wizard |
 | week_starts_on | varchar(10) | not null, default 'monday' | WeekStart enum |
+| theme_preference | varchar(10) | not null, default 'system' | ThemePreference enum |
 | created_at | timestamptz | not null, default now() | |
 | updated_at | timestamptz | nullable, auto-update | |
 
@@ -452,7 +458,8 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 {
   "suggestions_preference": "fewer",
   "default_session_duration_minutes": 45,
-  "week_starts_on": "sunday"
+  "week_starts_on": "sunday",
+  "theme_preference": "dark"
 }
 ```
 
