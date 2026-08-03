@@ -170,9 +170,21 @@ Posting is outward-facing, so:
   finding against the actual code and drop the ones that don't survive. A short
   correct review beats a long plausible one. Say plainly when a change is clean
   rather than padding the list to look thorough.
-- **Comment; never approve or request changes.** Use `gh pr review --comment` or
-  `gh pr comment`. An approval carries merge authority and "request changes"
-  blocks the PR — both are the human's call, not an agent's.
+- **Comment by default; request changes only for a genuine merge blocker; never
+  approve.** Nits, style, missing tests, and refactor ideas are a plain comment
+  (`gh pr review --comment` or `gh pr comment`). Escalate to `gh pr review
+  --request-changes` when merging as-is would do real damage: a **security**
+  defect (auth bypass, injection, a leaked secret, an ownership check that lets
+  one user reach another's rows), **data loss or corruption** (a destructive
+  migration, dropping a column that holds live data), or an **unintended
+  breaking change** (an API contract break the ticket didn't ask for, removing a
+  field the frontend still reads). Two conditions before you block: the defect is
+  *reproduced*, not suspected — if you can't demonstrate it, comment and say what
+  you'd need to confirm it — and the damage is unintended, since a breaking
+  change the ticket explicitly called for is not a blocker. Name the blocker and
+  say what would clear it, so the block is actionable rather than a stop sign.
+  **Never `--approve`.** Approval carries merge authority; that stays with a
+  human no matter how clean the diff looks.
 - **Mark it agent-generated** so a reader can calibrate how much to trust it.
 - **Separate confirmed defects from nits**, most severe first, and be explicit
   about which is which.
