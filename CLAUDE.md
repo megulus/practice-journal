@@ -58,7 +58,7 @@ rot and conflict across branches):
   for others (workstream labels like `frontend-rebuild` eventually retire). Treat
   an epic's checklist as a lagging indicator; the board columns are authoritative
   for status. Reading the board needs **`GH_PROJECT_TOKEN`** (see below), and it
-  needs paging — the board is ~134 items and **every paged API truncates
+  needs paging — the board is ~140 items and **every paged API truncates
   silently** (`gh project item-list` stops at 30 by default; GraphQL caps a page
   at 100), which will hide most of the board:
   ```bash
@@ -125,15 +125,59 @@ Procedure:
 4. **Output a report, then stop.** Group by classification with the reasons. The
    human reviews and says which to action; only then make the changes.
 
-Board writes (status moves) need write access to the project. `GH_PROJECT_TOKEN`
-carries the full `project` scope (read **and** write, not just `read:project`),
-so it should permit moves — but that has deliberately never been exercised, and
-`gh project item-edit` is unusable with it anyway (missing `read:org`), so a move
-means a hand-written GraphQL mutation. Don't make one without explicit sign-off;
-closing issues needs repo write. Known groom candidates as of this
+Board writes (adding an item, moving a column) do work with `GH_PROJECT_TOKEN` —
+verified 2026-08 by adding #254–#257 to `Backlog`. `gh project item-add` /
+`item-edit` are still unusable with it (missing `read:org`), so a write means a
+hand-written GraphQL mutation. **This stays propose-then-confirm: don't write to
+the board without explicit sign-off.** Adding an issue is two mutations — fetch
+its `node_id` with `gh api repos/megulus/practice-journal/issues/<N> --jq
+.node_id`, then:
+
+```bash
+# 1. add to the board (returns the new item id)
+GH_TOKEN=$GH_PROJECT_TOKEN /usr/bin/gh api graphql -f query='mutation{
+  addProjectV2ItemById(input:{ projectId:"PVT_kwHOAJTkl84BO2cV",
+                               contentId:"<issue node_id>" }){ item{ id } } }'
+# 2. set its Status column
+GH_TOKEN=$GH_PROJECT_TOKEN /usr/bin/gh api graphql -f query='mutation{
+  updateProjectV2ItemFieldValue(input:{ projectId:"PVT_kwHOAJTkl84BO2cV",
+    itemId:"<item id>", fieldId:"PVTSSF_lAHOAJTkl84BO2cVzg9bnc4",
+    value:{ singleSelectOptionId:"f75ad846" } }){ projectV2Item{ id } } }'
+```
+
+Status option ids: `Backlog` `f75ad846`, `Ready` `61e4505c`, `In progress`
+`47fc9ee4`, `In review` `df73e18b`, `Done` `98236657`. Re-derive them if the
+board is ever restructured by querying `fields(first:20)` for
+`ProjectV2SingleSelectField`. Closing issues needs repo write. Known groom
+candidates as of this
 writing: **#80** (docs consolidation — largely overtaken by the docs refresh +
 ADRs), **#156** (reconcile schema-api — addressed by that same work), **#33**
 (ancient, needs rethink).
+
+## Reviewing PRs: post the review on the PR
+
+A review that lives only in a chat session evaporates when the session ends, and
+the next person — or the next agent — has no idea it happened. When you review a
+PR, whether you did it yourself or dispatched a review agent, **post the findings
+to the PR**, then summarize in chat. One summary comment is usually right; use
+inline comments when the findings are line-specific.
+
+Posting is outward-facing, so:
+
+- **Verify each finding before you post it.** A wrong claim on a PR is public,
+  gets replied to, and is awkward to retract — far costlier than a wrong
+  statement in chat, which is one message away from being fixed. Reproduce each
+  finding against the actual code and drop the ones that don't survive. A short
+  correct review beats a long plausible one. Say plainly when a change is clean
+  rather than padding the list to look thorough.
+- **Comment; never approve or request changes.** Use `gh pr review --comment` or
+  `gh pr comment`. An approval carries merge authority and "request changes"
+  blocks the PR — both are the human's call, not an agent's.
+- **Mark it agent-generated** so a reader can calibrate how much to trust it.
+- **Separate confirmed defects from nits**, most severe first, and be explicit
+  about which is which.
+- **Don't duplicate on re-review.** Reply in the existing thread, or post only
+  what changed since the last pass.
 
 ## Layout
 
