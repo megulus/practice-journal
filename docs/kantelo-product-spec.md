@@ -588,3 +588,4 @@ Wireframes were developed in conversation and should be saved as screenshots in 
 - Wireframes are mobile-first (375px width) but the app is a responsive web app, not a native mobile app.
 - Colors in wireframes are placeholder — final visual design and brand identity are not yet determined.
 - Wireframes show structure and interaction patterns, not final copy or content.
+- **Rating labels in wireframes are illustrative and several predate the trajectory framing.** `progress-history.png`, for instance, labels ratings "Nailed it / Okay / Struggled". The canonical wording is **Step back / Steady / Step forward** (plus "Skipped"), and §5.2 "Rating indicator (chevrons)" explains why the outcome framing was rejected — it isn't a copy preference to be overridden by a wireframe. Where a wireframe and §5.2 disagree on rating wording, §5.2 wins.

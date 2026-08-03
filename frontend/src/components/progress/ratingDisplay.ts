@@ -9,7 +9,7 @@ import type { BlockLog } from '@/lib/types'
 //
 // Wording follows the spec's trajectory framing ("Step forward" / "Steady" /
 // "Step back"), deliberately not the outcome framing the older wireframe
-// sketched — see product spec §4.3.
+// sketched — see product spec §5.2, "Rating indicator (chevrons)".
 // ---------------------------------------------------------------------------
 
 export interface RatingDisplay {
