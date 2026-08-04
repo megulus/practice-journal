@@ -89,6 +89,18 @@ jobs:
       # bundle by design and this one points at nothing; no CLERK_SECRET_KEY
       # is needed, and none should be added — the build must not depend on a
       # real Clerk instance.
+      #
+      # Two side effects worth knowing about:
+      #   - `next build` runs ESLint and type-checks (next.config.js sets
+      #     neither `eslint.ignoreDuringBuilds` nor
+      #     `typescript.ignoreBuildErrors`), so this step is also the first
+      #     lint/tsc gate CI has ever had. A lint error now fails the build.
+      #   - It runs on the root .nvmrc's Node (22.x), while the deploy build
+      #     is pinned to node:20.20.2-alpine in frontend/Dockerfile. So this
+      #     narrows the deploy-time-surprise window without closing it —
+      #     Node-20-specific breakage still reaches Railway first. Deciding
+      #     that pin is #260; matching CI to it here would only entrench an
+      #     EOL runtime ahead of that decision.
       - name: Build (production)
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
