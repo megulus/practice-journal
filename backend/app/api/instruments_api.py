@@ -8,7 +8,7 @@ from sqlmodel import select, func, col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import get_session
-from app.models import User, Instrument, Template, PracticeLog
+from app.models import User, Instrument, Piece, Template, PracticeLog
 from app.auth import get_current_user
 from app.enums import utcnow
 from app.schemas.instrument import InstrumentCreate, InstrumentRead, InstrumentUpdate
@@ -30,6 +30,15 @@ async def _enrich_instrument(
     )
     active_template_count = result.one()
 
+    # Repertoire size (pieces in the instrument's library)
+    result = await session.exec(
+        select(func.count(Piece.id)).where(
+            Piece.instrument_id == instrument.id,
+            Piece.deleted_at == None,  # noqa: E711
+        )
+    )
+    piece_count = result.one()
+
     # Last practiced date
     result = await session.exec(
         select(func.max(PracticeLog.practice_date)).where(
@@ -46,6 +55,7 @@ async def _enrich_instrument(
         practice_frequency=instrument.practice_frequency,
         display_order=instrument.display_order,
         active_template_count=active_template_count,
+        piece_count=piece_count,
         last_practiced_at=last_practiced_at,
     )
 
@@ -68,7 +78,7 @@ async def list_instruments(
         .order_by(Instrument.display_order, Instrument.id)
     )
     instruments = result.all()
-    # N+1: 2 queries per instrument for computed fields. Fine for typical
+    # N+1: 3 queries per instrument for computed fields. Fine for typical
     # usage (1-5 instruments per user); optimize with subqueries if needed.
     return [await _enrich_instrument(session, i) for i in instruments]
 

@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Lightbulb, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 import {
   Button,
   Pill,
   Checkbox,
+  Radio,
   TextInput,
   TextArea,
   Card,
@@ -52,6 +53,10 @@ function Row({ children }: { children: ReactNode }) {
 function Showcase() {
   const [checked1, setChecked1] = useState(false)
   const [checked2, setChecked2] = useState(true)
+  const [choice, setChoice] = useState('all')
+  // The light and dark showcases render side by side; a shared radio `name`
+  // would fuse them into one group, so each instance gets its own.
+  const radioGroup = useId()
   const [text, setText] = useState('')
   const [area, setArea] = useState('')
   const [voiceText, setVoiceText] = useState('')
@@ -152,6 +157,35 @@ function Showcase() {
           <Checkbox label="Disabled" disabled />
           <Checkbox label="Disabled + checked" disabled checked readOnly />
         </Row>
+      </Section>
+
+      <Section title="Radio">
+        <div className="space-y-3">
+          <Radio
+            name={radioGroup}
+            value="all"
+            label="All suggestions"
+            description="Before, during, and after practice"
+            checked={choice === 'all'}
+            onChange={() => setChoice('all')}
+          />
+          <Radio
+            name={radioGroup}
+            value="fewer"
+            label="Fewer suggestions"
+            description="Only in session summaries and Insights"
+            checked={choice === 'fewer'}
+            onChange={() => setChoice('fewer')}
+          />
+          <Radio
+            name={radioGroup}
+            value="off"
+            label="Disabled"
+            checked={false}
+            disabled
+            onChange={() => {}}
+          />
+        </div>
       </Section>
 
       <Section title="TextInput — standard + recessed">

@@ -55,7 +55,7 @@ src/app/
 │   ├── today/              # /today
 │   ├── plans/              # /plans, /plans/[id]
 │   ├── progress/           # /progress
-│   ├── profile/            # /profile
+│   ├── profile/            # /profile, /profile/repertoire/[instrumentId]
 │   └── session/            # /session/start, /session/[id], /session/[id]/summary
 └── (auth)/
     ├── layout.tsx          # Passthrough (no shell)
@@ -85,6 +85,8 @@ All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
 
 - `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav)
 - `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
+- `src/components/profile/` — Profile tab sections (`AccountHeader`, `InstrumentManager`/`InstrumentCard`, `ProfileSettings`)
+- `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`)
 - `src/components/ui/` — design-system primitives (Button, Card, Pill, etc.) — added incrementally during Phase 0 PR 3+
 
 ### Styling
