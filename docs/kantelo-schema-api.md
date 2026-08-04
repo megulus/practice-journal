@@ -145,7 +145,8 @@ User-owned instruments with practice frequency.
 |--------|------|-------------|-------|
 | id | serial | PK | |
 | user_id | int | FK → users, not null, indexed | |
-| name | varchar(100) | not null | e.g. "Violin", "Horn" |
+| name | varchar(100) | not null | User-editable, e.g. "Violin", "Mom's Violin", "Horn" |
+| instrument_category | varchar(100) | not null, indexed | Canonical category for curated-block lookups, e.g. "violin" |
 | practice_frequency | varchar(30) | not null, default 'few_times_a_week' | PracticeFrequency enum |
 | display_order | int | not null, default 0 | For pill toggle ordering |
 | created_at | timestamptz | not null, default now() | |
@@ -153,6 +154,25 @@ User-owned instruments with practice frequency.
 | deleted_at | timestamptz | nullable | Soft delete |
 
 Index: `(user_id, deleted_at)` — fetch active instruments for a user.
+Index: `instrument_category` — curated-library usage stats group by it.
+
+**instrument_category** is what `curated_blocks.instrument_category` is matched
+against; `name` never is. It is derived from `name` on creation by
+`app/services/instrument_category.py`, which owns the canonical category list
+(`violin`, `viola`, `cello`, `piano`, `guitar`, `flute`, `voice` — the same list
+the curated-block seed data is keyed by). Derivation normalizes the name
+(lowercase, punctuation → spaces, apostrophes dropped) and matches a canonical
+category appearing as a word anywhere in it, so decoration is tolerated: "Mom's
+Violin" → `violin`, "Backup viola" → `viola`, "1/2 size Cello" → `cello`. When
+nothing matches it falls back to the normalized name ("Stage Strad" → `stage
+strad`).
+
+On rename the category follows the new name only when that name resolves to a
+canonical category — "Violin" → "Cello" becomes `cello`, and "Violn" → "Violin"
+recovers `violin`. Otherwise an existing canonical category is kept, so "Violin"
+→ "Stage Strad" stays `violin` and curated search keeps working; a fallback
+category simply tracks the name. Clients may also send `instrument_category`
+explicitly on create or update, which wins over derivation.
 
 ### pieces
 
@@ -471,10 +491,10 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 |--------|------|-------------|
 | GET | `/api/instruments` | List user's active instruments, ordered by display_order |
 | POST | `/api/instruments` | Create a new instrument |
-| PATCH | `/api/instruments/{id}` | Update instrument (name, practice_frequency, display_order) |
+| PATCH | `/api/instruments/{id}` | Update instrument (name, practice_frequency, display_order, instrument_category) |
 | DELETE | `/api/instruments/{id}` | Soft-delete instrument and cascade to templates |
 
-**POST body:**
+**POST body:** (`instrument_category` optional — derived from `name` when omitted)
 ```json
 {
   "name": "Violin",
@@ -488,6 +508,7 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
   {
     "id": 1,
     "name": "Violin",
+    "instrument_category": "violin",
     "practice_frequency": "daily",
     "display_order": 0,
     "active_template_count": 1,
@@ -751,7 +772,7 @@ When `piece_id` is set, `name`, `tempo_bpm`, `key`, `difficulty_level`, and `cur
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/library/blocks` | Browse curated blocks. Query params: `instrument` (required), `section_type` (optional), `q` (search). Sorted by usage_count desc. |
+| GET | `/api/library/blocks` | Browse curated blocks. Query params: `instrument` (required — a canonical `instruments.instrument_category`, e.g. `violin`, **not** an instrument name), `section_type` (optional), `q` (search). Sorted by usage_count desc. |
 | GET | `/api/library/recent` | Recently used blocks for the current user. Query params: `instrument_id` (required), `limit` (default 10). Returns blocks (both curated and freeform/quick-add) from the user's recent sessions, deduplicated by name, most recent first. |
 | GET | `/api/library/repertoire` | Pieces from the user's repertoire library, formatted for the block library "Your repertoire" tab. Query params: `instrument_id` (required), `include_retired` (default false) |
 
@@ -770,7 +791,7 @@ When `piece_id` is set, `name`, `tempo_bpm`, `key`, `difficulty_level`, and `cur
 ]
 ```
 
-`usage_percentage` is computed: what percentage of users with this instrument include this block in a template.
+`usage_percentage` is computed: what percentage of users with an instrument in this category (`instruments.instrument_category`) include this block in a template.
 
 **GET /api/library/repertoire response:**
 ```json
