@@ -57,15 +57,39 @@ rot and conflict across branches):
   one is **#141** (the frontend rebuild), but verify it's still current and watch
   for others (workstream labels like `frontend-rebuild` eventually retire). Treat
   an epic's checklist as a lagging indicator; the board columns are authoritative
-  for status. Query the board with an explicit `--limit` — **`gh project item-list`
-  defaults to 30 items and silently truncates**, which will hide most of the board:
+  for status. Reading the board needs **`GH_PROJECT_TOKEN`** (see below), and it
+  needs paging — the board is ~140 items and **every paged API truncates
+  silently** (`gh project item-list` stops at 30 by default; GraphQL caps a page
+  at 100), which will hide most of the board:
   ```bash
-  gh project item-list 2 --owner megulus --limit 300 --format json \
-    | jq -r '.items[] | select(.content.number != null)
-             | "\(.status)\t#\(.content.number)\t\(.content.title)"' | sort
+  # GH_PROJECT_TOKEN has the `project` scope but not `read:org`, which every
+  # `gh project ...` subcommand requires — so query GraphQL directly.
+  # In Niteshift sandboxes /usr/local/bin/gh is a wrapper that re-exports
+  # GH_TOKEN; call /usr/bin/gh there so the prefix below actually sticks.
+  cursor=null
+  while :; do
+    r=$(GH_TOKEN=$GH_PROJECT_TOKEN gh api graphql -f query="query{ user(login:\"megulus\"){
+          projectV2(number:2){ items(first:100, after:$cursor){
+            pageInfo{ hasNextPage endCursor }
+            nodes{ content{ ... on Issue{ number title } ... on PullRequest{ number title } }
+                   fieldValueByName(name:\"Status\"){
+                     ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }")
+    echo "$r" | jq -r '.data.user.projectV2.items.nodes[] | select(.content.number != null)
+      | "\(.fieldValueByName.name // "-")\t#\(.content.number)\t\(.content.title)"'
+    [ "$(jq -r '.data.user.projectV2.items.pageInfo.hasNextPage' <<<"$r")" = true ] || break
+    cursor="\"$(jq -r '.data.user.projectV2.items.pageInfo.endCursor' <<<"$r")\""
+  done | sort
   ```
-  (Needs a token with `read:project`; in a cloud/CI sandbox, provide it as an env
-  var so `gh` can auth.)
+  `GH_PROJECT_TOKEN` exists purely for board queries. **Never export it as
+  `GH_TOKEN` or otherwise let it replace the default token** — `GH_TOKEN` is the
+  sandbox's GitHub App token that handles git, PRs, and issues, and swapping it
+  breaks commit/PR attribution. Prefix the one command, as above. The default
+  `GH_TOKEN` carries no Projects permission and fails board queries with
+  `Resource not accessible by integration (user.projectV2)`; that error means the
+  wrong token, not a missing board. If `GH_PROJECT_TOKEN` is unset you simply
+  cannot see the board — fall back to `git log`, `gh pr list`, and `gh issue list
+  --state open`, and **say that board status was unavailable** instead of guessing
+  which column something sits in.
 - **Conventions / architecture** → this file and `frontend/CLAUDE.md`.
 - **Schema / API / tokens contracts** → the `docs/` files above.
 
@@ -84,10 +108,9 @@ and awkward to reverse.
 
 Procedure:
 
-1. **Load the whole backlog** — `gh project item-list 2 --owner megulus --limit
-   300 --format json` (the `--limit` is mandatory; the default 30 silently
-   truncates and you'll groom a fraction thinking you're done). Filter to
-   `Backlog`.
+1. **Load the whole backlog** — run the paged board query from "Orienting" above
+   (paging is mandatory; a single default page silently truncates and you'll
+   groom a fraction thinking you're done). Filter to `Backlog`.
 2. **Diff each ticket against current reality** — the highest-value move is
    catching tickets *silently resolved or overtaken* by shipped work. Don't lean on
    a fixed recent-PR window; grooming targets *old* stragglers a recent window
@@ -102,11 +125,71 @@ Procedure:
 4. **Output a report, then stop.** Group by classification with the reasons. The
    human reviews and says which to action; only then make the changes.
 
-Board writes (status moves) need a `project`-scoped token (`gh auth refresh -s
-project`); closing issues needs repo write. Known groom candidates as of this
+Board writes (adding an item, moving a column) do work with `GH_PROJECT_TOKEN` —
+verified 2026-08 by adding #254–#257 to `Backlog`. `gh project item-add` /
+`item-edit` are still unusable with it (missing `read:org`), so a write means a
+hand-written GraphQL mutation. **This stays propose-then-confirm: don't write to
+the board without explicit sign-off.** Adding an issue is two mutations — fetch
+its `node_id` with `gh api repos/megulus/practice-journal/issues/<N> --jq
+.node_id`, then:
+
+```bash
+# 1. add to the board (returns the new item id)
+GH_TOKEN=$GH_PROJECT_TOKEN /usr/bin/gh api graphql -f query='mutation{
+  addProjectV2ItemById(input:{ projectId:"PVT_kwHOAJTkl84BO2cV",
+                               contentId:"<issue node_id>" }){ item{ id } } }'
+# 2. set its Status column
+GH_TOKEN=$GH_PROJECT_TOKEN /usr/bin/gh api graphql -f query='mutation{
+  updateProjectV2ItemFieldValue(input:{ projectId:"PVT_kwHOAJTkl84BO2cV",
+    itemId:"<item id>", fieldId:"PVTSSF_lAHOAJTkl84BO2cVzg9bnc4",
+    value:{ singleSelectOptionId:"f75ad846" } }){ projectV2Item{ id } } }'
+```
+
+Status option ids: `Backlog` `f75ad846`, `Ready` `61e4505c`, `In progress`
+`47fc9ee4`, `In review` `df73e18b`, `Done` `98236657`. Re-derive them if the
+board is ever restructured by querying `fields(first:20)` for
+`ProjectV2SingleSelectField`. Closing issues needs repo write. Known groom
+candidates as of this
 writing: **#80** (docs consolidation — largely overtaken by the docs refresh +
 ADRs), **#156** (reconcile schema-api — addressed by that same work), **#33**
 (ancient, needs rethink).
+
+## Reviewing PRs: post the review on the PR
+
+A review that lives only in a chat session evaporates when the session ends, and
+the next person — or the next agent — has no idea it happened. When you review a
+PR, whether you did it yourself or dispatched a review agent, **post the findings
+to the PR**, then summarize in chat. One summary comment is usually right; use
+inline comments when the findings are line-specific.
+
+Posting is outward-facing, so:
+
+- **Verify each finding before you post it.** A wrong claim on a PR is public,
+  gets replied to, and is awkward to retract — far costlier than a wrong
+  statement in chat, which is one message away from being fixed. Reproduce each
+  finding against the actual code and drop the ones that don't survive. A short
+  correct review beats a long plausible one. Say plainly when a change is clean
+  rather than padding the list to look thorough.
+- **Comment by default; request changes only for a genuine merge blocker; never
+  approve.** Nits, style, missing tests, and refactor ideas are a plain comment
+  (`gh pr review --comment` or `gh pr comment`). Escalate to `gh pr review
+  --request-changes` when merging as-is would do real damage: a **security**
+  defect (auth bypass, injection, a leaked secret, an ownership check that lets
+  one user reach another's rows), **data loss or corruption** (a destructive
+  migration, dropping a column that holds live data), or an **unintended
+  breaking change** (an API contract break the ticket didn't ask for, removing a
+  field the frontend still reads). Two conditions before you block: the defect is
+  *reproduced*, not suspected — if you can't demonstrate it, comment and say what
+  you'd need to confirm it — and the damage is unintended, since a breaking
+  change the ticket explicitly called for is not a blocker. Name the blocker and
+  say what would clear it, so the block is actionable rather than a stop sign.
+  **Never `--approve`.** Approval carries merge authority; that stays with a
+  human no matter how clean the diff looks.
+- **Mark it agent-generated** so a reader can calibrate how much to trust it.
+- **Separate confirmed defects from nits**, most severe first, and be explicit
+  about which is which.
+- **Don't duplicate on re-review.** Reply in the existing thread, or post only
+  what changed since the last pass.
 
 ## Layout
 
