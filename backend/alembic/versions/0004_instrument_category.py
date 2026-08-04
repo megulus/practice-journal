@@ -3,8 +3,8 @@
 Canonical category ("violin") used to look up curated blocks, derived from the
 user-editable instrument name. See app/services/instrument_category.py.
 
-Revision ID: 0003_instrument_category
-Revises: ebc61c3d1752
+Revision ID: 0004_instrument_category
+Revises: 0003_theme_preference
 Create Date: 2026-08-01 17:05:00.000000
 
 """
@@ -36,8 +36,8 @@ def _derive_instrument_category(name: str) -> str:
 
 
 # revision identifiers, used by Alembic.
-revision: str = "0003_instrument_category"
-down_revision: Union[str, None] = "ebc61c3d1752"
+revision: str = "0004_instrument_category"
+down_revision: Union[str, None] = "0003_theme_preference"
 branch_labels = None
 depends_on = None
 
