@@ -53,7 +53,7 @@ jobs:
   frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     defaults:
       run:
@@ -73,3 +73,36 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # Vitest never compiles the production bundle, so build-only breakage —
+      # a prerender error, a server/client boundary mistake, an invalid
+      # rewrite — used to reach Railway before anyone saw it: `next build`
+      # only ran in the Dockerfile's `builder` stage, i.e. at deploy time.
+      #
+      # The two vars below are required for the build to get that far, and
+      # neither is a credential. NEXT_PUBLIC_API_URL is interpolated into the
+      # rewrite destination in next.config.js, which Next rejects at startup
+      # unless it's absolute or starts with "/". The Clerk key is a synthetic
+      # publishable key (base64 of "example.clerk.accounts.dev$"): the root
+      # layout's <ClerkProvider> throws "Missing publishableKey" while
+      # prerendering without one. Publishable keys are inlined into the client
+      # bundle by design and this one points at nothing; no CLERK_SECRET_KEY
+      # is needed, and none should be added — the build must not depend on a
+      # real Clerk instance.
+      #
+      # Two side effects worth knowing about:
+      #   - `next build` runs ESLint and type-checks (next.config.js sets
+      #     neither `eslint.ignoreDuringBuilds` nor
+      #     `typescript.ignoreBuildErrors`), so this step is also the first
+      #     lint/tsc gate CI has ever had. A lint error now fails the build.
+      #   - It runs on the root .nvmrc's Node (22.x), while the deploy build
+      #     is pinned to node:20.20.2-alpine in frontend/Dockerfile. So this
+      #     narrows the deploy-time-surprise window without closing it —
+      #     Node-20-specific breakage still reaches Railway first. Deciding
+      #     that pin is #260; matching CI to it here would only entrench an
+      #     EOL runtime ahead of that decision.
+      - name: Build (production)
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+        run: npm run build
