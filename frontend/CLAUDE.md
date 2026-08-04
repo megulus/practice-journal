@@ -13,6 +13,15 @@ npm test           # Run tests (Vitest)
 npm run test:watch # Run tests in watch mode
 ```
 
+**Don't run `npm run build` against a tree with a dev server running on it.**
+Both write `frontend/.next`, so the build replaces the dev server's chunks
+under it and every route starts 500-ing with `MODULE_NOT_FOUND` until the dev
+server is restarted with a clean `.next`. `docker compose up` is safe — the
+compose file shadows `.next` with an anonymous volume (`- /app/.next`) — but a
+natively-run `next dev` (which is how cloud sandboxes start this app) shares
+the directory. CI runs the production build on every PR, so there's rarely a
+reason to run it by hand anyway; if you must, build a copy of the tree.
+
 **Docker Node version is pinned.** `frontend/Dockerfile` uses `node:20.20.2-alpine`
 (not the floating `node:20-alpine`). A silent bump to a newer Node can reintroduce
 the dev-mode Clerk middleware `EvalError` from #192 — Next 14's Edge Runtime runs

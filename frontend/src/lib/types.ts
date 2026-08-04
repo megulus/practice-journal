@@ -68,6 +68,12 @@ export interface UserSettingsUpdate {
 export interface Instrument {
   id: number
   name: string
+  /**
+   * Canonical category the curated block library is keyed by ("violin").
+   * Derived from `name` on the backend — use this, never `name`, when
+   * querying curated blocks: users rename instruments freely.
+   */
+  instrument_category: string
   practice_frequency: PracticeFrequency
   display_order: number
   active_template_count: number
@@ -78,12 +84,16 @@ export interface Instrument {
 export interface InstrumentCreate {
   name: string
   practice_frequency?: PracticeFrequency
+  /** Optional; the backend derives it from `name` when omitted. */
+  instrument_category?: string
 }
 
 export interface InstrumentUpdate {
   name?: string
   practice_frequency?: PracticeFrequency
   display_order?: number
+  /** Omit it and the category follows the name; send one to override. */
+  instrument_category?: string
 }
 
 // ===================================================================

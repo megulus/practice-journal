@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import engine, async_session
 from app.models.curated import CuratedBlock
+from app.services.instrument_category import CANONICAL_INSTRUMENT_CATEGORIES
 
 
 # Starter library: instrument_category -> section_type -> list of (name, description, duration_minutes)
@@ -218,6 +219,19 @@ CURATED_BLOCKS = {
         ],
     },
 }
+
+# The categories seeded here must be ones instrument names can be derived to,
+# or curated blocks for them would be unreachable from the library UI.
+# app/services/instrument_category.py owns the canonical list.
+_unknown_categories = set(CURATED_BLOCKS) - set(CANONICAL_INSTRUMENT_CATEGORIES)
+if _unknown_categories:
+    raise ValueError(
+        "CURATED_BLOCKS has categories missing from "
+        "CANONICAL_INSTRUMENT_CATEGORIES: "
+        f"{sorted(_unknown_categories)}. Add them in "
+        "app/services/instrument_category.py so instrument names can resolve "
+        "to them."
+    )
 
 
 async def seed():
