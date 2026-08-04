@@ -52,8 +52,9 @@ class Instrument(SQLModel, table=True):
     def __init__(self, **data):
         """Derive `instrument_category` from `name` unless one was passed.
 
-        Done here rather than in the API layer so every creation path (API,
-        scripts, tests) gets a category and the column stays non-null.
+        Done here rather than in the API layer so constructing an Instrument
+        anywhere (API, scripts, tests) yields a category. Note that SQLAlchemy
+        loads and `model_validate` bypass `__init__`; neither creates rows.
         """
         if not data.get("instrument_category") and data.get("name"):
             data["instrument_category"] = derive_instrument_category(data["name"])

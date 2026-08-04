@@ -161,10 +161,12 @@ Violin" → `violin`, "Backup viola" → `viola`, "1/2 size Cello" → `cello`. 
 nothing matches it falls back to the normalized name ("Stage Strad" → `stage
 strad`).
 
-Renaming an instrument does **not** change a canonical category — that is the
-point of the column. A fallback category *is* re-derived on rename, so
-correcting a misspelled name ("Violn" → "Violin") recovers a canonical one.
-Clients may also send `instrument_category` explicitly on create.
+On rename the category follows the new name only when that name resolves to a
+canonical category — "Violin" → "Cello" becomes `cello`, and "Violn" → "Violin"
+recovers `violin`. Otherwise an existing canonical category is kept, so "Violin"
+→ "Stage Strad" stays `violin` and curated search keeps working; a fallback
+category simply tracks the name. Clients may also send `instrument_category`
+explicitly on create or update, which wins over derivation.
 
 ### pieces
 
@@ -482,7 +484,7 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
 |--------|------|-------------|
 | GET | `/api/instruments` | List user's active instruments, ordered by display_order |
 | POST | `/api/instruments` | Create a new instrument |
-| PATCH | `/api/instruments/{id}` | Update instrument (name, practice_frequency, display_order) |
+| PATCH | `/api/instruments/{id}` | Update instrument (name, practice_frequency, display_order, instrument_category) |
 | DELETE | `/api/instruments/{id}` | Soft-delete instrument and cascade to templates |
 
 **POST body:** (`instrument_category` optional — derived from `name` when omitted)

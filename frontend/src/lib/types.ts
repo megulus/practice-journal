@@ -91,6 +91,8 @@ export interface InstrumentUpdate {
   name?: string
   practice_frequency?: PracticeFrequency
   display_order?: number
+  /** Omit it and the category follows the name; send one to override. */
+  instrument_category?: string
 }
 
 // ===================================================================

@@ -92,11 +92,7 @@ async def create_instrument(
     instrument = Instrument(
         user_id=current_user.id,
         name=body.name,
-        instrument_category=(
-            body.instrument_category.strip().lower()
-            if body.instrument_category
-            else None
-        ),
+        instrument_category=body.instrument_category,
         practice_frequency=body.practice_frequency.value,
     )
     session.add(instrument)
@@ -112,21 +108,36 @@ async def update_instrument(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Update an instrument's name, practice_frequency, or display_order."""
+    """Update an instrument's name, practice_frequency, display_order, or
+    instrument_category.
+
+    Omitting `instrument_category` lets it follow a rename (see below); sending
+    one sets it verbatim.
+    """
     instrument = await _get_owned_instrument(session, instrument_id, current_user.id)
 
-    update_data = body.model_dump(exclude_unset=True, mode="json")
+    # Every updatable column is NOT NULL, so an explicit null means "leave it
+    # alone" rather than a write that would fail at the DB.
+    update_data = {
+        field: value
+        for field, value in body.model_dump(exclude_unset=True, mode="json").items()
+        if value is not None
+    }
     for field, value in update_data.items():
         setattr(instrument, field, value)
 
-    # A canonical category is sticky: renaming "Violin" to "Mom's Violin" must
-    # not change it. A fallback category (the name itself, because nothing
-    # matched) is re-derived, so fixing a typo'd name can recover one.
-    if (
-        "name" in update_data
-        and instrument.instrument_category not in CANONICAL_INSTRUMENT_CATEGORIES
-    ):
-        instrument.instrument_category = derive_instrument_category(instrument.name)
+    # Keep the category in step with a rename without losing a good one to a
+    # decorated name. A new name that resolves to a canonical category wins
+    # ("Violin" → "Cello" becomes cello; "Violn" → "Violin" recovers violin);
+    # otherwise an existing canonical category is kept ("Violin" → "Stage
+    # Strad" stays violin) and a fallback category tracks the name.
+    if "name" in update_data and "instrument_category" not in update_data:
+        derived = derive_instrument_category(instrument.name)
+        if (
+            derived in CANONICAL_INSTRUMENT_CATEGORIES
+            or instrument.instrument_category not in CANONICAL_INSTRUMENT_CATEGORIES
+        ):
+            instrument.instrument_category = derived
 
     session.add(instrument)
     await session.commit()
