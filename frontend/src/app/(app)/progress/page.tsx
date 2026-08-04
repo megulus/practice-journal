@@ -4,20 +4,21 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Pill } from '@/components/ui'
-import ComingSoonPlaceholder from '@/components/ComingSoonPlaceholder'
 import {
   HistoryList,
+  InsightsPanel,
   ProgressSubTabs,
   type ProgressSubTab,
 } from '@/components/progress'
 import type { Instrument } from '@/lib/types'
 
 /**
- * Progress tab (spec §5.7): instrument toggle over two sub-tabs. History is
- * built (#149); Insights is still a placeholder (#150).
+ * Progress tab (spec §5.7): instrument toggle over two sub-tabs — History
+ * (#149) and Insights (#150).
  *
  * The pattern-level suggestion card the spec puts above both sub-tabs isn't
- * here yet — the rules engine has a pattern tier but no endpoint exposes it.
+ * here yet — the rules engine has a pattern tier but no endpoint exposes it
+ * (#253).
  */
 export default function ProgressPage() {
   const api = useApi()
@@ -117,7 +118,7 @@ export default function ProgressPage() {
         {tab === 'history' ? (
           <HistoryList instrumentId={selectedInstrumentId} />
         ) : (
-          <ComingSoonPlaceholder title="Insights" ticketNumber="#150" />
+          <InsightsPanel instrumentId={selectedInstrumentId} />
         )}
       </div>
     </div>

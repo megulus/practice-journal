@@ -1,4 +1,8 @@
 export { HistoryList } from './HistoryList'
+export { InsightsPanel } from './InsightsPanel'
+export { PracticeHeatmap } from './PracticeHeatmap'
+export { WeekComparison } from './WeekComparison'
+export { RatingTrend } from './RatingTrend'
 export { SessionHistoryCard } from './SessionHistoryCard'
 export { ProgressSubTabs } from './ProgressSubTabs'
 export type { ProgressSubTab } from './ProgressSubTabs'

@@ -2,6 +2,7 @@
 Settings API — GET/PATCH /api/settings
 """
 from fastapi import APIRouter, Depends
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,7 +17,15 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 async def _get_or_create_settings(
     session: AsyncSession, user_id: int
 ) -> UserSettings:
-    """Get user settings, auto-creating with defaults if missing."""
+    """
+    Get user settings, auto-creating with defaults if missing.
+
+    The insert can lose a race: several endpoints call this, and a client that
+    fires them concurrently (the Progress → Insights panel loads three at once)
+    can have two requests both find no row and both try to create one. The
+    unique index on user_id means the loser gets an IntegrityError, so treat
+    that as "someone else just made it" and re-read.
+    """
     result = await session.exec(
         select(UserSettings).where(UserSettings.user_id == user_id)
     )
@@ -26,7 +35,17 @@ async def _get_or_create_settings(
 
     settings = UserSettings(user_id=user_id)
     session.add(settings)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        result = await session.exec(
+            select(UserSettings).where(UserSettings.user_id == user_id)
+        )
+        existing = result.first()
+        if existing is None:
+            raise
+        return existing
     await session.refresh(settings)
     return settings
 

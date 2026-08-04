@@ -121,3 +121,57 @@ class TestSettingsCrossUserIsolation:
             select(UserSettings).where(UserSettings.user_id == other_user.id)
         )
         assert result.first().suggestions_preference == "all"
+
+
+class TestConcurrentAutoCreate:
+    async def test_racing_creates_do_not_error(self, test_engine, test_user):
+        """
+        Two requests that both find no settings row must not 500.
+
+        Progress → Insights loads three endpoints at once and two of them
+        (`comparison`, `ratings`) resolve the user's week_starts_on, so a
+        user's first visit runs the auto-create twice in parallel. The unique
+        index on user_id means one insert loses; it has to re-read instead of
+        raising.
+        """
+        import asyncio
+
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
+        from app.api.settings_api import _get_or_create_settings
+
+        factory = async_sessionmaker(
+            test_engine, class_=AsyncSession, expire_on_commit=False
+        )
+        sessions = [factory() for _ in range(4)]
+        try:
+            results = await asyncio.gather(
+                *(_get_or_create_settings(s, test_user.id) for s in sessions)
+            )
+        finally:
+            for s in sessions:
+                await s.close()
+
+        assert {r.user_id for r in results} == {test_user.id}
+        assert len({r.id for r in results}) == 1
+
+    async def test_insights_endpoints_load_together_for_a_new_user(
+        self, client: AsyncClient, test_instrument
+    ):
+        """The three Insights requests the frontend fires in parallel."""
+        import asyncio
+
+        responses = await asyncio.gather(
+            client.get(
+                f"/api/progress/insights/heatmap?instrument_id={test_instrument.id}"
+            ),
+            client.get(
+                f"/api/progress/insights/comparison?instrument_id={test_instrument.id}"
+            ),
+            client.get(
+                f"/api/progress/insights/ratings?instrument_id={test_instrument.id}&weeks=4"
+            ),
+        )
+
+        assert [r.status_code for r in responses] == [200, 200, 200]
