@@ -48,7 +48,9 @@ rot and conflict across branches):
 - **Roadmap / prioritization (the source of truth for "what's next")** → the
   GitHub Project board (Kantelo board is project `2`, owner `megulus`). The
   **`Ready` column is the curated next-up queue — start there** to answer "what
-  should I pick up?"; `Backlog` is everything not yet promoted, `Done` is shipped.
+  should I pick up?"; `Backlog` is everything not yet promoted, `Done` is shipped,
+  and `Closed` is won't-do / obsolete / superseded (kept distinct from `Done` so
+  shipped work stays separate from things we consciously dropped).
   **Agents: skip any `Ready` item labeled `human-only`** — those need a person
   (dashboard access, secret rotation, etc.), not an agent.
   The Ready column is label-agnostic, so it stays the "what's next" signal no
@@ -146,7 +148,8 @@ GH_TOKEN=$GH_PROJECT_TOKEN /usr/bin/gh api graphql -f query='mutation{
 ```
 
 Status option ids: `Backlog` `f75ad846`, `Ready` `61e4505c`, `In progress`
-`47fc9ee4`, `In review` `df73e18b`, `Done` `98236657`. Re-derive them if the
+`47fc9ee4`, `Done` `98236657`, `Closed` `d5b06b84` (the `In review` column was
+removed 2026-08). Re-derive them if the
 board is ever restructured by querying `fields(first:20)` for
 `ProjectV2SingleSelectField`. Closing issues needs repo write. Known groom
 candidates as of this
