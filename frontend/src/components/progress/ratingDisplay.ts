@@ -3,9 +3,12 @@ import type { BlockLog } from '@/lib/types'
 // ---------------------------------------------------------------------------
 // Rating presentation for a logged exercise.
 //
-// The dot colors are the rating-state border tokens (design tokens §2), the
-// same ones the session summary's "How it went" breakdown uses: teal = step
-// forward, gray = steady, amber = step back, light gray = skipped.
+// The dot colors are the rating-state *icon* tokens (design tokens §2): teal =
+// step forward, gray = steady, amber = step back, light gray = skipped. The
+// icon token is the state's ink color, which is what a solid dot is — the
+// border tokens are tuned to sit against the chevron's own fill and are nearly
+// invisible as a fill of their own (steady #D4D0C8 and unselected #E0DED8 are
+// barely separable from each other, let alone from card-bg-inset #F0EFEB).
 //
 // Wording follows the spec's trajectory framing ("Step forward" / "Steady" /
 // "Step back"), deliberately not the outcome framing the older wireframe
@@ -20,23 +23,23 @@ export interface RatingDisplay {
 
 const STEP_BACK: RatingDisplay = {
   label: 'Step back',
-  dotClass: 'bg-rating-back-border',
+  dotClass: 'bg-rating-back-icon',
 }
 const STEADY: RatingDisplay = {
   label: 'Steady',
-  dotClass: 'bg-rating-steady-border',
+  dotClass: 'bg-rating-steady-icon',
 }
 const STEP_FORWARD: RatingDisplay = {
   label: 'Step forward',
-  dotClass: 'bg-rating-forward-border',
+  dotClass: 'bg-rating-forward-icon',
 }
 const SKIPPED: RatingDisplay = {
   label: 'Skipped',
-  dotClass: 'bg-rating-unselected-border',
+  dotClass: 'bg-rating-unselected-icon',
 }
 const UNRATED: RatingDisplay = {
   label: 'Not rated',
-  dotClass: 'bg-rating-unselected-border',
+  dotClass: 'bg-rating-unselected-icon',
 }
 
 /**

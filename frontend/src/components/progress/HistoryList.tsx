@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill } from '@/components/ui'
@@ -28,21 +28,34 @@ export function HistoryList({ instrumentId }: { instrumentId: number | null }) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A failed page-2 fetch must not take the already-loaded list down with it,
+  // so paging errors are tracked separately from first-page errors.
+  const [moreError, setMoreError] = useState<string | null>(null)
+
+  // Bumped whenever the query (instrument or period) changes. An in-flight
+  // response whose generation is stale is dropped instead of applied —
+  // otherwise switching instruments mid-request appends the previous
+  // instrument's sessions to the new list and installs its cursor.
+  const generationRef = useRef(0)
 
   const load = useCallback(async () => {
+    const generation = ++generationRef.current
     setLoading(true)
     setError(null)
+    setMoreError(null)
     try {
       const res = await api.getHistory({
         instrumentId: instrumentId ?? undefined,
         period,
       })
+      if (generation !== generationRef.current) return
       setItems(res.items)
       setCursor(res.next_cursor)
     } catch (err) {
+      if (generation !== generationRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load history')
     } finally {
-      setLoading(false)
+      if (generation === generationRef.current) setLoading(false)
     }
   }, [api, instrumentId, period])
 
@@ -52,19 +65,23 @@ export function HistoryList({ instrumentId }: { instrumentId: number | null }) {
 
   const loadMore = async () => {
     if (!cursor || loadingMore) return
+    const generation = generationRef.current
     setLoadingMore(true)
+    setMoreError(null)
     try {
       const res = await api.getHistory({
         instrumentId: instrumentId ?? undefined,
         period,
         cursor,
       })
+      if (generation !== generationRef.current) return
       setItems((prev) => [...prev, ...res.items])
       setCursor(res.next_cursor)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load more')
+      if (generation !== generationRef.current) return
+      setMoreError(err instanceof Error ? err.message : 'Failed to load more')
     } finally {
-      setLoadingMore(false)
+      if (generation === generationRef.current) setLoadingMore(false)
     }
   }
 
@@ -108,13 +125,22 @@ export function HistoryList({ instrumentId }: { instrumentId: number | null }) {
           </ul>
           {cursor && (
             <div className="text-center">
+              {moreError && (
+                <p className="mb-2 text-xs text-danger-text" role="alert">
+                  {moreError}
+                </p>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={loadMore}
                 disabled={loadingMore}
               >
-                {loadingMore ? 'Loading…' : 'Load more'}
+                {loadingMore
+                  ? 'Loading…'
+                  : moreError
+                    ? 'Try again'
+                    : 'Load more'}
               </Button>
             </div>
           )}

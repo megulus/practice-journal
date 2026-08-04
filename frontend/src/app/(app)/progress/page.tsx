@@ -113,6 +113,9 @@ export default function ProgressPage() {
         role="tabpanel"
         id={`progress-panel-${tab}`}
         aria-labelledby={`progress-tab-${tab}`}
+        // Focusable so the panel is reachable from the tab strip even when its
+        // content has no focusable elements (the Insights placeholder).
+        tabIndex={0}
       >
         {tab === 'history' ? (
           <HistoryList instrumentId={selectedInstrumentId} />

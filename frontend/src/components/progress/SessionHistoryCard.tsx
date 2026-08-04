@@ -42,6 +42,7 @@ export function SessionHistoryCard({ item }: { item: HistoryItem }) {
     if (next && !detail && !loading) loadDetail()
   }
 
+  const detailId = `session-detail-${item.id}`
   const title = item.session_name ?? 'Freeform session'
   const source = item.is_freeform
     ? 'Off-plan · no template'
@@ -53,6 +54,7 @@ export function SessionHistoryCard({ item }: { item: HistoryItem }) {
         type="button"
         onClick={handleToggle}
         aria-expanded={expanded}
+        aria-controls={expanded ? detailId : undefined}
         className={cx(
           'flex w-full items-start justify-between gap-md p-lg text-left transition-colors',
           'hover:bg-card-bg-inset',
@@ -85,8 +87,9 @@ export function SessionHistoryCard({ item }: { item: HistoryItem }) {
 
       {expanded && (
         <div
+          id={detailId}
           className="border-t border-border-subtle bg-card-bg-inset px-lg py-md"
-          data-testid={`session-detail-${item.id}`}
+          data-testid={detailId}
         >
           {loading && <p className="text-xs text-text-secondary">Loading…</p>}
           {error && (
@@ -139,7 +142,7 @@ function SessionDetail({ log }: { log: PracticeLog }) {
                       <li key={`s-${spot.id}`}>
                         <ExerciseRow
                           blockLog={spot}
-                          name={spotName(spot)}
+                          name={spotName(spot, group.pieceName)}
                           muted
                         />
                       </li>
@@ -210,8 +213,20 @@ function DetailNote({ label, text }: { label: string; text: string }) {
   )
 }
 
-/** Repertoire spot logs are named "Piece — Spot"; the row is already nested. */
-function spotName(blockLog: BlockLog): string {
-  const parts = blockLog.block_name.split(' — ')
-  return parts.length > 1 ? parts.slice(1).join(' — ') : blockLog.block_name
+/**
+ * Repertoire spot logs are named "Piece — Spot"; the row already sits under
+ * its piece, so drop the prefix.
+ *
+ * Strips the group's actual piece name rather than splitting on the first
+ * " — ", so a name that doesn't carry the expected prefix is left intact
+ * instead of being chopped at an arbitrary separator. (A piece *title*
+ * containing " — " still truncates, but that happens upstream in
+ * `groupBlockLogs`, which derives the piece name the same way for the active
+ * session — worth fixing there, not here.)
+ */
+function spotName(blockLog: BlockLog, pieceName: string): string {
+  const prefix = `${pieceName} — `
+  return blockLog.block_name.startsWith(prefix)
+    ? blockLog.block_name.slice(prefix.length)
+    : blockLog.block_name
 }

@@ -219,6 +219,57 @@ describe('SessionHistoryCard', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('leaves a spot name intact when it lacks the piece prefix', async () => {
+    const user = userEvent.setup()
+    mockGetHistoryDetail.mockResolvedValue(
+      makeLog([
+        makeSection([
+          makeBlock({
+            block_id: 7,
+            spot_id: 1,
+            // Renamed out of band, so it no longer carries "Piece — ".
+            block_name: 'Bruch concerto — mm. 1–16',
+            rating: 1,
+          }),
+          makeBlock({
+            block_id: 7,
+            spot_id: 2,
+            block_name: 'Coda, from the top — slowly',
+            rating: 0,
+          }),
+        ]),
+      ]),
+    )
+    render(<SessionHistoryCard item={makeItem()} />)
+    await user.click(screen.getByRole('button', { name: /Technique focus/ }))
+
+    const detail = await screen.findByTestId('session-detail-42')
+    // Prefixed name is stripped; unprefixed one is preserved whole rather
+    // than being chopped at its own " — ".
+    expect(within(detail).getByText('mm. 1–16')).toBeInTheDocument()
+    expect(
+      within(detail).getByText('Coda, from the top — slowly'),
+    ).toBeInTheDocument()
+    expect(within(detail).queryByText('slowly')).not.toBeInTheDocument()
+  })
+
+  it('pairs aria-expanded with the panel it controls', async () => {
+    const user = userEvent.setup()
+    mockGetHistoryDetail.mockResolvedValue(
+      makeLog([makeSection([makeBlock()])]),
+    )
+    render(<SessionHistoryCard item={makeItem()} />)
+
+    const toggle = screen.getByRole('button', { name: /Technique focus/ })
+    // Collapsed: nothing to point at, so no dangling reference.
+    expect(toggle).not.toHaveAttribute('aria-controls')
+
+    await user.click(toggle)
+    await screen.findByTestId('session-detail-42')
+    expect(toggle).toHaveAttribute('aria-controls', 'session-detail-42')
+    expect(document.getElementById('session-detail-42')).toBeInTheDocument()
+  })
+
   it('reports a detail load failure inside the expanded row', async () => {
     const user = userEvent.setup()
     mockGetHistoryDetail.mockRejectedValue(new Error('nope'))

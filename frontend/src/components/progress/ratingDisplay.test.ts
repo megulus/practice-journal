@@ -21,15 +21,15 @@ describe('ratingDisplay', () => {
   it('maps each rating to its label and token-backed dot', () => {
     expect(ratingDisplay(block({ rating: 1 }))).toEqual({
       label: 'Step forward',
-      dotClass: 'bg-rating-forward-border',
+      dotClass: 'bg-rating-forward-icon',
     })
     expect(ratingDisplay(block({ rating: 0 }))).toEqual({
       label: 'Steady',
-      dotClass: 'bg-rating-steady-border',
+      dotClass: 'bg-rating-steady-icon',
     })
     expect(ratingDisplay(block({ rating: -1 }))).toEqual({
       label: 'Step back',
-      dotClass: 'bg-rating-back-border',
+      dotClass: 'bg-rating-back-icon',
     })
   })
 
