@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, Menu, TextInput } from '@/components/ui'
@@ -31,6 +31,7 @@ export function PieceCard({
   onError: (message: string) => void
 }) {
   const api = useApi()
+  const spotsId = useId()
   const [expanded, setExpanded] = useState(false)
   const [spots, setSpots] = useState<Spot[] | null>(null)
   const [editingPiece, setEditingPiece] = useState(false)
@@ -148,6 +149,7 @@ export function PieceCard({
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
+            aria-controls={spotsId}
             className="flex min-w-0 flex-1 items-start gap-sm text-left"
           >
             <ChevronDown
@@ -191,7 +193,7 @@ export function PieceCard({
       )}
 
       {expanded && (
-        <div className="mt-md border-t border-border-subtle pt-md">
+        <div id={spotsId} className="mt-md border-t border-border-subtle pt-md">
           {spots === null ? (
             <p className="text-sm text-text-secondary">Loading spots…</p>
           ) : (

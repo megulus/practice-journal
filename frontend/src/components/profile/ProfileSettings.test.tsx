@@ -53,7 +53,11 @@ describe('ProfileSettings', () => {
     await user.click(
       await screen.findByRole('radio', { name: /Fewer suggestions/ }),
     )
-    expect(mockUpdate).toHaveBeenCalledWith({ suggestions_preference: 'fewer' })
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({
+        suggestions_preference: 'fewer',
+      }),
+    )
     await waitFor(() =>
       expect(screen.getByRole('radio', { name: /Fewer/ })).toBeChecked(),
     )
@@ -63,23 +67,69 @@ describe('ProfileSettings', () => {
     const user = userEvent.setup()
     render(<ProfileSettings />)
     await user.click(await screen.findByRole('radio', { name: '45 min' }))
-    expect(mockUpdate).toHaveBeenCalledWith({
-      default_session_duration_minutes: 45,
-    })
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({
+        default_session_duration_minutes: 45,
+      }),
+    )
 
     await user.click(screen.getByRole('radio', { name: 'Sunday' }))
-    expect(mockUpdate).toHaveBeenCalledWith({ week_starts_on: 'sunday' })
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({ week_starts_on: 'sunday' }),
+    )
   })
 
-  it('rolls back and explains when a save fails', async () => {
+  it('lands on the last choice when saves are toggled faster than they resolve', async () => {
+    // Responses come back in reverse order: without serialization the stale
+    // "45" response would win and the UI would disagree with the server.
+    const resolvers: Array<() => void> = []
+    mockUpdate.mockImplementation(
+      (patch: Partial<UserSettings>) =>
+        new Promise<UserSettings>((resolve) =>
+          resolvers.push(() => resolve({ ...SETTINGS, ...patch })),
+        ),
+    )
+
+    const user = userEvent.setup()
+    render(<ProfileSettings />)
+    await user.click(await screen.findByRole('radio', { name: '45 min' }))
+    await user.click(screen.getByRole('radio', { name: '60 min' }))
+
+    // Only the first request is in flight; the second is queued behind it.
+    await waitFor(() => expect(resolvers).toHaveLength(1))
+    resolvers[0]()
+    await waitFor(() => expect(resolvers).toHaveLength(2))
+    resolvers[1]()
+
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: '60 min' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    )
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it('resyncs from the server and explains when a save fails', async () => {
     mockUpdate.mockRejectedValueOnce(new Error('nope'))
     const user = userEvent.setup()
     render(<ProfileSettings />)
     await user.click(await screen.findByRole('radio', { name: /Off/ }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/save/i)
-    // Rolled back to the server's value.
+    // Re-read rather than restoring a click-time snapshot.
+    await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2))
     expect(screen.getByRole('radio', { name: /All suggestions/ })).toBeChecked()
+  })
+
+  it('keeps the banner up when the failure resync also fails', async () => {
+    mockUpdate.mockRejectedValueOnce(new Error('nope'))
+    mockGet.mockResolvedValueOnce(SETTINGS).mockRejectedValueOnce(new Error('nope'))
+    const user = userEvent.setup()
+    render(<ProfileSettings />)
+    await user.click(await screen.findByRole('radio', { name: /Off/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/save/i)
   })
 
   it('reports a load failure', async () => {

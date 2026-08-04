@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { Pill, Radio } from '@/components/ui'
@@ -58,13 +58,20 @@ const THEME_OPTIONS: {
  * (spec §5.8). Both read from the same `/api/settings` document, so they share
  * one fetch and one save path rather than each owning a copy.
  *
- * Writes are optimistic — a preference toggle should feel instant — and roll
- * back to the server's value if the PATCH fails.
+ * Writes are optimistic — a preference toggle should feel instant — and
+ * resync to the server's value if the PATCH fails. Saves are issued one at a
+ * time (see `pending` below) so rapid toggling can't leave the two out of step.
  */
 export function ProfileSettings() {
   const api = useApi()
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Preference toggles are click-fast, and every PATCH response is the whole
+  // settings document. Two requests in flight at once can be applied
+  // server-side out of click order, and their responses can land out of order
+  // too — either way the UI ends up showing a value the server doesn't hold.
+  // Chaining keeps both orders honest; the optimistic paint means nobody waits.
+  const pending = useRef<Promise<void>>(Promise.resolve())
 
   const load = useCallback(async () => {
     try {
@@ -79,17 +86,24 @@ export function ProfileSettings() {
     load()
   }, [load])
 
-  const save = async (patch: UserSettingsUpdate) => {
-    if (!settings) return
-    const previous = settings
-    setSettings({ ...settings, ...patch })
-    try {
-      setSettings(await api.updateSettings(patch))
-      setError(null)
-    } catch {
-      setSettings(previous)
-      setError("Couldn't save that change. Please try again.")
-    }
+  const save = (patch: UserSettingsUpdate) => {
+    setSettings((current) => (current ? { ...current, ...patch } : current))
+    pending.current = pending.current.then(async () => {
+      try {
+        setSettings(await api.updateSettings(patch))
+        setError(null)
+      } catch {
+        setError("Couldn't save that change. Please try again.")
+        // Re-read instead of restoring a snapshot: the optimistic value is
+        // wrong, and a snapshot taken at click time can predate an earlier
+        // save that did land, silently reverting it.
+        try {
+          setSettings(await api.getSettings())
+        } catch {
+          // Leave the optimistic value; the banner already says it didn't save.
+        }
+      }
+    })
   }
 
   return (
