@@ -46,7 +46,8 @@ export function RepertoireLibrary({ instrumentId }: { instrumentId: number }) {
 
   return (
     <div className="space-y-3">
-      {/* Non-blocking error banner (load or write failures) */}
+      {/* List-scoped failures only (loading the list, adding a piece). Errors
+          from a piece render inside that piece's card, where the action was. */}
       {error && (
         <p
           role="alert"
@@ -71,7 +72,7 @@ export function RepertoireLibrary({ instrumentId }: { instrumentId: number }) {
         <ul className="space-y-3">
           {pieces.map((piece) => (
             <li key={piece.id}>
-              <PieceCard piece={piece} onChange={load} onError={setError} />
+              <PieceCard piece={piece} onChange={load} />
             </li>
           ))}
         </ul>

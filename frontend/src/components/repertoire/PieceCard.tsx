@@ -20,18 +20,22 @@ import { SpotRow } from './SpotRow'
  * Spots load lazily on first expand: a library can run to dozens of pieces,
  * and fetching every spot list up front would be a lot of requests for
  * something the user mostly scrolls past.
+ *
+ * Failures are reported inside the card rather than handed to the list. A
+ * retire that fails changes nothing on screen, so a banner at the top of a
+ * long library would leave the user tapping a control that looks dead — the
+ * message has to be where the action was.
  */
 export function PieceCard({
   piece,
   onChange,
-  onError,
 }: {
   piece: Piece
   onChange: () => void
-  onError: (message: string) => void
 }) {
   const api = useApi()
   const spotsId = useId()
+  const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [spots, setSpots] = useState<Spot[] | null>(null)
   const [editingPiece, setEditingPiece] = useState(false)
@@ -43,10 +47,11 @@ export function PieceCard({
     try {
       const detail = await api.getPiece(piece.id, { includeRetiredSpots: true })
       setSpots(detail.spots)
+      setError(null)
     } catch {
-      onError("Couldn't load this piece's spots. Please try again.")
+      setError("Couldn't load this piece's spots. Please try again.")
     }
-  }, [api, piece.id, onError])
+  }, [api, piece.id])
 
   useEffect(() => {
     if (expanded && spots === null) loadSpots()
@@ -65,7 +70,7 @@ export function PieceCard({
     try {
       await action()
     } catch {
-      onError(failureMessage)
+      setError(failureMessage)
       return false
     }
     await loadSpots()
@@ -77,9 +82,10 @@ export function PieceCard({
     try {
       await api.updatePiece(piece.id, { name, composer_or_source: composer })
       setEditingPiece(false)
+      setError(null)
       onChange()
     } catch {
-      onError("Couldn't save the piece. Please try again.")
+      setError("Couldn't save the piece. Please try again.")
     }
   }
 
@@ -89,7 +95,7 @@ export function PieceCard({
       await api.deletePiece(piece.id)
       onChange()
     } catch {
-      onError("Couldn't delete the piece. Please try again.")
+      setError("Couldn't delete the piece. Please try again.")
     }
   }
 
@@ -190,6 +196,15 @@ export function PieceCard({
             ]}
           />
         </div>
+      )}
+
+      {error && (
+        <p
+          role="alert"
+          className="mt-md rounded-lg bg-card-bg-inset px-3 py-2 text-sm text-danger-text"
+        >
+          {error}
+        </p>
       )}
 
       {expanded && (

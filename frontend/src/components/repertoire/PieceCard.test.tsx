@@ -66,7 +66,7 @@ describe('PieceCard', () => {
   })
 
   it('renders collapsed, without fetching spots', () => {
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     expect(screen.getByText('Bach Partita')).toBeInTheDocument()
     expect(screen.getByText('J.S. Bach')).toBeInTheDocument()
     expect(screen.getByText('6 sessions · never practiced')).toBeInTheDocument()
@@ -75,7 +75,7 @@ describe('PieceCard', () => {
 
   it('loads the spots on first expand, retired ones included', async () => {
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     await user.click(expandToggle())
 
     expect(mocks.getPiece).toHaveBeenCalledWith(1, { includeRetiredSpots: true })
@@ -90,7 +90,7 @@ describe('PieceCard', () => {
       ]),
     )
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     await user.click(expandToggle())
 
     expect(await screen.findByText('Retired')).toBeInTheDocument()
@@ -100,7 +100,7 @@ describe('PieceCard', () => {
   it('adds a spot and resyncs both the spots and the parent list', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={onChange} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={onChange} />)
     await user.click(expandToggle())
     await user.click(await screen.findByRole('button', { name: '+ Add spot' }))
 
@@ -118,7 +118,7 @@ describe('PieceCard', () => {
 
   it('retires a spot from its menu', async () => {
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     await user.click(expandToggle())
     await user.click(
       await screen.findByRole('button', { name: 'Coda run actions' }),
@@ -129,11 +129,12 @@ describe('PieceCard', () => {
     expect(mocks.retireSpot).toHaveBeenCalledWith(10)
   })
 
-  it('surfaces a spot mutation failure through onError', async () => {
+  it('reports a spot mutation failure inside the card, not up the list', async () => {
     mocks.retireSpot.mockRejectedValueOnce(new Error('nope'))
-    const onError = vi.fn()
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={onError} />)
+    const { container } = render(
+      <PieceCard piece={PIECE} onChange={vi.fn()} />,
+    )
     await user.click(expandToggle())
     await user.click(
       await screen.findByRole('button', { name: 'Coda run actions' }),
@@ -141,15 +142,48 @@ describe('PieceCard', () => {
     await user.click(
       await screen.findByRole('menuitem', { name: 'Retire from rotation' }),
     )
-    await waitFor(() =>
-      expect(onError).toHaveBeenCalledWith(expect.stringMatching(/retire/i)),
+
+    // A failed retire moves nothing on screen, so the message has to land in
+    // the card the user is looking at rather than at the top of the list.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/retire/i)
+    expect(container.firstChild).toContainElement(alert)
+  })
+
+  it('clears a card error once a later action succeeds', async () => {
+    mocks.retireSpot.mockRejectedValueOnce(new Error('nope'))
+    const user = userEvent.setup()
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
+    await user.click(expandToggle())
+    await user.click(
+      await screen.findByRole('button', { name: 'Coda run actions' }),
     )
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Retire from rotation' }),
+    )
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Coda run actions' }))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Retire from rotation' }),
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('reports a failed spot load inside the card', async () => {
+    mocks.getPiece.mockRejectedValueOnce(new Error('nope'))
+    const user = userEvent.setup()
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
+    await user.click(expandToggle())
+    expect(await screen.findByRole('alert')).toHaveTextContent(/spots/i)
   })
 
   it('renames the piece inline', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={onChange} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={onChange} />)
     await user.click(screen.getByRole('button', { name: 'Bach Partita actions' }))
     await user.click(
       await screen.findByRole('menuitem', { name: 'Rename piece' }),
@@ -169,7 +203,7 @@ describe('PieceCard', () => {
 
   it('confirms before deleting the piece', async () => {
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Bach Partita actions' }))
     await user.click(
       await screen.findByRole('menuitem', { name: 'Delete piece' }),
@@ -182,7 +216,7 @@ describe('PieceCard', () => {
 
   it('opens the per-spot history sheet', async () => {
     const user = userEvent.setup()
-    render(<PieceCard piece={PIECE} onChange={vi.fn()} onError={vi.fn()} />)
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     await user.click(expandToggle())
     await user.click(
       await screen.findByRole('button', { name: 'Coda run actions' }),
