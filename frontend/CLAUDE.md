@@ -93,9 +93,9 @@ All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
 ### Components
 
 - `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav)
-- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
+- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `RepertoireBlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
 - `src/components/profile/` — Profile tab sections (`AccountHeader`, `InstrumentManager`/`InstrumentCard`, `ProfileSettings`)
-- `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`)
+- `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`) plus the template editor's `SpotManagementDrawer` and the shared `SearchCreateInput` (the search-doubles-as-create field)
 - `src/components/ui/` — design-system primitives (Button, Card, Pill, etc.) — added incrementally during Phase 0 PR 3+
 
 ### Styling
