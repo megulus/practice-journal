@@ -25,9 +25,11 @@ function makeInstrument(o: Partial<Instrument> = {}): Instrument {
   return {
     id: 1,
     name: 'Violin',
+    instrument_category: 'violin',
     practice_frequency: 'daily',
     display_order: 0,
     active_template_count: 0,
+    piece_count: 0,
     last_practiced_at: null,
     ...o,
   }
