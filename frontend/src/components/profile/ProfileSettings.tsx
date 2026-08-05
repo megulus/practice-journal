@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { Pill, Radio } from '@/components/ui'
+import { PillRadioGroup, Radio } from '@/components/ui'
 import { useTheme } from '@/hooks/useTheme'
 import type { ThemePreference } from '@/components/ThemeProvider'
 import type {
@@ -36,7 +36,10 @@ const SUGGESTION_OPTIONS: {
   },
 ]
 
-const DURATION_OPTIONS = [15, 30, 45, 60]
+const DURATION_OPTIONS = [15, 30, 45, 60].map((minutes) => ({
+  value: minutes,
+  label: `${minutes} min`,
+}))
 
 const WEEK_START_OPTIONS: { value: WeekStart; label: string }[] = [
   { value: 'monday', label: 'Monday' },
@@ -162,29 +165,14 @@ export function ProfileSettings() {
             {settings === null ? (
               <p className="text-sm text-text-secondary">Loading…</p>
             ) : (
-              <div
-                role="radiogroup"
-                aria-label="Default session duration"
-                className="flex flex-wrap gap-sm"
-              >
-                {DURATION_OPTIONS.map((minutes) => {
-                  const active =
-                    settings.default_session_duration_minutes === minutes
-                  return (
-                    <Pill
-                      key={minutes}
-                      active={active}
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() =>
-                        save({ default_session_duration_minutes: minutes })
-                      }
-                    >
-                      {minutes} min
-                    </Pill>
-                  )
-                })}
-              </div>
+              <PillRadioGroup
+                label="Default session duration"
+                options={DURATION_OPTIONS}
+                value={settings.default_session_duration_minutes}
+                onChange={(minutes) =>
+                  save({ default_session_duration_minutes: minutes })
+                }
+              />
             )}
           </PreferenceRow>
 
@@ -195,26 +183,12 @@ export function ProfileSettings() {
             {settings === null ? (
               <p className="text-sm text-text-secondary">Loading…</p>
             ) : (
-              <div
-                role="radiogroup"
-                aria-label="Week starts on"
-                className="flex flex-wrap gap-sm"
-              >
-                {WEEK_START_OPTIONS.map(({ value, label }) => {
-                  const active = settings.week_starts_on === value
-                  return (
-                    <Pill
-                      key={value}
-                      active={active}
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() => save({ week_starts_on: value })}
-                    >
-                      {label}
-                    </Pill>
-                  )
-                })}
-              </div>
+              <PillRadioGroup
+                label="Week starts on"
+                options={WEEK_START_OPTIONS}
+                value={settings.week_starts_on}
+                onChange={(value) => save({ week_starts_on: value })}
+              />
             )}
           </PreferenceRow>
 
@@ -266,22 +240,19 @@ function ThemePicker() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <div role="radiogroup" aria-label="Theme" className="flex flex-wrap gap-sm">
-      {THEME_OPTIONS.map(({ value, label, Icon }) => {
-        const active = theme === value
-        return (
-          <Pill
-            key={value}
-            active={active}
-            role="radio"
-            aria-checked={active}
-            onClick={() => setTheme(value)}
-          >
+    <PillRadioGroup
+      label="Theme"
+      options={THEME_OPTIONS.map(({ value, label, Icon }) => ({
+        value,
+        label: (
+          <>
             <Icon size={14} strokeWidth={1.5} aria-hidden />
             {label}
-          </Pill>
-        )
-      })}
-    </div>
+          </>
+        ),
+      }))}
+      value={theme}
+      onChange={setTheme}
+    />
   )
 }

@@ -79,6 +79,21 @@ describe('ProfileSettings', () => {
     )
   })
 
+  it('saves a duration chosen with the arrow keys', async () => {
+    const user = userEvent.setup()
+    render(<ProfileSettings />)
+    const checked = await screen.findByRole('radio', { name: '30 min' })
+    checked.focus()
+    await user.keyboard('{ArrowRight}')
+
+    expect(screen.getByRole('radio', { name: '45 min' })).toHaveFocus()
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({
+        default_session_duration_minutes: 45,
+      }),
+    )
+  })
+
   it('lands on the last choice when saves are toggled faster than they resolve', async () => {
     // Responses come back in reverse order: without serialization the stale
     // "45" response would win and the UI would disagree with the server.
