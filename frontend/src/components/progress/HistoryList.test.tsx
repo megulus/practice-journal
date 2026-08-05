@@ -262,6 +262,44 @@ describe('HistoryList', () => {
     expect(screen.queryByText('Violin session')).not.toBeInTheDocument()
   })
 
+  it('leaves paging usable after a page fetch is superseded', async () => {
+    const user = userEvent.setup()
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 1, session_name: 'Violin session' })], 'cursor-2'),
+    )
+    const { rerender } = render(<HistoryList instrumentId={1} />)
+    await screen.findByText('Violin session')
+
+    let resolvePageTwo: (value: HistoryResponse) => void = () => {}
+    mockGetHistory.mockImplementationOnce(
+      () => new Promise<HistoryResponse>((res) => { resolvePageTwo = res }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 9, session_name: 'Viola session' })], 'cursor-9'),
+    )
+    rerender(<HistoryList instrumentId={2} />)
+    await screen.findByText('Viola session')
+
+    await act(async () => {
+      resolvePageTwo(page([makeItem({ id: 2, session_name: 'Stale' })]))
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    // The superseded fetch must release the button. Gating its teardown on the
+    // generation would strand it disabled at "Loading…" with nothing to clear
+    // it, killing paging for the new instrument until remount.
+    const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+    expect(loadMoreButton).toBeEnabled()
+
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 10, session_name: 'Viola page two' })], null),
+    )
+    await user.click(loadMoreButton)
+    expect(await screen.findByText('Viola page two')).toBeInTheDocument()
+  })
+
   it('keeps the selected time range when the instrument changes', async () => {
     const user = userEvent.setup()
     mockGetHistory.mockResolvedValue(page([makeItem()]))

@@ -81,7 +81,13 @@ export function HistoryList({ instrumentId }: { instrumentId: number | null }) {
       if (generation !== generationRef.current) return
       setMoreError(err instanceof Error ? err.message : 'Failed to load more')
     } finally {
-      if (generation === generationRef.current) setLoadingMore(false)
+      // Unconditional, unlike the guards above: `loadingMore` describes the
+      // button, not the query, and nothing else clears it. Gating it on the
+      // generation would leave a superseded page fetch with the button stuck
+      // disabled at "Loading…" forever, since `loadMore` early-returns while
+      // it's set. Two page fetches can't overlap — the button is disabled
+      // while one is in flight, and during a `load` the list isn't rendered.
+      setLoadingMore(false)
     }
   }
 
