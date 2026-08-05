@@ -4,8 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Trash2 } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { AutoSaveInput, Card, Menu, Pill } from '@/components/ui'
-import ConfirmDialog from '@/components/ConfirmDialog'
+import { AutoSaveInput, Card, ConfirmDialog, Menu, Pill } from '@/components/ui'
+import { count, deleteConfirmCopy } from '@/lib/confirm-copy'
 import { formatRelativeDay } from '@/lib/dates'
 import type { Instrument, PracticeFrequency } from '@/lib/types'
 import { PRACTICE_FREQUENCIES } from './frequencies'
@@ -119,14 +119,16 @@ export function InstrumentCard({
 
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete ${instrument.name}?`}
-          message={
-            planCount > 0
-              ? `This removes ${instrument.name} and its ${planCount} plan${planCount !== 1 ? 's' : ''}. This can't be undone.`
-              : `This removes ${instrument.name}. This can't be undone.`
-          }
+          {...deleteConfirmCopy('instrument', instrument.name, {
+            // The backend cascades: templates are soft-deleted and any
+            // in-progress log on this instrument is marked abandoned.
+            cascade: [
+              planCount > 0
+                ? `Its ${count(planCount, 'plan')} go too, and any practice session in progress on it ends.`
+                : 'Any practice session in progress on it ends.',
+            ],
+          })}
           confirmLabel="Delete"
-          confirmVariant="danger"
           onConfirm={remove}
           onCancel={() => setConfirmingDelete(false)}
         />

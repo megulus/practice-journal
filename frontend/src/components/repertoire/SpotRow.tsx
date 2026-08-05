@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Archive, History, Pencil, RotateCcw, Trash2 } from 'lucide-react'
-import { Menu } from '@/components/ui'
-import ConfirmDialog from '@/components/ConfirmDialog'
+import { ConfirmDialog, Menu } from '@/components/ui'
+import { count, deleteConfirmCopy } from '@/lib/confirm-copy'
 import { formatRelativeDay } from '@/lib/dates'
 import type { Spot } from '@/lib/types'
 import { SpotEditForm, type SpotFormValues } from './SpotEditForm'
@@ -109,16 +109,20 @@ export function SpotRow({
 
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete ${spot.name}?`}
-          message={
-            spot.session_count > 0
-              ? `Past sessions keep their entries, but this spot's own history ` +
-                `(${spot.session_count} session${spot.session_count !== 1 ? 's' : ''}) ` +
-                `won't be reachable. Retire it instead to drop it from the rotation and keep the history.`
-              : `This removes ${spot.name} from the piece. This can't be undone.`
-          }
+          {...deleteConfirmCopy('spot', spot.name, {
+            cascade:
+              spot.session_count > 0
+                ? [
+                    `Its own history (${count(spot.session_count, 'session')}) stops ` +
+                      'being reachable, though past sessions keep their entries.',
+                  ]
+                : undefined,
+            note:
+              spot.session_count > 0
+                ? 'Retire it instead to drop it from the rotation and keep the history.'
+                : undefined,
+          })}
           confirmLabel="Delete"
-          confirmVariant="danger"
           onConfirm={() => {
             setConfirmingDelete(false)
             onDelete()
