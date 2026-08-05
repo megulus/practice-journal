@@ -57,6 +57,9 @@ import type {
   FinishResponse,
   // Today
   TodayResponse,
+  // Quick start
+  QuickStartRequest,
+  QuickStartResponse,
   // Progress
   HistoryPeriod,
   HistoryResponse,
@@ -448,6 +451,16 @@ export function createAuthenticatedAPI(
 
     getTodayForInstrument: (instrumentId: number) =>
       f<TodayResponse>(`/api/today/${instrumentId}`),
+
+    // -----------------------------------------------------------------
+    // Quick start (wizard)
+    // -----------------------------------------------------------------
+    /** Creates instrument (+ optional piece) + active plan in one transaction. */
+    quickStart: (data: QuickStartRequest) =>
+      f<QuickStartResponse>('/api/quickstart', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
 
     // -----------------------------------------------------------------
     // Practice session lifecycle

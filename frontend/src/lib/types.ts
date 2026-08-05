@@ -493,6 +493,41 @@ export interface TodayResponse {
 }
 
 // ===================================================================
+// Quick-start wizard
+// ===================================================================
+
+export interface QuickStartBlock {
+  name: string
+  description?: string
+}
+
+export interface QuickStartSection {
+  name: string
+  section_type: SectionType
+  estimated_duration_minutes: number
+  /** The one seed exercise the generated section starts with. */
+  block: QuickStartBlock
+}
+
+export interface QuickStartRequest {
+  /** Exactly one of `instrument_id` (reuse) / `instrument_name` (create). */
+  instrument_id?: number
+  instrument_name?: string
+  plan_name: string
+  /** Becomes a Piece and the repertoire section's subject. Omit to skip. */
+  piece_name?: string
+  sections: QuickStartSection[]
+}
+
+export interface QuickStartResponse {
+  instrument: Instrument
+  template: Template
+  /** The new plan's single rotation session — start practice with this. */
+  template_session_id: number
+  piece: Piece | null
+}
+
+// ===================================================================
 // Progress: History & Insights
 // ===================================================================
 
