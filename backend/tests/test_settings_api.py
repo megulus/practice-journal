@@ -11,6 +11,7 @@ class TestGetSettings:
         assert data["suggestions_preference"] == "all"
         assert data["default_session_duration_minutes"] == 30
         assert data["week_starts_on"] == "monday"
+        assert data["theme_preference"] == "system"
 
     async def test_returns_existing_settings(self, client: AsyncClient):
         # First call creates, second returns the same
@@ -38,6 +39,7 @@ class TestUpdateSettings:
         # Unchanged fields keep defaults
         assert data["default_session_duration_minutes"] == 30
         assert data["week_starts_on"] == "monday"
+        assert data["theme_preference"] == "system"
 
     async def test_update_multiple_fields(self, client: AsyncClient):
         await client.get("/api/settings")
@@ -54,12 +56,37 @@ class TestUpdateSettings:
         assert data["default_session_duration_minutes"] == 45
         assert data["week_starts_on"] == "sunday"
 
+    @pytest.mark.parametrize("theme", ["system", "light", "dark"])
+    async def test_update_theme_preference(self, client: AsyncClient, theme: str):
+        await client.get("/api/settings")
+
+        resp = await client.patch(
+            "/api/settings",
+            json={"theme_preference": theme},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["theme_preference"] == theme
+
+    async def test_theme_preference_persists(self, client: AsyncClient):
+        await client.patch("/api/settings", json={"theme_preference": "dark"})
+        resp = await client.get("/api/settings")
+        assert resp.json()["theme_preference"] == "dark"
+
     async def test_invalid_enum_returns_422(self, client: AsyncClient):
         await client.get("/api/settings")
 
         resp = await client.patch(
             "/api/settings",
             json={"suggestions_preference": "invalid_value"},
+        )
+        assert resp.status_code == 422
+
+    async def test_invalid_theme_returns_422(self, client: AsyncClient):
+        await client.get("/api/settings")
+
+        resp = await client.patch(
+            "/api/settings",
+            json={"theme_preference": "sepia"},
         )
         assert resp.status_code == 422
 
@@ -79,6 +106,7 @@ class TestUpdateSettings:
         assert data["suggestions_preference"] == "all"
         assert data["default_session_duration_minutes"] == 30
         assert data["week_starts_on"] == "monday"
+        assert data["theme_preference"] == "system"
 
     async def test_invalid_duration_returns_422(self, client: AsyncClient):
         resp = await client.patch(

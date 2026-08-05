@@ -431,7 +431,7 @@ export default function TemplateEditorPage() {
       {addBlockSection && instrument && (
         <AddBlockSheet
           sectionName={addBlockSection.name}
-          instrumentName={instrument.name}
+          instrumentCategory={instrument.instrument_category}
           instrumentId={instrument.id}
           onAdd={(data) => addBlock(addBlockSection.id, data)}
           onClose={() => setAddBlockSectionId(null)}

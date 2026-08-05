@@ -7,6 +7,9 @@ export type { PillProps } from './Pill'
 export { Checkbox } from './Checkbox'
 export type { CheckboxProps } from './Checkbox'
 
+export { Radio } from './Radio'
+export type { RadioProps } from './Radio'
+
 export { TextInput } from './TextInput'
 export type { TextInputProps, TextInputVariant } from './TextInput'
 

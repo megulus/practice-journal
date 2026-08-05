@@ -1,103 +1,28 @@
 'use client'
 
-import { Monitor, Sun, Moon } from 'lucide-react'
-import { Pill } from '@/components/ui'
 import SignOutButton from '@/components/SignOutButton'
+import { AccountHeader } from '@/components/profile/AccountHeader'
 import { InstrumentManager } from '@/components/profile/InstrumentManager'
-import { useTheme } from '@/hooks/useTheme'
-import type { ThemePreference } from '@/components/ThemeProvider'
-
-const OPTIONS: Array<{
-  value: ThemePreference
-  label: string
-  Icon: typeof Monitor
-}> = [
-  { value: 'system', label: 'Match system', Icon: Monitor },
-  { value: 'light', label: 'Light', Icon: Sun },
-  { value: 'dark', label: 'Dark', Icon: Moon },
-]
-
-function ThemePicker() {
-  const { theme, setTheme } = useTheme()
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Appearance"
-      className="flex gap-sm flex-wrap"
-    >
-      {OPTIONS.map(({ value, label, Icon }) => {
-        const active = theme === value
-        return (
-          <Pill
-            key={value}
-            active={active}
-            role="radio"
-            aria-checked={active}
-            onClick={() => setTheme(value)}
-          >
-            <Icon size={14} strokeWidth={1.5} aria-hidden />
-            {label}
-          </Pill>
-        )
-      })}
-    </div>
-  )
-}
+import { ProfileSettings } from '@/components/profile/ProfileSettings'
+import { SectionHeading } from '@/components/profile/SectionHeading'
 
 export default function ProfilePage() {
   return (
-    <div>
-      <h1
-        className="text-text-primary font-semibold mb-2xl"
-        style={{ fontSize: 24, letterSpacing: '-0.5px', lineHeight: 1.35 }}
-      >
-        Profile
-      </h1>
+    <div className="space-y-2xl">
+      <h1 className="text-2xl font-semibold text-text-primary">Profile</h1>
 
-      <section className="mb-2xl">
-        <h2
-          className="text-text-primary font-semibold mb-md"
-          style={{ fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.35 }}
-        >
-          Instruments
-        </h2>
+      <AccountHeader />
+
+      <section>
+        <SectionHeading>My instruments</SectionHeading>
         <InstrumentManager />
       </section>
 
-      <section className="mb-2xl">
-        <h2
-          className="text-text-primary font-semibold mb-md"
-          style={{ fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.35 }}
-        >
-          Appearance
-        </h2>
-        <ThemePicker />
-        <p
-          className="text-text-secondary mt-md"
-          style={{ fontSize: 13, lineHeight: 1.5 }}
-        >
-          Choose how Kantelo looks. &ldquo;Match system&rdquo; follows your
-          operating system preference.
-        </p>
-      </section>
+      <ProfileSettings />
 
-      <section className="mb-2xl">
-        <h2
-          className="text-text-primary font-semibold mb-md"
-          style={{ fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.35 }}
-        >
-          Account
-        </h2>
+      <div className="border-t border-border-default pt-xl">
         <SignOutButton />
-      </section>
-
-      <p
-        className="text-text-tertiary"
-        style={{ fontSize: 11, lineHeight: 1.4 }}
-      >
-        More settings coming soon &mdash; tracked in #148.
-      </p>
+      </div>
     </div>
   )
 }
