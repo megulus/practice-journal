@@ -200,12 +200,9 @@ export function SpotManagementDrawer({
           />
         ) : view === 'create' ? (
           <div>
-            <div className="flex items-center justify-between pb-2">
-              <h3 className="text-sm font-medium text-text-primary">New spot</h3>
-              <Button variant="ghost" size="sm" onClick={() => setView('search')}>
-                Cancel
-              </Button>
-            </div>
+            <h3 className="pb-2 text-sm font-medium text-text-primary">
+              New spot
+            </h3>
             {/* "Create", not "Add to defaults": in the editor, creating a spot
                 and adding it to this block's defaults are the same action. */}
             <SpotEditForm
@@ -232,7 +229,7 @@ export function SpotManagementDrawer({
               onAdd={addToDefaults}
               onPickRetired={setConfirming}
             />
-            {showCreate ? (
+            {showCreate && (
               <button
                 type="button"
                 onClick={() => setView('create')}
@@ -241,11 +238,10 @@ export function SpotManagementDrawer({
                 <Plus size={14} aria-hidden />
                 Create &ldquo;{trimmedQuery}&rdquo;
               </button>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={backToList}>
-                Cancel
-              </Button>
             )}
+            <Button variant="ghost" size="sm" onClick={backToList}>
+              Cancel
+            </Button>
           </div>
         ) : (
           <div>
