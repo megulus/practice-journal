@@ -2,6 +2,10 @@
  * Temporary placeholder shown during the frontend rebuild.
  * Each page will be replaced with its real implementation in a
  * subsequent ticket (#144-#151).
+ *
+ * Now only used inside the Progress tab's Insights panel (#150), so it renders
+ * as a block within a page rather than as a full screen, and on tokens rather
+ * than the legacy stock grays.
  */
 export default function ComingSoonPlaceholder({
   title,
@@ -11,14 +15,12 @@ export default function ComingSoonPlaceholder({
   ticketNumber: string
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <div className="max-w-md text-center">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-3">{title}</h1>
-        <p className="text-gray-600 mb-2">
-          This screen is being rebuilt against the new Kantelo API.
-        </p>
-        <p className="text-sm text-gray-500">Tracked in {ticketNumber}.</p>
-      </div>
+    <div className="px-6 py-16 text-center">
+      <h2 className="mb-3 text-xl font-semibold text-text-primary">{title}</h2>
+      <p className="mb-2 text-sm text-text-secondary">
+        This screen is being rebuilt against the new Kantelo API.
+      </p>
+      <p className="text-xs text-text-tertiary">Tracked in {ticketNumber}.</p>
     </div>
   )
 }
