@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
-import { Button, Card, StatCard, TextArea } from '@/components/ui'
+import {
+  Button,
+  Card,
+  StatCard,
+  TextArea,
+  VoiceInput,
+  appendTranscript,
+} from '@/components/ui'
 import { formatSessionDate } from '@/lib/dates'
 import type { FinishResponse } from '@/lib/types'
 
@@ -172,14 +179,22 @@ export default function SessionSummaryPage() {
           <p className="mb-3 mt-1 text-xs text-text-tertiary">
             Optional — a moment to notice what you might forget later.
           </p>
-          <TextArea
-            variant="recessed"
-            value={reflection}
-            onChange={(e) => setReflection(e.target.value)}
-            placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
-            rows={3}
-            className="mb-2"
-          />
+          <div className="mb-2 flex items-start gap-2">
+            <TextArea
+              variant="recessed"
+              value={reflection}
+              onChange={(e) => setReflection(e.target.value)}
+              placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
+              rows={3}
+              className="flex-1"
+            />
+            <VoiceInput
+              onTranscript={(text) =>
+                setReflection((prev) => appendTranscript(prev, text))
+              }
+              aria-label="Dictate your reflection"
+            />
+          </div>
           <Button
             variant="ghost"
             size="sm"

@@ -3,7 +3,14 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Check, Minus, ChevronDown } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { Checkbox, RatingChevrons, TextArea, TextInput } from '@/components/ui'
+import {
+  Checkbox,
+  RatingChevrons,
+  TextArea,
+  TextInput,
+  VoiceInput,
+  appendTranscript,
+} from '@/components/ui'
 import type { BlockLog, Rating } from '@/lib/types'
 
 /**
@@ -175,13 +182,22 @@ export default function RepertoireBlock({
             </button>
           ) : (
             <form onSubmit={handleAddSpot} className="px-4 py-2 space-y-2">
-              <TextInput
-                variant="recessed"
-                value={newSpotName}
-                onChange={(e) => setNewSpotName(e.target.value)}
-                placeholder="Add a spot..."
-                autoFocus
-              />
+              <div className="flex items-center gap-2">
+                <TextInput
+                  variant="recessed"
+                  value={newSpotName}
+                  onChange={(e) => setNewSpotName(e.target.value)}
+                  placeholder="Add a spot..."
+                  autoFocus
+                  className="flex-1 min-w-0"
+                />
+                <VoiceInput
+                  onTranscript={(text) =>
+                    setNewSpotName((prev) => appendTranscript(prev, text))
+                  }
+                  aria-label="Dictate spot name"
+                />
+              </div>
               <Checkbox
                 checked={saveForNextTime}
                 onChange={(e) => setSaveForNextTime(e.target.checked)}
@@ -303,14 +319,23 @@ function SpotRow({
           </button>
         ) : (
           <div className="mt-1">
-            <TextArea
-              variant="recessed"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={handleSaveNotes}
-              placeholder="Notes..."
-              rows={2}
-            />
+            <div className="flex items-start gap-2">
+              <TextArea
+                variant="recessed"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={handleSaveNotes}
+                placeholder="Notes..."
+                rows={2}
+                className="flex-1"
+              />
+              <VoiceInput
+                onTranscript={(text) =>
+                  setNotes((prev) => appendTranscript(prev, text))
+                }
+                aria-label={`Dictate notes for ${spotName}`}
+              />
+            </div>
             {savingNotes && (
               <span className="text-xs text-text-tertiary">Saving...</span>
             )}
@@ -377,14 +402,23 @@ function WholePieceRating({
             + add note
           </button>
         ) : (
-          <TextArea
-            variant="recessed"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={handleSaveNotes}
-            placeholder="Notes..."
-            rows={2}
-          />
+          <div className="flex items-start gap-2">
+            <TextArea
+              variant="recessed"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={handleSaveNotes}
+              placeholder="Notes..."
+              rows={2}
+              className="flex-1"
+            />
+            <VoiceInput
+              onTranscript={(text) =>
+                setNotes((prev) => appendTranscript(prev, text))
+              }
+              aria-label="Dictate notes for this piece"
+            />
+          </div>
         )}
       </div>
     </div>

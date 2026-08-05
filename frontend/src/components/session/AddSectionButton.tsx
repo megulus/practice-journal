@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useApi } from '@/lib/useApi'
-import { Button, TextInput } from '@/components/ui'
+import { Button, TextInput, VoiceInput, appendTranscript } from '@/components/ui'
 import type { SectionType } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -61,12 +61,19 @@ export function AddSectionButton({
       onSubmit={handleSubmit}
       className="bg-card-bg rounded-xl border border-border-default p-4 space-y-3"
     >
-      <TextInput
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Section name..."
-        autoFocus
-      />
+      <div className="flex items-center gap-2">
+        <TextInput
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Section name..."
+          autoFocus
+          className="flex-1 min-w-0"
+        />
+        <VoiceInput
+          onTranscript={(text) => setName((prev) => appendTranscript(prev, text))}
+          aria-label="Dictate section name"
+        />
+      </div>
       <div className="flex flex-wrap gap-2">
         {sectionTypes.map((st) => (
           <button

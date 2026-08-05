@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
-import { TextArea } from '@/components/ui'
+import { TextArea, VoiceInput, appendTranscript } from '@/components/ui'
 
 // ---------------------------------------------------------------------------
 // Session notes
@@ -34,13 +34,18 @@ export function SessionNotes({
   }, [notes, initialNotes, handleSave, pendingFlushes])
 
   return (
-    <div>
+    <div className="flex items-start gap-2">
       <TextArea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         onBlur={handleSave}
         placeholder="Notes — breakthroughs, challenges, ideas..."
         rows={3}
+        className="flex-1"
+      />
+      <VoiceInput
+        onTranscript={(text) => setNotes((prev) => appendTranscript(prev, text))}
+        aria-label="Dictate session notes"
       />
     </div>
   )

@@ -2,7 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
-import { Checkbox, RatingChevrons, TextArea } from '@/components/ui'
+import {
+  Checkbox,
+  RatingChevrons,
+  TextArea,
+  VoiceInput,
+  appendTranscript,
+} from '@/components/ui'
 import type { BlockLog, Rating } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -99,14 +105,23 @@ export function BlockRow({
           </button>
         ) : (
           <div className="mt-1">
-            <TextArea
-              variant="recessed"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={handleSaveNotes}
-              placeholder="Notes..."
-              rows={2}
-            />
+            <div className="flex items-start gap-2">
+              <TextArea
+                variant="recessed"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={handleSaveNotes}
+                placeholder="Notes..."
+                rows={2}
+                className="flex-1"
+              />
+              <VoiceInput
+                onTranscript={(text) =>
+                  setNotes((prev) => appendTranscript(prev, text))
+                }
+                aria-label={`Dictate notes for ${blockLog.block_name}`}
+              />
+            </div>
             {savingNotes && (
               <span className="text-xs text-text-tertiary">Saving...</span>
             )}

@@ -8,6 +8,18 @@ import {
   type VoiceInputError,
 } from './useSpeechRecognition'
 
+/**
+ * Append a finalized transcript chunk to a field's current value, inserting a
+ * separating space only where one is needed. Consumers own the field state, so
+ * the dictated text stays editable like anything typed.
+ */
+export function appendTranscript(current: string, chunk: string): string {
+  const addition = chunk.trim()
+  if (!addition) return current
+  if (!current) return addition
+  return /\s$/.test(current) ? current + addition : `${current} ${addition}`
+}
+
 export interface VoiceInputProps {
   /** Finalized transcript chunks — append these to the field. */
   onTranscript: (text: string) => void

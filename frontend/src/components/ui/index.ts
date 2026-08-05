@@ -46,7 +46,7 @@ export type {
   AutoSaveFieldBinding,
 } from './useAutoSaveField'
 
-export { VoiceInput } from './VoiceInput'
+export { VoiceInput, appendTranscript } from './VoiceInput'
 export type { VoiceInputProps } from './VoiceInput'
 
 export { useSpeechRecognition } from './useSpeechRecognition'
