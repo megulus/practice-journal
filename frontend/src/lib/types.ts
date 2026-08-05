@@ -77,6 +77,7 @@ export interface Instrument {
   practice_frequency: PracticeFrequency
   display_order: number
   active_template_count: number
+  piece_count: number
   last_practiced_at: string | null
 }
 

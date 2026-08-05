@@ -57,6 +57,7 @@ vi.mock('@clerk/nextjs', () => ({
   }),
   useClerk: () => ({
     signOut: vi.fn(),
+    openUserProfile: vi.fn(),
   }),
   ClerkProvider: ({ children }: { children: ReactNode }) => children,
   SignedIn: ({ children }: { children: ReactNode }) => children,

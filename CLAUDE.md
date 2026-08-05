@@ -279,7 +279,8 @@ See `frontend/CLAUDE.md` for the full guide (Next.js App Router structure, the
 route). Key context: the Phase-0 rebuild against the new Kantelo schema and
 design system is complete (all core screens retoned to tokens/primitives, PRs
 #203–#210); current work is post-Phase-0 features (Progress tab, quick-start
-wizard, repertoire library, profile preferences). The Progress tab is still a
+wizard). The Profile tab — account header, instruments, repertoire library,
+coaching/preference settings — landed with #148. The Progress tab is still a
 `ComingSoonPlaceholder`.
 
 ## Conventions for working here

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronRight, Trash2 } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { AutoSaveInput, Card, Menu, Pill } from '@/components/ui'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -11,8 +12,9 @@ import { PRACTICE_FREQUENCIES } from './frequencies'
 
 /**
  * A single instrument on the Profile tab: inline-editable name, live
- * practice-frequency pills, a summary line, and a delete action (with a
- * cascade warning — deleting an instrument also removes its plans).
+ * practice-frequency pills, a link into the instrument's repertoire library,
+ * a summary line, and a delete action (with a cascade warning — deleting an
+ * instrument also removes its plans).
  */
 export function InstrumentCard({
   instrument,
@@ -60,11 +62,14 @@ export function InstrumentCard({
   }
 
   const planCount = instrument.active_template_count
-  const summary =
-    `${planCount} active plan${planCount !== 1 ? 's' : ''} · ` +
-    (instrument.last_practiced_at
+  const pieceCount = instrument.piece_count
+  const summary = [
+    `${planCount} active plan${planCount !== 1 ? 's' : ''}`,
+    `${pieceCount} piece${pieceCount !== 1 ? 's' : ''}`,
+    instrument.last_practiced_at
       ? `last practiced ${formatRelativeDay(instrument.last_practiced_at)}`
-      : 'never practiced')
+      : 'never practiced',
+  ].join(' · ')
 
   return (
     <Card>
@@ -101,6 +106,14 @@ export function InstrumentCard({
           </Pill>
         ))}
       </div>
+
+      <Link
+        href={`/profile/repertoire/${instrument.id}`}
+        className="mt-3 inline-flex items-center gap-1 text-sm text-text-link transition-colors hover:text-text-primary"
+      >
+        Repertoire
+        <ChevronRight size={14} strokeWidth={1.5} aria-hidden />
+      </Link>
 
       <p className="mt-3 text-xs text-text-tertiary">{summary}</p>
 

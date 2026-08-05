@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import Instrument, Template, PracticeLog
+from app.models import Instrument, Piece, Template, PracticeLog
 from app.enums import utcnow
 from datetime import date
 
@@ -23,6 +23,7 @@ class TestListInstruments:
         assert data[0]["name"] == "Violin"
         assert data[0]["practice_frequency"] == "few_times_a_week"
         assert data[0]["active_template_count"] == 0
+        assert data[0]["piece_count"] == 0
         assert data[0]["last_practiced_at"] is None
 
     async def test_excludes_deleted_instruments(
@@ -93,9 +94,24 @@ class TestListInstruments:
         db_session.add(log)
         await db_session.commit()
 
+        # Two pieces in the repertoire library, one of them soft-deleted
+        db_session.add_all(
+            [
+                Piece(instrument_id=instrument.id, name="Bach Partita"),
+                Piece(instrument_id=instrument.id, name="Kreutzer 2"),
+                Piece(
+                    instrument_id=instrument.id,
+                    name="Dropped piece",
+                    deleted_at=utcnow(),
+                ),
+            ]
+        )
+        await db_session.commit()
+
         resp = await client.get("/api/instruments")
         data = resp.json()
         assert data[0]["active_template_count"] == 1
+        assert data[0]["piece_count"] == 2
         assert data[0]["last_practiced_at"] == "2026-03-20"
 
     async def test_unauthenticated_returns_401(self, unauth_client: AsyncClient):

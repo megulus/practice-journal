@@ -20,6 +20,7 @@ function makeInstrument(o: Partial<Instrument> = {}): Instrument {
     practice_frequency: 'few_times_a_week',
     display_order: 0,
     active_template_count: 1,
+    piece_count: 3,
     last_practiced_at: null,
     ...o,
   }
@@ -43,8 +44,31 @@ describe('InstrumentCard', () => {
       screen.getByRole('button', { name: 'Few times a week' }),
     ).toHaveAttribute('aria-pressed', 'true')
     expect(
-      screen.getByText(/2 active plans · never practiced/),
+      screen.getByText(/2 active plans · 3 pieces · never practiced/),
     ).toBeInTheDocument()
+  })
+
+  it('singularizes a one-piece repertoire', () => {
+    render(
+      <InstrumentCard
+        instrument={makeInstrument({ piece_count: 1 })}
+        onChange={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/· 1 piece ·/)).toBeInTheDocument()
+  })
+
+  it('links to the instrument’s repertoire library', () => {
+    render(
+      <InstrumentCard
+        instrument={makeInstrument({ id: 7 })}
+        onChange={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('link', { name: /Repertoire/ })).toHaveAttribute(
+      'href',
+      '/profile/repertoire/7',
+    )
   })
 
   it('updates the frequency when a different pill is clicked', async () => {
