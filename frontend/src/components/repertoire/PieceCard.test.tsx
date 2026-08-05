@@ -172,12 +172,27 @@ describe('PieceCard', () => {
     )
   })
 
-  it('reports a failed spot load inside the card', async () => {
+  it('reports a failed spot load inside the card, and stops claiming to load', async () => {
     mocks.getPiece.mockRejectedValueOnce(new Error('nope'))
     const user = userEvent.setup()
     render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
     await user.click(expandToggle())
+
     expect(await screen.findByRole('alert')).toHaveTextContent(/spots/i)
+    // The load is over — saying "Loading spots…" next to the failure is a
+    // contradiction the card never resolves on its own.
+    expect(screen.queryByText(/Loading spots/)).not.toBeInTheDocument()
+  })
+
+  it('offers a retry after a failed spot load', async () => {
+    mocks.getPiece.mockRejectedValueOnce(new Error('nope'))
+    const user = userEvent.setup()
+    render(<PieceCard piece={PIECE} onChange={vi.fn()} />)
+    await user.click(expandToggle())
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Coda run')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('renames the piece inline', async () => {

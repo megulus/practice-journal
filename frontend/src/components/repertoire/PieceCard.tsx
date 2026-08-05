@@ -209,7 +209,15 @@ export function PieceCard({
 
       {expanded && (
         <div id={spotsId} className="mt-md border-t border-border-subtle pt-md">
-          {spots === null ? (
+          {spots === null && error ? (
+            <button
+              type="button"
+              onClick={loadSpots}
+              className="text-sm text-text-link transition-colors hover:text-text-primary"
+            >
+              Try again
+            </button>
+          ) : spots === null ? (
             <p className="text-sm text-text-secondary">Loading spots…</p>
           ) : (
             <>

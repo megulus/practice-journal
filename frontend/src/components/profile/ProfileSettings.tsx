@@ -72,6 +72,11 @@ export function ProfileSettings() {
   // too — either way the UI ends up showing a value the server doesn't hold.
   // Chaining keeps both orders honest; the optimistic paint means nobody waits.
   const pending = useRef<Promise<void>>(Promise.resolve())
+  // How many saves are queued or in flight. Only the last one may paint the
+  // server's document: an earlier response was composed before the later
+  // click happened, so painting it would flash the older value back for a
+  // round trip before the later save's response corrected it.
+  const outstanding = useRef(0)
 
   const load = useCallback(async () => {
     try {
@@ -88,20 +93,25 @@ export function ProfileSettings() {
 
   const save = (patch: UserSettingsUpdate) => {
     setSettings((current) => (current ? { ...current, ...patch } : current))
+    outstanding.current += 1
     pending.current = pending.current.then(async () => {
       try {
-        setSettings(await api.updateSettings(patch))
+        const saved = await api.updateSettings(patch)
+        if (outstanding.current === 1) setSettings(saved)
         setError(null)
       } catch {
         setError("Couldn't save that change. Please try again.")
         // Re-read instead of restoring a snapshot: the optimistic value is
         // wrong, and a snapshot taken at click time can predate an earlier
-        // save that did land, silently reverting it.
+        // save that did land, silently reverting it. A later save still
+        // queued will establish the truth itself, so only the last one reads.
         try {
-          setSettings(await api.getSettings())
+          if (outstanding.current === 1) setSettings(await api.getSettings())
         } catch {
           // Leave the optimistic value; the banner already says it didn't save.
         }
+      } finally {
+        outstanding.current -= 1
       }
     })
   }

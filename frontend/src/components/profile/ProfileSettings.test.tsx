@@ -110,6 +110,45 @@ describe('ProfileSettings', () => {
     expect(mockUpdate).toHaveBeenCalledTimes(2)
   })
 
+  it('does not flash an earlier response over a later click', async () => {
+    // Each PATCH response is the *whole* settings document, so the duration
+    // save's response still carries week_starts_on: monday — the state before
+    // the Sunday click. Painting it would flip Sunday back for a round trip.
+    const resolvers: Array<() => void> = []
+    mockUpdate.mockImplementation(
+      (patch: Partial<UserSettings>) =>
+        new Promise<UserSettings>((resolve) =>
+          resolvers.push(() => resolve({ ...SETTINGS, ...patch })),
+        ),
+    )
+
+    const user = userEvent.setup()
+    render(<ProfileSettings />)
+    await user.click(await screen.findByRole('radio', { name: '45 min' }))
+    await user.click(screen.getByRole('radio', { name: 'Sunday' }))
+
+    await waitFor(() => expect(resolvers).toHaveLength(1))
+    resolvers[0]() // duration response lands, carrying the pre-Sunday week
+    await waitFor(() => expect(resolvers).toHaveLength(2))
+
+    expect(screen.getByRole('radio', { name: 'Sunday' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    resolvers[1]()
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: '45 min' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    )
+    expect(screen.getByRole('radio', { name: 'Sunday' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+  })
+
   it('resyncs from the server and explains when a save fails', async () => {
     mockUpdate.mockRejectedValueOnce(new Error('nope'))
     const user = userEvent.setup()
