@@ -96,6 +96,22 @@ describe('ProgressPage', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('gives the panel a tab stop only when it has no focusable content', async () => {
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([makeInstrument()])
+    render(<ProgressPage />)
+
+    // History renders the time-range pills in every state, so it's already
+    // keyboard-reachable — an extra tab stop would just be a redundant one.
+    await screen.findByRole('tab', { name: 'History' })
+    expect(screen.getByRole('tabpanel')).not.toHaveAttribute('tabindex')
+
+    // The Insights placeholder has nothing focusable, so without a tab stop
+    // its content would be unreachable from the keyboard.
+    await user.click(screen.getByRole('tab', { name: 'Insights' }))
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0')
+  })
+
   it('points a user with no instruments at Profile', async () => {
     mockListInstruments.mockResolvedValue([])
     render(<ProgressPage />)
