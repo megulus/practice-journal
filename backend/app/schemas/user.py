@@ -1,10 +1,26 @@
 """User and Settings schemas."""
-from typing import Optional
+from typing import Optional, TypeVar
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.enums import SuggestionsPreference, ThemePreference, WeekStart
+
+T = TypeVar("T")
+
+
+def _reject_explicit_null(value: T) -> T:
+    """Reject an explicit `null` on a non-nullable settings column.
+
+    Every field on `UserSettingsUpdate` is `Optional[...] = None` so that
+    omitting it means "leave unchanged", but the underlying columns are NOT
+    NULL. Validators don't run for fields left at their default, so this only
+    fires when the client actually sent `null` — which would otherwise reach
+    the DB as a not-null violation (500) instead of a 422.
+    """
+    if value is None:
+        raise ValueError("cannot be null; omit the field to leave it unchanged")
+    return value
 
 
 class UserRead(BaseModel):
@@ -31,3 +47,10 @@ class UserSettingsUpdate(BaseModel):
     default_session_duration_minutes: Optional[int] = Field(default=None, ge=1)
     week_starts_on: Optional[WeekStart] = None
     theme_preference: Optional[ThemePreference] = None
+
+    _no_null = field_validator(
+        "suggestions_preference",
+        "default_session_duration_minutes",
+        "week_starts_on",
+        "theme_preference",
+    )(_reject_explicit_null)
