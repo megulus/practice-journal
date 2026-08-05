@@ -9,9 +9,26 @@ import {
   SectionCard,
   AddSectionButton,
   SessionNotes,
+  isSectionDone,
+  sectionCompletionLabel,
+  useLastCompletedSection,
 } from '@/components/session'
 import { getSectionColor } from '@/lib/section-colors'
-import type { PracticeLog, FinishResponse } from '@/lib/types'
+import type {
+  PracticeLog,
+  FinishResponse,
+  InSessionSuggestion,
+  Instrument,
+  SectionLog,
+} from '@/lib/types'
+
+/** Stable identity so the progress hook doesn't re-run while the log loads. */
+const NO_SECTIONS: SectionLog[] = []
+
+/** Debounce for suggestion refetches after block updates. Ratings arrive in
+ * bursts as the user works through a section; the engine re-evaluates the
+ * whole log on every call, so we wait for the burst to settle. */
+const SUGGESTION_REFRESH_MS = 3000
 
 export default function ActiveSessionPage() {
   const api = useApi()
@@ -27,6 +44,10 @@ export default function ActiveSessionPage() {
   const [error, setError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [confirmingEnd, setConfirmingEnd] = useState(false)
+  const [instrument, setInstrument] = useState<Instrument | null>(null)
+  const [suggestions, setSuggestions] = useState<
+    Record<string, InSessionSuggestion>
+  >({})
   // Track which block_ids are repertoire blocks. Once a block_id is seen
   // with spot_id set, it's repertoire forever (even after collapse removes
   // the spot logs). This survives the collapse→expand round trip.
@@ -55,6 +76,69 @@ export default function ActiveSessionPage() {
   useEffect(() => {
     if (logId) fetchLog()
   }, [logId, fetchLog])
+
+  // In-the-moment suggestions, keyed by block_log_id. Advisory — a failure
+  // here must never disturb the session, so errors are swallowed.
+  const loadSuggestions = useCallback(async () => {
+    try {
+      const data = await apiRef.current.getInSessionSuggestions(logId)
+      setSuggestions(data.suggestions)
+    } catch {
+      // Leave whatever we already have on screen.
+    }
+  }, [logId])
+
+  useEffect(() => {
+    if (logId) loadSuggestions()
+  }, [logId, loadSuggestions])
+
+  const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshSuggestionsSoon = useCallback(() => {
+    if (suggestionTimer.current) clearTimeout(suggestionTimer.current)
+    suggestionTimer.current = setTimeout(() => {
+      suggestionTimer.current = null
+      loadSuggestions()
+    }, SUGGESTION_REFRESH_MS)
+  }, [loadSuggestions])
+
+  useEffect(
+    () => () => {
+      if (suggestionTimer.current) clearTimeout(suggestionTimer.current)
+    },
+    []
+  )
+
+  // Anything a section/block edit triggers: reload the log now, re-evaluate
+  // suggestions once the edits settle.
+  const handleUpdate = useCallback(() => {
+    fetchLog()
+    refreshSuggestionsSoon()
+  }, [fetchLog, refreshSuggestionsSoon])
+
+  // The session's instrument — the quick-add library sheet is keyed by
+  // instrument category, which the practice log doesn't carry.
+  const instrumentId = log?.instrument_id
+  useEffect(() => {
+    if (!instrumentId) return
+    let cancelled = false
+    apiRef.current
+      .listInstruments()
+      .then((list) => {
+        if (!cancelled) {
+          setInstrument(list.find((i) => i.id === instrumentId) ?? null)
+        }
+      })
+      .catch(() => {
+        // Without it we just hide the "Browse library" link.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [instrumentId])
+
+  const lastCompletedSection = useLastCompletedSection(
+    log?.section_logs ?? NO_SECTIONS
+  )
 
   // Collect pending note-save callbacks so we can flush before finish
   const pendingFlushes = useRef<Set<() => Promise<void>>>(new Set())
@@ -112,13 +196,14 @@ export default function ActiveSessionPage() {
     )
   }
 
-  // Compute progress. Skipped sections drop out of the ratio entirely, so a
-  // skip doesn't make 100% unreachable.
-  const allBlocks = log.section_logs
-    .filter((sl) => !sl.skipped)
-    .flatMap((sl) => sl.block_logs)
-  const completedCount = allBlocks.filter((bl) => bl.completed).length
-  const totalCount = allBlocks.length
+  // Progress is counted in sections, per spec §5.2 ("2 of 5 sections done").
+  // A skipped section counts as done — skipping is a decision, not a gap, and
+  // leaving it out would make 100% unreachable.
+  const totalCount = log.section_logs.length
+  const completedCount = log.section_logs.filter(isSectionDone).length
+  const progressLabel = lastCompletedSection
+    ? sectionCompletionLabel(lastCompletedSection)
+    : null
   const totalMinutes = log.section_logs.reduce(
     (sum, sl) => sum + sl.actual_duration_minutes,
     0
@@ -144,15 +229,16 @@ export default function ActiveSessionPage() {
 
       {/* Progress */}
       <div>
-        <div className="mb-1 flex justify-between text-xs text-text-secondary">
-          <span>
-            {completedCount} of {totalCount} done
+        <div className="mb-1 flex justify-between gap-3 text-xs text-text-secondary">
+          <span className="min-w-0 truncate">
+            {completedCount} of {totalCount} sections done
+            {progressLabel && ` · ${progressLabel}`}
           </span>
-          <span>Total: {totalMinutes} min</span>
+          <span className="flex-shrink-0">Total: {totalMinutes} min</span>
         </div>
         <ProgressBar
           value={totalCount > 0 ? completedCount / totalCount : 0}
-          label={`${completedCount} of ${totalCount} done`}
+          label={`${completedCount} of ${totalCount} sections done`}
         />
       </div>
 
@@ -168,7 +254,9 @@ export default function ActiveSessionPage() {
             logId={log.id}
             sectionLog={sl}
             color={color}
-            onUpdate={fetchLog}
+            instrument={instrument}
+            suggestions={suggestions}
+            onUpdate={handleUpdate}
             pendingFlushes={pendingFlushes}
             repertoireBlockIds={repertoireBlockIds}
           />

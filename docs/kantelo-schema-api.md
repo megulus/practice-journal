@@ -381,6 +381,7 @@ Logged block within a section. The atomic rated unit. For repertoire blocks, eac
 | notes | text | nullable | Per-exercise (or per-spot) note |
 | completed | bool | not null, default true | False if skipped |
 | display_order | int | not null, default 0 | |
+| tempo_bpm | int | nullable | Tempo logged in this session, set when the user confirms or adjusts the pre-filled tempo field. Null until then. Feeds the next session's `last_tempo_bpm` |
 | created_at | timestamptz | not null, default now() | |
 
 Indexes:
@@ -872,7 +873,7 @@ The Today tab's data needs — which instruments are due, what's the current ses
 | GET | `/api/practice/{logId}` | Get in-progress or completed session with all section/block logs |
 | PATCH | `/api/practice/{logId}` | Update session-level fields (notes) |
 | PUT | `/api/practice/{logId}/sections/{sectionLogId}` | Update a section log (actual_duration_minutes, completed) |
-| PUT | `/api/practice/{logId}/blocks/{blockLogId}` | Update a block log (rating, notes, completed) |
+| PUT | `/api/practice/{logId}/blocks/{blockLogId}` | Update a block log (rating, notes, completed, tempo_bpm) |
 | POST | `/api/practice/{logId}/sections` | Add a freeform section mid-session |
 | POST | `/api/practice/{logId}/sections/{sectionLogId}/blocks` | Add a freeform block to a section |
 | POST | `/api/practice/{logId}/blocks/{blockLogId}/spots` | Create a new spot on the parent piece and add a BlockLog for it to this session |
@@ -891,7 +892,7 @@ The Today tab's data needs — which instruments are due, what's the current ses
 
 For freeform: omit `template_id` and `template_session_id`.
 
-**Smart tempo defaults:** When scaffolding block logs from a template, the `start` endpoint looks up the user's most recent BlockLog for each block_id and includes a `last_tempo_bpm` field on each block log in the response. The frontend uses this to pre-fill the tempo display. If no previous log exists for a block, `last_tempo_bpm` is null and the block's template-defined `tempo_bpm` is shown instead.
+**Smart tempo defaults:** Both `start` and `GET /api/practice/{logId}` include a `last_tempo_bpm` field on each block log — the tempo to pre-fill the block row's tempo field with. It resolves to the most recent `BlockLog.tempo_bpm` the user logged for that block_id in a completed session, falling back to the block's template-defined `tempo_bpm`, and is null when neither exists. `GET` computes it too so a mid-session reload pre-fills the same values `start` returned. What the user actually logs today is the separate `tempo_bpm` field on the block log (null until they confirm or adjust the pre-filled value).
 
 **Repertoire block scaffolding.** When the start endpoint scaffolds SectionLogs and BlockLogs from a template, repertoire blocks are expanded into one BlockLog per default spot. Each BlockLog has `spot_id` set, `block_name` denormalized to `"{piece_name} — {spot_name}"`, and starts with `completed = false` and `rating = null`.
 

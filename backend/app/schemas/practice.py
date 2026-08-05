@@ -20,6 +20,10 @@ class BlockLogRead(BaseModel):
     notes: Optional[str] = None
     completed: bool
     display_order: int
+    #: Tempo logged in this session (null until the user confirms/adjusts it).
+    tempo_bpm: Optional[int] = None
+    #: Smart default — tempo carried over from the user's last session on
+    #: this block. Advisory only; `tempo_bpm` is what was logged today.
     last_tempo_bpm: Optional[int] = None
 
 
@@ -27,6 +31,7 @@ class BlockLogUpdate(BaseModel):
     rating: Optional[int] = Field(default=None, ge=-1, le=1)
     notes: Optional[str] = None
     completed: Optional[bool] = None
+    tempo_bpm: Optional[int] = Field(default=None, ge=1, le=400)
 
 
 class BlockLogCreate(BaseModel):

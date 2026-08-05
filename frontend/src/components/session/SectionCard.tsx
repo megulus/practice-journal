@@ -8,7 +8,7 @@ import { BlockRow } from './BlockRow'
 import { QuickAddBlock } from './QuickAddBlock'
 import { groupBlockLogs } from './groupBlockLogs'
 import type { SectionColor } from '@/lib/section-colors'
-import type { SectionLog } from '@/lib/types'
+import type { Instrument, InSessionSuggestion, SectionLog } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Section card
@@ -18,6 +18,8 @@ export function SectionCard({
   logId,
   sectionLog,
   color,
+  instrument,
+  suggestions,
   onUpdate,
   pendingFlushes,
   repertoireBlockIds,
@@ -25,6 +27,10 @@ export function SectionCard({
   logId: number
   sectionLog: SectionLog
   color: SectionColor
+  /** The session's instrument, for the quick-add library sheet. */
+  instrument: Instrument | null
+  /** In-the-moment suggestions for the whole session, keyed by block_log_id. */
+  suggestions: Record<string, InSessionSuggestion>
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
   repertoireBlockIds: React.RefObject<Set<number>>
@@ -121,6 +127,7 @@ export function SectionCard({
               key={group.blockLog.id}
               logId={logId}
               blockLog={group.blockLog}
+              suggestion={suggestions[String(group.blockLog.id)]}
               onUpdate={onUpdate}
               pendingFlushes={pendingFlushes}
             />
@@ -132,6 +139,7 @@ export function SectionCard({
               pieceName={group.pieceName}
               spotLogs={group.spotLogs}
               pieceLog={group.pieceLog}
+              suggestions={suggestions}
               onUpdate={onUpdate}
               pendingFlushes={pendingFlushes}
             />
@@ -143,6 +151,8 @@ export function SectionCard({
       <QuickAddBlock
         logId={logId}
         sectionLogId={sectionLog.id}
+        sectionName={sectionLog.section_name}
+        instrument={instrument}
         onAdd={onUpdate}
       />
     </Card>

@@ -1,20 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, userEvent } from '@/test/utils'
+import { render, screen, userEvent, within } from '@/test/utils'
 import { SectionCard } from './SectionCard'
 import { getSectionColor } from '@/lib/section-colors'
 import type { SectionLog, BlockLog } from '@/lib/types'
 
-const { mockUpdateSectionLog } = vi.hoisted(() => ({
-  mockUpdateSectionLog: vi.fn().mockResolvedValue(undefined),
+// A single hoisted object — a fresh one per render would re-run the
+// `api`-dependent load effects of nested components forever (#277).
+const { mockApi } = vi.hoisted(() => ({
+  mockApi: {
+    updateSectionLog: vi.fn().mockResolvedValue(undefined),
+    addFreeformBlock: vi.fn().mockResolvedValue(undefined),
+    updateBlockLog: vi.fn().mockResolvedValue(undefined),
+    browseCuratedBlocks: vi.fn().mockResolvedValue([]),
+    listRecentBlocks: vi.fn().mockResolvedValue([]),
+  },
 }))
+const mockUpdateSectionLog = mockApi.updateSectionLog
 
-vi.mock('@/lib/useApi', () => ({
-  useApi: () => ({
-    updateSectionLog: mockUpdateSectionLog,
-    addFreeformBlock: vi.fn(),
-    updateBlockLog: vi.fn(),
-  }),
-}))
+vi.mock('@/lib/useApi', () => ({ useApi: () => mockApi }))
 
 function makeSection(overrides: Partial<SectionLog> = {}): SectionLog {
   return {
@@ -42,6 +45,7 @@ function makeBlock(overrides: Partial<BlockLog> = {}): BlockLog {
     notes: null,
     completed: false,
     display_order: 0,
+    tempo_bpm: null,
     last_tempo_bpm: null,
     ...overrides,
   }
@@ -51,6 +55,8 @@ function refs() {
   return {
     pendingFlushes: { current: new Set<() => Promise<void>>() },
     repertoireBlockIds: { current: new Set<number>() },
+    instrument: null,
+    suggestions: {},
   }
 }
 
@@ -152,5 +158,37 @@ describe('SectionCard — completed derived from blocks (#233)', () => {
     expect(
       screen.queryByRole('button', { name: 'Increase duration' })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('SectionCard — in-session suggestions (#180)', () => {
+  it('routes each suggestion to the block row it is keyed to', () => {
+    render(
+      <SectionCard
+        logId={1}
+        sectionLog={makeSection({
+          block_logs: [
+            makeBlock({ id: 1, block_name: 'G major scale' }),
+            makeBlock({ id: 2, block_name: 'Thirds' }),
+          ],
+        })}
+        color={color}
+        {...refs()}
+        suggestions={{
+          '2': { rule_id: 'tempo_progression', text: 'Try 4 bpm faster today.' },
+        }}
+        onUpdate={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByRole('note')).toHaveLength(1)
+
+    // …and it sits inside the "Thirds" row, not the other block's
+    const row = (name: string) =>
+      screen.getByText(name).closest('[class*="py-3"]') as HTMLElement
+    expect(within(row('Thirds')).getByRole('note')).toHaveTextContent(
+      'Try 4 bpm faster today.'
+    )
+    expect(within(row('G major scale')).queryByRole('note')).toBeNull()
   })
 })

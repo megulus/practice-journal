@@ -178,6 +178,7 @@ async def _build_log_read(
                 notes=bl.notes,
                 completed=bl.completed,
                 display_order=bl.display_order,
+                tempo_bpm=bl.tempo_bpm,
                 last_tempo_bpm=tempo,
             ))
         section_reads.append(SectionLogRead(
@@ -218,8 +219,12 @@ async def _build_log_read(
 async def _lookup_last_tempos(
     session: AsyncSession, user_id: int, block_ids: list[int]
 ) -> dict[int, int]:
-    """For each block_id, find the most recent BlockLog with a non-null
-    tempo from a completed session. Returns {block_id: tempo_bpm}."""
+    """For each block_id, find the tempo to pre-fill from a completed session.
+
+    Prefers the most recently *logged* tempo (BlockLog.tempo_bpm, set when the
+    user confirms or adjusts the tempo field mid-session) and falls back to the
+    template block's own tempo. Returns {block_id: tempo_bpm}.
+    """
     if not block_ids:
         return {}
 
@@ -229,6 +234,7 @@ async def _lookup_last_tempos(
     result = await session.exec(
         select(
             BlockLog.block_id,
+            BlockLog.tempo_bpm,
             Block.tempo_bpm,
         )
         .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
@@ -239,19 +245,38 @@ async def _lookup_last_tempos(
             PracticeLog.status == SessionStatus.completed.value,
             PracticeLog.deleted_at == None,  # noqa: E711
             BlockLog.block_id.in_(block_ids),  # type: ignore[union-attr]
-            Block.tempo_bpm != None,  # noqa: E711
         )
         .order_by(col(PracticeLog.created_at).desc())
     )
     rows = result.all()
 
     # Deduplicate: first occurrence per block_id is the most recent
-    tempo_map: dict[int, int] = {}
-    for block_id, tempo_bpm in rows:
-        if block_id not in tempo_map and tempo_bpm is not None:
-            tempo_map[block_id] = tempo_bpm
+    logged: dict[int, int] = {}
+    from_template: dict[int, int] = {}
+    for block_id, logged_tempo, template_tempo in rows:
+        if logged_tempo is not None and block_id not in logged:
+            logged[block_id] = logged_tempo
+        if template_tempo is not None and block_id not in from_template:
+            from_template[block_id] = template_tempo
 
-    return tempo_map
+    return {**from_template, **logged}
+
+
+async def _lookup_last_tempos_for_log(
+    session: AsyncSession, user_id: int, log_id: int
+) -> dict[int, int]:
+    """Smart tempo defaults for an already-scaffolded log, so a reload of an
+    in-progress session pre-fills the same values `start` returned."""
+    result = await session.exec(
+        select(BlockLog.block_id)
+        .join(SectionLog, BlockLog.section_log_id == SectionLog.id)
+        .where(
+            SectionLog.practice_log_id == log_id,
+            BlockLog.block_id != None,  # noqa: E711
+        )
+    )
+    block_ids = [bid for bid in result.all() if bid is not None]
+    return await _lookup_last_tempos(session, user_id, block_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +448,10 @@ async def get_practice(
 ):
     """Get an in-progress or completed session with all section/block logs."""
     log = await _get_owned_log(session, log_id, current_user.id)
-    return await _build_log_read(session, log)
+    last_tempo_map = await _lookup_last_tempos_for_log(
+        session, current_user.id, log_id
+    )
+    return await _build_log_read(session, log, last_tempo_map)
 
 
 @router.patch("/practice/{log_id}", response_model=PracticeLogRead)
@@ -527,7 +555,7 @@ async def update_block_log(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a block log (rating, notes, completed).
+    """Update a block log (rating, notes, completed, tempo_bpm).
 
     No status guard: editing after completion is allowed (spec's
     "Edit this session" button on the summary screen).

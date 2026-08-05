@@ -12,6 +12,7 @@ function makeLog(overrides: Partial<BlockLog>): BlockLog {
     notes: null,
     completed: false,
     display_order: 0,
+    tempo_bpm: null,
     last_tempo_bpm: null,
     ...overrides,
   }
