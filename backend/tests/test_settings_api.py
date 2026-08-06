@@ -124,6 +124,10 @@ class TestUpdateSettings:
 
         resp = await client.patch("/api/settings", json={field: None})
         assert resp.status_code == 422
+        # The error points at the offending field, so a client can act on it
+        detail = resp.json()["detail"]
+        assert [d["loc"] for d in detail] == [["body", field]]
+        assert "cannot be null" in detail[0]["msg"]
 
         # ...and nothing was written
         data = (await client.get("/api/settings")).json()
