@@ -5,14 +5,18 @@ import type { RatingsWeek } from '@/lib/types'
 
 /**
  * Segment order matches the rating scale left-to-right as it reads best:
- * forward first, so a good week fills from the left. Colors are the rating
- * border tokens (design tokens §2), the same ones the History rows and the
- * chevrons use.
+ * forward first, so a good week fills from the left.
+ *
+ * Colors are the rating-state *icon* tokens (design tokens §2), matching the
+ * History rows' dots for the same reason `ratingDisplay` gives: the border
+ * tokens are tuned to sit inside a chevron's own fill, and steady (#D4D0C8) is
+ * barely separable from the empty track behind these bars (card-bg-inset,
+ * #F0EFEB). The icon token is the state's ink, which is what a solid fill is.
  */
 const SEGMENTS = [
-  { key: 'step_forward', label: 'Step forward', className: 'bg-rating-forward-border' },
-  { key: 'steady', label: 'Steady', className: 'bg-rating-steady-border' },
-  { key: 'step_back', label: 'Step back', className: 'bg-rating-back-border' },
+  { key: 'step_forward', label: 'Step forward', className: 'bg-rating-forward-icon' },
+  { key: 'steady', label: 'Steady', className: 'bg-rating-steady-icon' },
+  { key: 'step_back', label: 'Step back', className: 'bg-rating-back-icon' },
 ] as const
 
 /**
