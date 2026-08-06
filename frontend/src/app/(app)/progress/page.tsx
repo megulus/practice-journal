@@ -114,6 +114,11 @@ export default function ProgressPage() {
         role="tabpanel"
         id={`progress-panel-${tab}`}
         aria-labelledby={`progress-tab-${tab}`}
+        // Only focusable when the panel has no focusable content of its own —
+        // the Insights charts are static. History is full of controls, and
+        // giving it a tab stop too would just add a redundant one — see the
+        // ARIA authoring practices for the tabpanel pattern.
+        tabIndex={tab === 'history' ? undefined : 0}
       >
         {tab === 'history' ? (
           <HistoryList instrumentId={selectedInstrumentId} />

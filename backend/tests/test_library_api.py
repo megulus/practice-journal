@@ -220,6 +220,55 @@ class TestBrowseCuratedBlocks:
         data = resp.json()
         assert data[0]["usage_percentage"] == 100
 
+    async def test_usage_percentage_matches_renamed_instrument(
+        self, client: AsyncClient, db_session, test_user
+    ):
+        """Usage stats key off instrument_category, not the user-editable
+        name — an instrument named "Mom's Violin" still counts as a violin
+        (#170)."""
+        cb = await _make_curated(db_session, "G major scale", instrument="violin")
+
+        instrument = Instrument(user_id=test_user.id, name="Mom's Violin")
+        db_session.add(instrument)
+        await db_session.commit()
+        await db_session.refresh(instrument)
+        assert instrument.instrument_category == "violin"
+
+        template = Template(
+            user_id=test_user.id, instrument_id=instrument.id, name="Plan"
+        )
+        db_session.add(template)
+        await db_session.commit()
+        await db_session.refresh(template)
+
+        ts = TemplateSession(template_id=template.id, name="S1", display_order=0)
+        db_session.add(ts)
+        await db_session.commit()
+        await db_session.refresh(ts)
+
+        section = Section(
+            template_session_id=ts.id,
+            name="Scales",
+            section_type="scales",
+            display_order=0,
+        )
+        db_session.add(section)
+        await db_session.commit()
+        await db_session.refresh(section)
+
+        block = Block(
+            section_id=section.id,
+            name="G major scale",
+            curated_block_id=cb.id,
+            display_order=0,
+        )
+        db_session.add(block)
+        await db_session.commit()
+
+        resp = await client.get("/api/library/blocks?instrument=violin")
+        data = resp.json()
+        assert data[0]["usage_percentage"] == 100
+
 
 # ===================================================================
 # RECENTLY USED

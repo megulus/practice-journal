@@ -55,9 +55,11 @@ function makeInstrument(o: Partial<Instrument> = {}): Instrument {
   return {
     id: 1,
     name: 'Violin',
+    instrument_category: 'violin',
     practice_frequency: 'daily',
     display_order: 0,
     active_template_count: 0,
+    piece_count: 0,
     last_practiced_at: null,
     ...o,
   }
@@ -157,6 +159,23 @@ describe('ProgressPage', () => {
     await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2))
     expect(mockGetComparison).toHaveBeenLastCalledWith(2)
     expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
+  })
+
+  it('gives the panel a tab stop only when it has no focusable content', async () => {
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([makeInstrument()])
+    render(<ProgressPage />)
+
+    // History renders the time-range pills in every state, so it's already
+    // keyboard-reachable — an extra tab stop would just be a redundant one.
+    await screen.findByRole('tab', { name: 'History' })
+    expect(screen.getByRole('tabpanel')).not.toHaveAttribute('tabindex')
+
+    // The Insights charts are all static — no control to tab to — so without
+    // a tab stop the panel's content would be unreachable from the keyboard.
+    await user.click(screen.getByRole('tab', { name: 'Insights' }))
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0')
   })
 
   it('points a user with no instruments at Profile', async () => {

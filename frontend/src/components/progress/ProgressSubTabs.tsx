@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { cx } from '@/lib/cx'
 
 export type ProgressSubTab = 'history' | 'insights'
@@ -21,18 +22,48 @@ export function ProgressSubTabs({
   value: ProgressSubTab
   onChange: (tab: ProgressSubTab) => void
 }) {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  // Arrow keys move between tabs (ARIA tabs pattern); Home/End jump to the
+  // ends. Selection follows focus, which is the right call here — switching
+  // sub-tabs is cheap and has no destructive side effect.
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const delta =
+      e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    let next: number
+    if (delta !== 0) {
+      next = (index + delta + TABS.length) % TABS.length
+    } else if (e.key === 'Home') {
+      next = 0
+    } else if (e.key === 'End') {
+      next = TABS.length - 1
+    } else {
+      return
+    }
+    e.preventDefault()
+    onChange(TABS[next].value)
+    tabRefs.current[next]?.focus()
+  }
+
   return (
     <div role="tablist" aria-label="Progress view" className="flex gap-lg border-b border-border-default">
-      {TABS.map((tab) => {
+      {TABS.map((tab, index) => {
         const active = tab.value === value
         return (
           <button
             key={tab.value}
+            ref={(el) => {
+              tabRefs.current[index] = el
+            }}
             type="button"
             role="tab"
             id={`progress-tab-${tab.value}`}
             aria-selected={active}
-            aria-controls={`progress-panel-${tab.value}`}
+            // Only the selected panel is rendered, so pointing at the other
+            // one would be a dangling reference.
+            aria-controls={active ? `progress-panel-${tab.value}` : undefined}
+            tabIndex={active ? 0 : -1}
+            onKeyDown={(e) => handleKeyDown(e, index)}
             onClick={() => onChange(tab.value)}
             className={cx(
               '-mb-px border-b-2 px-0.5 pb-2 text-sm font-medium transition-colors',

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { act } from 'react'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { HistoryList } from './HistoryList'
 import type { HistoryItem, HistoryResponse } from '@/lib/types'
@@ -191,6 +192,138 @@ describe('HistoryList', () => {
       expect(
         screen.queryByRole('button', { name: 'Load more' }),
       ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('keeps the loaded list when a "Load more" fetch fails', async () => {
+    const user = userEvent.setup()
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 1, session_name: 'First page' })], 'cursor-2'),
+    )
+    render(<HistoryList instrumentId={1} />)
+    await screen.findByText('First page')
+
+    mockGetHistory.mockRejectedValueOnce(new Error('page 2 exploded'))
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+
+    // The failure is reported inline; it must not take the list down with it.
+    expect(await screen.findByRole('alert')).toHaveTextContent('page 2 exploded')
+    expect(screen.getByText('First page')).toBeInTheDocument()
+    expect(screen.queryByText('No sessions yet.')).not.toBeInTheDocument()
+
+    // Retrying resumes from the same cursor rather than restarting at page 1.
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 2, session_name: 'Second page' })], null),
+    )
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Second page')).toBeInTheDocument()
+    expect(screen.getByText('First page')).toBeInTheDocument()
+    expect(mockGetHistory).toHaveBeenLastCalledWith({
+      instrumentId: 1,
+      period: 'all',
+      cursor: 'cursor-2',
+    })
+  })
+
+  it('drops an in-flight page when the instrument changes underneath it', async () => {
+    const user = userEvent.setup()
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 1, session_name: 'Violin session' })], 'cursor-2'),
+    )
+    const { rerender } = render(<HistoryList instrumentId={1} />)
+    await screen.findByText('Violin session')
+
+    // Page 2 for the violin is still in flight when the user switches
+    // instruments; its result must not be spliced into the viola's list.
+    let resolvePageTwo: (value: HistoryResponse) => void = () => {}
+    mockGetHistory.mockImplementationOnce(
+      () => new Promise<HistoryResponse>((res) => { resolvePageTwo = res }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 9, session_name: 'Viola session' })], null),
+    )
+    rerender(<HistoryList instrumentId={2} />)
+    await screen.findByText('Viola session')
+
+    // Flush the resolution and any render it causes *before* asserting.
+    // `waitFor` on an absence assertion is useless here — it would pass on its
+    // first poll, before the stale append could even land.
+    await act(async () => {
+      resolvePageTwo(
+        page([makeItem({ id: 2, session_name: 'Stale violin page' })]),
+      )
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(screen.queryByText('Stale violin page')).not.toBeInTheDocument()
+    expect(screen.getByText('Viola session')).toBeInTheDocument()
+    expect(screen.queryByText('Violin session')).not.toBeInTheDocument()
+  })
+
+  it('leaves paging usable after a page fetch is superseded', async () => {
+    const user = userEvent.setup()
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 1, session_name: 'Violin session' })], 'cursor-2'),
+    )
+    const { rerender } = render(<HistoryList instrumentId={1} />)
+    await screen.findByText('Violin session')
+
+    let resolvePageTwo: (value: HistoryResponse) => void = () => {}
+    mockGetHistory.mockImplementationOnce(
+      () => new Promise<HistoryResponse>((res) => { resolvePageTwo = res }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 9, session_name: 'Viola session' })], 'cursor-9'),
+    )
+    rerender(<HistoryList instrumentId={2} />)
+    await screen.findByText('Viola session')
+
+    await act(async () => {
+      resolvePageTwo(page([makeItem({ id: 2, session_name: 'Stale' })]))
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    // The superseded fetch must release the button. Gating its teardown on the
+    // generation would strand it disabled at "Loading…" with nothing to clear
+    // it, killing paging for the new instrument until remount.
+    const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+    expect(loadMoreButton).toBeEnabled()
+
+    mockGetHistory.mockResolvedValueOnce(
+      page([makeItem({ id: 10, session_name: 'Viola page two' })], null),
+    )
+    await user.click(loadMoreButton)
+    expect(await screen.findByText('Viola page two')).toBeInTheDocument()
+  })
+
+  it('keeps the selected time range when the instrument changes', async () => {
+    const user = userEvent.setup()
+    mockGetHistory.mockResolvedValue(page([makeItem()]))
+    const { rerender } = render(<HistoryList instrumentId={1} />)
+    await screen.findByText('Technique focus')
+
+    await user.click(screen.getByRole('button', { name: 'This month' }))
+    await waitFor(() =>
+      expect(mockGetHistory).toHaveBeenLastCalledWith({
+        instrumentId: 1,
+        period: 'month',
+      }),
+    )
+
+    rerender(<HistoryList instrumentId={2} />)
+    await waitFor(() =>
+      expect(mockGetHistory).toHaveBeenLastCalledWith({
+        instrumentId: 2,
+        period: 'month',
+      }),
+    )
+    expect(screen.getByRole('button', { name: 'This month' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
     )
   })
 })
