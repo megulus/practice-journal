@@ -204,30 +204,47 @@ class TestConcurrentAutoCreate:
 
         assert [r.status_code for r in responses] == [200, 200, 200]
 
-    def test_upsert_values_cover_every_required_column(self):
+    async def test_upsert_sends_every_required_column(
+        self, test_engine, db_session, test_user
+    ):
         """
-        The auto-create is a Core insert, which bypasses SQLModel's Python-side
-        defaults — the values it sends have to cover every NOT NULL column the
-        DB won't fill in itself.
+        The auto-create supplies only user_id and leans on SQLAlchemy Core to
+        apply the model's column-level defaults. This pins that the INSERT it
+        actually emits names every NOT NULL column the DB won't fill in itself,
+        so a column added later with no default of any kind — which would fail
+        at runtime with a NOT NULL violation — is caught here instead.
 
-        This is the assertion that can actually fail: the value assertions
-        below pass either way today, because every existing column happens to
-        carry a server_default too. Add a NOT NULL column whose value only
-        exists Python-side and this test fires; those ones would not.
+        It inspects the statement the production code sends rather than
+        re-deriving it, so it tracks the create path rather than restating it.
         """
+        from sqlalchemy import event
+
+        from app.api.settings_api import _get_or_create_settings
         from app.models import UserSettings
 
-        values = UserSettings(user_id=1).model_dump(
-            exclude_none=True, exclude={"id"}
-        )
+        inserts: list[str] = []
+
+        def record(conn, cursor, statement, parameters, context, executemany):
+            if "INSERT INTO user_settings" in statement:
+                inserts.append(statement)
+
+        event.listen(test_engine.sync_engine, "before_cursor_execute", record)
+        try:
+            await _get_or_create_settings(db_session, test_user.id)
+        finally:
+            event.remove(test_engine.sync_engine, "before_cursor_execute", record)
+
+        assert len(inserts) == 1, f"expected one INSERT, got {len(inserts)}"
+        # The column list is everything between the table name and the VALUES.
+        columns = inserts[0].split("(", 1)[1].split(")", 1)[0]
+        named = {c.strip() for c in columns.split(",")}
+
         required = {
             c.name
             for c in UserSettings.__table__.columns
             if not c.nullable and not c.primary_key and c.server_default is None
         }
-        assert required <= set(values), (
-            f"columns missing from the upsert: {required - set(values)}"
-        )
+        assert required <= named, f"columns missing from the INSERT: {required - named}"
 
     async def test_upsert_writes_the_model_defaults(self, db_session, test_user):
         """The auto-created row carries the documented defaults."""

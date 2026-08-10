@@ -4,6 +4,7 @@ import {
   heatmapCellLabel,
   heatmapLevel,
   heatmapScrollLeft,
+  localYear,
 } from './heatmapGrid'
 
 // 2026-01-01 is a Thursday, so the first column runs Mon 2025-12-29 → Sun
@@ -151,5 +152,23 @@ describe('heatmapScrollLeft', () => {
   it('stays put for a year that has not started', () => {
     const weeks = buildHeatmapWeeks(2027, [], TODAY)
     expect(heatmapScrollLeft(weeks, 300, METRICS)).toBe(0)
+  })
+})
+
+describe('localYear', () => {
+  it('reads the local year, not the UTC one', () => {
+    // A stub whose two clocks disagree, so this holds regardless of the test
+    // runner's timezone (which is UTC, where a real Date can't tell them
+    // apart). Switching the implementation to getUTCFullYear fails here.
+    const newYearsEveWestOfUtc = {
+      getFullYear: () => 2026,
+      getUTCFullYear: () => 2027,
+    } as unknown as Date
+
+    expect(localYear(newYearsEveWestOfUtc)).toBe(2026)
+  })
+
+  it('defaults to now', () => {
+    expect(localYear()).toBe(new Date().getFullYear())
   })
 })

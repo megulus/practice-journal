@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { InsightsPanel } from './InsightsPanel'
+import { localYear } from './heatmapGrid'
 import type {
   ComparisonResponse,
   DailyMinutes,
@@ -97,7 +98,10 @@ describe('InsightsPanel', () => {
       screen.getByRole('heading', { name: "How it's going" }),
     ).toBeInTheDocument()
 
-    expect(mockGetHeatmap).toHaveBeenCalledWith(7, new Date().getFullYear())
+    // Pins that the panel asks for a year at all, and which one it sources it
+    // from. That it must be the *local* year is pinned by localYear's own test
+    // — the runner's timezone is UTC, so an assertion here couldn't tell.
+    expect(mockGetHeatmap).toHaveBeenCalledWith(7, localYear())
     expect(mockGetComparison).toHaveBeenCalledWith(7)
     expect(mockGetRatings).toHaveBeenCalledWith(7, 4)
   })
@@ -108,7 +112,7 @@ describe('InsightsPanel', () => {
     await screen.findByRole('heading', { name: 'Practice calendar' })
 
     rerender(<InsightsPanel instrumentId={8} />)
-    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(8, new Date().getFullYear()))
+    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(8, localYear()))
     expect(mockGetComparison).toHaveBeenLastCalledWith(8)
     expect(mockGetRatings).toHaveBeenLastCalledWith(8, 4)
   })

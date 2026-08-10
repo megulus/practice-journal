@@ -30,12 +30,12 @@ async def _get_or_create_settings(
     statement (the losers no-op), then we read the row back to return a
     session-managed instance.
 
-    Column values come off a throwaway model instance rather than being
-    restated here. A Core insert bypasses SQLModel's Python-side defaults, and
-    hand-listing them is how a column added later (theme_preference, recently)
-    silently misses the create path — today every column happens to carry a
-    server_default too, but that's a coincidence to not depend on. It also
-    keeps created_at on the app's utcnow() clock, as `get_or_create_user` does.
+    Only user_id is supplied. SQLModel's `Field(default=...)` becomes a
+    column-level default on the mapped Column, which SQLAlchemy Core applies to
+    this insert on its own — the emitted SQL names every column either way, so
+    restating the defaults here would be noise that can drift from the model.
+    That covers created_at too: its default_factory is utcnow, so the row lands
+    on the app's naive-UTC clock rather than the column's now() server_default.
     """
     result = await session.exec(
         select(UserSettings).where(UserSettings.user_id == user_id)
@@ -44,12 +44,9 @@ async def _get_or_create_settings(
     if settings:
         return settings
 
-    defaults = UserSettings(user_id=user_id).model_dump(
-        exclude_none=True, exclude={"id"}
-    )
     await session.exec(
         pg_insert(UserSettings)
-        .values(**defaults)
+        .values(user_id=user_id)
         .on_conflict_do_nothing(index_elements=["user_id"])
     )
     await session.commit()

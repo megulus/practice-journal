@@ -114,6 +114,19 @@ export function buildHeatmapWeeks(
 }
 
 /**
+ * The year to chart: the browser's local one.
+ *
+ * Deliberately local rather than UTC, and deliberately a named function so a
+ * test can pin that choice. `buildHeatmapWeeks` decides which cells are still
+ * in the future from the local date, so asking the heatmap endpoint for the
+ * UTC year would let the two disagree — west of UTC on New Year's Eve the
+ * server would hand back next year and every cell would render blank.
+ */
+export function localYear(now: Date = new Date()): number {
+  return now.getFullYear()
+}
+
+/**
  * Where to park the horizontal scroll on first render: far enough right that
  * the current week sits at the right edge.
  *

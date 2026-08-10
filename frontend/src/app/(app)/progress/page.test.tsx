@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import ProgressPage from './page'
 import type { Instrument } from '@/lib/types'
+import { localYear } from '@/components/progress/heatmapGrid'
 
 const {
   mockListInstruments,
@@ -135,7 +136,7 @@ describe('ProgressPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'Practice calendar' }),
     ).toBeInTheDocument()
-    expect(mockGetHeatmap).toHaveBeenCalledWith(1, new Date().getFullYear())
+    expect(mockGetHeatmap).toHaveBeenCalledWith(1, localYear())
     expect(mockGetComparison).toHaveBeenCalledWith(1)
     expect(mockGetRatings).toHaveBeenCalledWith(1, 4)
     // History's controls are gone while Insights is showing.
@@ -156,7 +157,7 @@ describe('ProgressPage', () => {
     await screen.findByRole('heading', { name: 'Practice calendar' })
 
     await user.click(screen.getByRole('button', { name: 'Viola' }))
-    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2, new Date().getFullYear()))
+    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2, localYear()))
     expect(mockGetComparison).toHaveBeenLastCalledWith(2)
     expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
   })

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card } from '@/components/ui'
 import { PracticeHeatmap } from './PracticeHeatmap'
+import { localYear } from './heatmapGrid'
 import { WeekComparison } from './WeekComparison'
 import { RatingTrend } from './RatingTrend'
 import type {
@@ -59,11 +60,8 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
     try {
       const [heatmap, comparison, ratings] = await Promise.all([
         // Ask for the browser's year rather than letting the endpoint default
-        // to the server's UTC one. The heatmap decides which cells are still
-        // in the future from the local date, so west of UTC on New Year's Eve
-        // the server would hand back next year and every cell would render
-        // blank.
-        api.getHeatmap(instrumentId, new Date().getFullYear()),
+        // to the server's UTC one — see localYear.
+        api.getHeatmap(instrumentId, localYear()),
         api.getComparison(instrumentId),
         api.getRatings(instrumentId, RATING_WEEKS),
       ])
