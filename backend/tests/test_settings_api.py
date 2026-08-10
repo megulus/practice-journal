@@ -204,12 +204,33 @@ class TestConcurrentAutoCreate:
 
         assert [r.status_code for r in responses] == [200, 200, 200]
 
-    async def test_upsert_writes_the_model_defaults(self, db_session, test_user):
+    def test_upsert_values_cover_every_required_column(self):
         """
         The auto-create is a Core insert, which bypasses SQLModel's Python-side
-        defaults — so every default has to actually reach the row, including
-        any column added later without a server_default to fall back on.
+        defaults — the values it sends have to cover every NOT NULL column the
+        DB won't fill in itself.
+
+        This is the assertion that can actually fail: the value assertions
+        below pass either way today, because every existing column happens to
+        carry a server_default too. Add a NOT NULL column whose value only
+        exists Python-side and this test fires; those ones would not.
         """
+        from app.models import UserSettings
+
+        values = UserSettings(user_id=1).model_dump(
+            exclude_none=True, exclude={"id"}
+        )
+        required = {
+            c.name
+            for c in UserSettings.__table__.columns
+            if not c.nullable and not c.primary_key and c.server_default is None
+        }
+        assert required <= set(values), (
+            f"columns missing from the upsert: {required - set(values)}"
+        )
+
+    async def test_upsert_writes_the_model_defaults(self, db_session, test_user):
+        """The auto-created row carries the documented defaults."""
         from datetime import timedelta, timezone
 
         from sqlmodel import select

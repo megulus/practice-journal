@@ -97,7 +97,7 @@ describe('InsightsPanel', () => {
       screen.getByRole('heading', { name: "How it's going" }),
     ).toBeInTheDocument()
 
-    expect(mockGetHeatmap).toHaveBeenCalledWith(7)
+    expect(mockGetHeatmap).toHaveBeenCalledWith(7, new Date().getFullYear())
     expect(mockGetComparison).toHaveBeenCalledWith(7)
     expect(mockGetRatings).toHaveBeenCalledWith(7, 4)
   })
@@ -108,7 +108,7 @@ describe('InsightsPanel', () => {
     await screen.findByRole('heading', { name: 'Practice calendar' })
 
     rerender(<InsightsPanel instrumentId={8} />)
-    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(8))
+    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(8, new Date().getFullYear()))
     expect(mockGetComparison).toHaveBeenLastCalledWith(8)
     expect(mockGetRatings).toHaveBeenLastCalledWith(8, 4)
   })
@@ -161,6 +161,75 @@ describe('InsightsPanel', () => {
     expect(
       await screen.findByRole('heading', { name: 'Practice calendar' }),
     ).toBeInTheDocument()
+  })
+
+  it('ignores a slow response for an instrument the user already left', async () => {
+    // Instrument 7's heatmap resolves only after we've switched to 8. Without
+    // a generation guard it repaints 7's charts over 8's and nothing refetches.
+    let resolveSeven: (v: unknown) => void = () => {}
+    mockGetHeatmap.mockImplementation((id: number) =>
+      id === 7
+        ? new Promise((res) => {
+            resolveSeven = res
+          })
+        : Promise.resolve({
+            year: 2026,
+            days: [{ date: '2026-07-20', duration_minutes: 90 }],
+          }),
+    )
+    mockGetComparison.mockResolvedValue(comparison(45, 30))
+    mockGetRatings.mockResolvedValue({
+      weeks: [
+        { week_start: '2026-07-20', step_forward: 3, steady: 1, step_back: 1, total: 5 },
+      ],
+    })
+
+    const { rerender } = render(<InsightsPanel instrumentId={7} />)
+    rerender(<InsightsPanel instrumentId={8} />)
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(
+      screen.getByText('1 day practiced in 2026, 1 hr 30 min total.'),
+    ).toBeInTheDocument()
+
+    resolveSeven({ year: 2020, days: [{ date: '2020-01-06', duration_minutes: 5 }] })
+    await waitFor(() =>
+      expect(
+        screen.getByText('1 day practiced in 2026, 1 hr 30 min total.'),
+      ).toBeInTheDocument(),
+    )
+    expect(screen.queryByText(/2020/)).not.toBeInTheDocument()
+  })
+
+  it('ignores a stale rejection instead of erroring over a loaded panel', async () => {
+    let rejectSeven: (e: unknown) => void = () => {}
+    mockGetHeatmap.mockImplementation((id: number) =>
+      id === 7
+        ? new Promise((_res, rej) => {
+            rejectSeven = rej
+          })
+        : Promise.resolve({
+            year: 2026,
+            days: [{ date: '2026-07-20', duration_minutes: 90 }],
+          }),
+    )
+    mockGetComparison.mockResolvedValue(comparison(45, 30))
+    mockGetRatings.mockResolvedValue({
+      weeks: [
+        { week_start: '2026-07-20', step_forward: 3, steady: 1, step_back: 1, total: 5 },
+      ],
+    })
+
+    const { rerender } = render(<InsightsPanel instrumentId={7} />)
+    rerender(<InsightsPanel instrumentId={8} />)
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+
+    rejectSeven(new Error('offline'))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Practice calendar' }),
+      ).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('does not call the API without an instrument', async () => {

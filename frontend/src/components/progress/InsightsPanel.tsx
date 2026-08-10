@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card } from '@/components/ui'
@@ -39,7 +39,16 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Bumped whenever the instrument changes. An in-flight response whose
+  // generation is stale is dropped instead of applied — otherwise switching
+  // instruments mid-request lets the slower earlier response paint the
+  // previous instrument's charts over the new one (and a stale rejection
+  // replace an already-rendered panel with the error state). Same guard, and
+  // same reason, as HistoryList.
+  const generationRef = useRef(0)
+
   const load = useCallback(async () => {
+    const generation = ++generationRef.current
     if (instrumentId === null) {
       setData(null)
       setLoading(false)
@@ -49,15 +58,22 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
     setError(null)
     try {
       const [heatmap, comparison, ratings] = await Promise.all([
-        api.getHeatmap(instrumentId),
+        // Ask for the browser's year rather than letting the endpoint default
+        // to the server's UTC one. The heatmap decides which cells are still
+        // in the future from the local date, so west of UTC on New Year's Eve
+        // the server would hand back next year and every cell would render
+        // blank.
+        api.getHeatmap(instrumentId, new Date().getFullYear()),
         api.getComparison(instrumentId),
         api.getRatings(instrumentId, RATING_WEEKS),
       ])
+      if (generation !== generationRef.current) return
       setData({ heatmap, comparison, ratings })
     } catch (err) {
+      if (generation !== generationRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load insights')
     } finally {
-      setLoading(false)
+      if (generation === generationRef.current) setLoading(false)
     }
   }, [api, instrumentId])
 

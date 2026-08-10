@@ -131,7 +131,9 @@ describe('heatmapScrollLeft', () => {
 
   it('puts the current week at the right edge of the viewport', () => {
     const weeks = buildHeatmapWeeks(YEAR, [], TODAY)
-    // Jul 21 lands in column 29, whose right edge is 26 + 3 + 30 * 14 = 449.
+    // Jul 21 lands in column 29. The target is 26 + 3 + 30 * 14 = 449, which
+    // is that column's right edge plus one 3px inter-column gap — a deliberate
+    // sliver of gutter, not the exact edge.
     expect(heatmapScrollLeft(weeks, 300, METRICS)).toBe(149)
   })
 

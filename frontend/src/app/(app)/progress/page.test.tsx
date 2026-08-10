@@ -135,7 +135,7 @@ describe('ProgressPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'Practice calendar' }),
     ).toBeInTheDocument()
-    expect(mockGetHeatmap).toHaveBeenCalledWith(1)
+    expect(mockGetHeatmap).toHaveBeenCalledWith(1, new Date().getFullYear())
     expect(mockGetComparison).toHaveBeenCalledWith(1)
     expect(mockGetRatings).toHaveBeenCalledWith(1, 4)
     // History's controls are gone while Insights is showing.
@@ -156,7 +156,7 @@ describe('ProgressPage', () => {
     await screen.findByRole('heading', { name: 'Practice calendar' })
 
     await user.click(screen.getByRole('button', { name: 'Viola' }))
-    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2))
+    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2, new Date().getFullYear()))
     expect(mockGetComparison).toHaveBeenLastCalledWith(2)
     expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
   })
