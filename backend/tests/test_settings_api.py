@@ -159,8 +159,8 @@ class TestConcurrentAutoCreate:
         Progress → Insights loads three endpoints at once and two of them
         (`comparison`, `ratings`) resolve the user's week_starts_on, so a
         user's first visit runs the auto-create twice in parallel. The unique
-        index on user_id means one insert loses; it has to re-read instead of
-        raising.
+        index on user_id means only one insert can land; the rest have to
+        no-op via ON CONFLICT DO NOTHING and read the winner's row back.
         """
         import asyncio
 
@@ -203,3 +203,35 @@ class TestConcurrentAutoCreate:
         )
 
         assert [r.status_code for r in responses] == [200, 200, 200]
+
+    async def test_upsert_writes_the_model_defaults(self, db_session, test_user):
+        """
+        The auto-create is a Core insert, which bypasses SQLModel's Python-side
+        defaults — so every default has to actually reach the row, including
+        any column added later without a server_default to fall back on.
+        """
+        from datetime import timedelta, timezone
+
+        from sqlmodel import select
+
+        from app.api.settings_api import _get_or_create_settings
+        from app.enums import utcnow
+        from app.models import UserSettings
+
+        await _get_or_create_settings(db_session, test_user.id)
+
+        result = await db_session.exec(
+            select(UserSettings).where(UserSettings.user_id == test_user.id)
+        )
+        settings = result.first()
+
+        assert settings.suggestions_preference == "all"
+        assert settings.default_session_duration_minutes == 30
+        assert settings.week_starts_on == "monday"
+        assert settings.theme_preference == "system"
+        # TIMESTAMPTZ reads back tz-aware whatever the insert path, so compare
+        # instants rather than tzinfo: what matters is that created_at was
+        # populated with a sane "now" and not left to chance.
+        assert settings.created_at is not None
+        now = utcnow().replace(tzinfo=timezone.utc)
+        assert abs(now - settings.created_at) < timedelta(minutes=5)

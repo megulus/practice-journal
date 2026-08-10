@@ -1,8 +1,8 @@
 """
 Settings API — GET/PATCH /api/settings
 """
-from fastapi import APIRouter, Depends
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,11 +20,22 @@ async def _get_or_create_settings(
     """
     Get user settings, auto-creating with defaults if missing.
 
-    The insert can lose a race: several endpoints call this, and a client that
-    fires them concurrently (the Progress → Insights panel loads three at once)
-    can have two requests both find no row and both try to create one. The
-    unique index on user_id means the loser gets an IntegrityError, so treat
-    that as "someone else just made it" and re-read.
+    Creation is an atomic upsert for the same reason `get_or_create_user` is
+    (app/auth.py): several endpoints call this, and a client that fires them
+    concurrently — Progress → Insights loads three at once, two of which
+    resolve week_starts_on — can have every request find no row and all of them
+    try to create one. A plain INSERT lets one win and the rest hit the unique
+    user_id index, 500-ing a page load that should have just worked.
+    INSERT ... ON CONFLICT DO NOTHING resolves the collision in a single
+    statement (the losers no-op), then we read the row back to return a
+    session-managed instance.
+
+    Column values come off a throwaway model instance rather than being
+    restated here. A Core insert bypasses SQLModel's Python-side defaults, and
+    hand-listing them is how a column added later (theme_preference, recently)
+    silently misses the create path — today every column happens to carry a
+    server_default too, but that's a coincidence to not depend on. It also
+    keeps created_at on the app's utcnow() clock, as `get_or_create_user` does.
     """
     result = await session.exec(
         select(UserSettings).where(UserSettings.user_id == user_id)
@@ -33,20 +44,28 @@ async def _get_or_create_settings(
     if settings:
         return settings
 
-    settings = UserSettings(user_id=user_id)
-    session.add(settings)
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        result = await session.exec(
-            select(UserSettings).where(UserSettings.user_id == user_id)
+    defaults = UserSettings(user_id=user_id).model_dump(
+        exclude_none=True, exclude={"id"}
+    )
+    await session.exec(
+        pg_insert(UserSettings)
+        .values(**defaults)
+        .on_conflict_do_nothing(index_elements=["user_id"])
+    )
+    await session.commit()
+
+    result = await session.exec(
+        select(UserSettings).where(UserSettings.user_id == user_id)
+    )
+    settings = result.first()
+    if settings is None:
+        # The row we just upserted must exist; a miss means something is deeply
+        # wrong (not the benign race). Fail loudly rather than hand back None
+        # into a non-optional contract every caller dereferences.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load settings after creation",
         )
-        existing = result.first()
-        if existing is None:
-            raise
-        return existing
-    await session.refresh(settings)
     return settings
 
 
