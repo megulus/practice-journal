@@ -4,20 +4,21 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Pill } from '@/components/ui'
-import ComingSoonPlaceholder from '@/components/ComingSoonPlaceholder'
 import {
   HistoryList,
+  InsightsPanel,
   ProgressSubTabs,
   type ProgressSubTab,
 } from '@/components/progress'
 import type { Instrument } from '@/lib/types'
 
 /**
- * Progress tab (spec §5.7): instrument toggle over two sub-tabs. History is
- * built (#149); Insights is still a placeholder (#150).
+ * Progress tab (spec §5.7): instrument toggle over two sub-tabs — History
+ * (#149) and Insights (#150).
  *
  * The pattern-level suggestion card the spec puts above both sub-tabs isn't
- * here yet — the rules engine has a pattern tier but no endpoint exposes it.
+ * here yet — the rules engine has a pattern tier but no endpoint exposes it
+ * (#253).
  */
 export default function ProgressPage() {
   const api = useApi()
@@ -109,20 +110,19 @@ export default function ProgressPage() {
 
       <ProgressSubTabs value={tab} onChange={setTab} />
 
+      {/* No tabIndex on the panel: the ARIA authoring practices only want a
+          tab stop here when the panel holds nothing focusable, and both now
+          do — History its time-range pills, Insights the heatmap's scroll
+          region. An extra stop would just be a redundant one. */}
       <div
         role="tabpanel"
         id={`progress-panel-${tab}`}
         aria-labelledby={`progress-tab-${tab}`}
-        // Only focusable when the panel has no focusable content of its own
-        // (the Insights placeholder). History is full of controls, and giving
-        // it a tab stop too would just add a redundant one — see the ARIA
-        // authoring practices for the tabpanel pattern.
-        tabIndex={tab === 'history' ? undefined : 0}
       >
         {tab === 'history' ? (
           <HistoryList instrumentId={selectedInstrumentId} />
         ) : (
-          <ComingSoonPlaceholder title="Insights" ticketNumber="#150" />
+          <InsightsPanel instrumentId={selectedInstrumentId} />
         )}
       </div>
     </div>

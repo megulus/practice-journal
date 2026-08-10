@@ -2,22 +2,53 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import ProgressPage from './page'
 import type { Instrument } from '@/lib/types'
+import { localYear } from '@/components/progress/heatmapGrid'
 
-const { mockListInstruments, mockGetHistory, mockApi } = vi.hoisted(() => {
+const {
+  mockListInstruments,
+  mockGetHistory,
+  mockGetHeatmap,
+  mockGetComparison,
+  mockGetRatings,
+  mockApi,
+} = vi.hoisted(() => {
   const mockListInstruments = vi.fn()
   const mockGetHistory = vi.fn()
+  const mockGetHeatmap = vi.fn()
+  const mockGetComparison = vi.fn()
+  const mockGetRatings = vi.fn()
   // Stable identity, like the real memoized useApi — a fresh object per render
   // would retrigger the load effects forever.
   return {
     mockListInstruments,
     mockGetHistory,
+    mockGetHeatmap,
+    mockGetComparison,
+    mockGetRatings,
     mockApi: {
       listInstruments: mockListInstruments,
       getHistory: mockGetHistory,
       getHistoryDetail: vi.fn(),
+      getHeatmap: mockGetHeatmap,
+      getComparison: mockGetComparison,
+      getRatings: mockGetRatings,
     },
   }
 })
+
+const EMPTY_WEEK = {
+  days_practiced: 0,
+  total_minutes: 0,
+  daily: [
+    { day: 'monday' as const, minutes: 0 },
+    { day: 'tuesday' as const, minutes: 0 },
+    { day: 'wednesday' as const, minutes: 0 },
+    { day: 'thursday' as const, minutes: 0 },
+    { day: 'friday' as const, minutes: 0 },
+    { day: 'saturday' as const, minutes: 0 },
+    { day: 'sunday' as const, minutes: 0 },
+  ],
+}
 
 vi.mock('@/lib/useApi', () => ({ useApi: () => mockApi }))
 
@@ -40,6 +71,20 @@ describe('ProgressPage', () => {
     mockListInstruments.mockReset()
     mockGetHistory.mockReset()
     mockGetHistory.mockResolvedValue({ items: [], next_cursor: null })
+    mockGetHeatmap.mockReset()
+    mockGetHeatmap.mockResolvedValue({
+      year: 2026,
+      days: [{ date: '2026-07-21', duration_minutes: 30 }],
+    })
+    mockGetComparison.mockReset()
+    mockGetComparison.mockResolvedValue({
+      this_week: EMPTY_WEEK,
+      last_week: EMPTY_WEEK,
+      delta_days: 0,
+      delta_minutes: 0,
+    })
+    mockGetRatings.mockReset()
+    mockGetRatings.mockResolvedValue({ weeks: [] })
   })
 
   it('opens on History for the first instrument', async () => {
@@ -82,23 +127,42 @@ describe('ProgressPage', () => {
     expect(screen.queryByRole('button', { name: 'Violin' })).not.toBeInTheDocument()
   })
 
-  it('leaves Insights as the #150 placeholder', async () => {
+  it('renders Insights for the selected instrument', async () => {
     const user = userEvent.setup()
     mockListInstruments.mockResolvedValue([makeInstrument()])
     render(<ProgressPage />)
 
     await user.click(await screen.findByRole('tab', { name: 'Insights' }))
     expect(
-      screen.getByRole('heading', { name: 'Insights' }),
+      await screen.findByRole('heading', { name: 'Practice calendar' }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/Tracked in #150/)).toBeInTheDocument()
+    expect(mockGetHeatmap).toHaveBeenCalledWith(1, localYear())
+    expect(mockGetComparison).toHaveBeenCalledWith(1)
+    expect(mockGetRatings).toHaveBeenCalledWith(1, 4)
     // History's controls are gone while Insights is showing.
     expect(
       screen.queryByRole('button', { name: 'All sessions' }),
     ).not.toBeInTheDocument()
   })
 
-  it('gives the panel a tab stop only when it has no focusable content', async () => {
+  it('switches Insights to the instrument picked in the toggle', async () => {
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ id: 1, name: 'Violin' }),
+      makeInstrument({ id: 2, name: 'Viola' }),
+    ])
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+
+    await user.click(screen.getByRole('button', { name: 'Viola' }))
+    await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2, localYear()))
+    expect(mockGetComparison).toHaveBeenLastCalledWith(2)
+    expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
+  })
+
+  it('leaves the tab stop to the panel content, which both tabs have', async () => {
     const user = userEvent.setup()
     mockListInstruments.mockResolvedValue([makeInstrument()])
     render(<ProgressPage />)
@@ -108,10 +172,15 @@ describe('ProgressPage', () => {
     await screen.findByRole('tab', { name: 'History' })
     expect(screen.getByRole('tabpanel')).not.toHaveAttribute('tabindex')
 
-    // The Insights placeholder has nothing focusable, so without a tab stop
-    // its content would be unreachable from the keyboard.
+    // Insights is reachable through the heatmap's scroll region, which has to
+    // be focusable anyway or a keyboard can't scroll the year.
     await user.click(screen.getByRole('tab', { name: 'Insights' }))
-    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0')
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(screen.getByRole('tabpanel')).not.toHaveAttribute('tabindex')
+    expect(screen.getByRole('img', { name: /Practice calendar/ })).toHaveAttribute(
+      'tabindex',
+      '0',
+    )
   })
 
   it('points a user with no instruments at Profile', async () => {
