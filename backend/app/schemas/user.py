@@ -9,7 +9,7 @@ from app.enums import SuggestionsPreference, ThemePreference, WeekStart
 T = TypeVar("T")
 
 
-def _reject_explicit_null(value: T) -> T:
+def _reject_explicit_null(value: Optional[T]) -> T:
     """Reject an explicit `null` on a non-nullable settings column.
 
     Every field on `UserSettingsUpdate` is `Optional[...] = None` so that
@@ -17,6 +17,17 @@ def _reject_explicit_null(value: T) -> T:
     NULL. Validators don't run for fields left at their default, so this only
     fires when the client actually sent `null` — which would otherwise reach
     the DB as a not-null violation (500) instead of a 422.
+
+    The alternative — annotating the fields `WeekStart = None` and dropping
+    this validator — gets the 422 for free from enum validation and keeps
+    `"type": "null"` out of the generated OpenAPI schema. We don't, on
+    purpose: it makes the annotation lie (the field is typed non-optional but
+    holds `None` until set), it swaps this actionable message for a generic
+    "input should be 'monday' or 'sunday'", and the schema still misreports
+    `"default": null`. JSON Schema treats "may be absent" and "may be null" as
+    separate axes; Python's `Optional[X] = None` conflates them, so some
+    inaccuracy is unavoidable here. An over-permissive schema is the cheapest
+    of the three.
     """
     if value is None:
         raise ValueError("cannot be null; omit the field to leave it unchanged")
