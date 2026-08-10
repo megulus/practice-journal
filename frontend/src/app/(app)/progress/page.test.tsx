@@ -162,7 +162,7 @@ describe('ProgressPage', () => {
     expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
   })
 
-  it('gives the panel a tab stop only when it has no focusable content', async () => {
+  it('leaves the tab stop to the panel content, which both tabs have', async () => {
     const user = userEvent.setup()
     mockListInstruments.mockResolvedValue([makeInstrument()])
     render(<ProgressPage />)
@@ -172,11 +172,15 @@ describe('ProgressPage', () => {
     await screen.findByRole('tab', { name: 'History' })
     expect(screen.getByRole('tabpanel')).not.toHaveAttribute('tabindex')
 
-    // The Insights charts are all static — no control to tab to — so without
-    // a tab stop the panel's content would be unreachable from the keyboard.
+    // Insights is reachable through the heatmap's scroll region, which has to
+    // be focusable anyway or a keyboard can't scroll the year.
     await user.click(screen.getByRole('tab', { name: 'Insights' }))
     await screen.findByRole('heading', { name: 'Practice calendar' })
-    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0')
+    expect(screen.getByRole('tabpanel')).not.toHaveAttribute('tabindex')
+    expect(screen.getByRole('img', { name: /Practice calendar/ })).toHaveAttribute(
+      'tabindex',
+      '0',
+    )
   })
 
   it('points a user with no instruments at Profile', async () => {

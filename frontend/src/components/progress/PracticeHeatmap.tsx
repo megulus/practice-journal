@@ -67,14 +67,19 @@ export function PracticeHeatmap({
     <div>
       <p className="mb-2 text-xs text-text-secondary">{summary}</p>
 
-      <div ref={scroller} className="overflow-x-auto pb-1">
-        {/* One image node rather than 365 unreadable divs — the totals a
-            screen reader needs are in the summary line right above. */}
-        <div
-          role="img"
-          aria-label={`Practice calendar for ${year}`}
-          className="inline-block"
-        >
+      {/* A year is wider than the card, and a scroll region that nothing can
+          focus is one a keyboard can't scroll — so this is a tab stop. It is
+          also the role="img" node, collapsing 365 unreadable divs into one
+          named graphic; the totals a screen reader needs are in the summary
+          line right above. */}
+      <div
+        ref={scroller}
+        tabIndex={0}
+        role="img"
+        aria-label={`Practice calendar for ${year}`}
+        className="overflow-x-auto pb-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <div className="inline-block">
           {/* Month labels — one slot per week column, text allowed to spill
               right so a label sits over the week its month begins in. */}
           <div className="flex" style={{ gap: GAP, height: 14 }} aria-hidden="true">

@@ -104,6 +104,19 @@ describe('PracticeHeatmap', () => {
     expect(screen.getByText('More')).toBeInTheDocument()
   })
 
+  it('makes the scroll region a focusable, named tab stop', async () => {
+    render(<PracticeHeatmap year={2026} days={[]} />)
+
+    // A year is wider than the card. Without a focusable scroll container the
+    // months off-screen are mouse-only (WCAG 2.1.1).
+    const region = screen.getByRole('img', { name: 'Practice calendar for 2026' })
+    expect(region).toHaveAttribute('tabindex', '0')
+    expect(region.className).toContain('overflow-x-auto')
+
+    region.focus()
+    expect(region).toHaveFocus()
+  })
+
   it('opens scrolled toward the current week', () => {
     // jsdom does no layout, so stand in a viewport narrower than the grid.
     const widthSpy = vi

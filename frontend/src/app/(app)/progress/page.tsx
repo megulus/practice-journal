@@ -110,15 +110,14 @@ export default function ProgressPage() {
 
       <ProgressSubTabs value={tab} onChange={setTab} />
 
+      {/* No tabIndex on the panel: the ARIA authoring practices only want a
+          tab stop here when the panel holds nothing focusable, and both now
+          do — History its time-range pills, Insights the heatmap's scroll
+          region. An extra stop would just be a redundant one. */}
       <div
         role="tabpanel"
         id={`progress-panel-${tab}`}
         aria-labelledby={`progress-tab-${tab}`}
-        // Only focusable when the panel has no focusable content of its own —
-        // the Insights charts are static. History is full of controls, and
-        // giving it a tab stop too would just add a redundant one — see the
-        // ARIA authoring practices for the tabpanel pattern.
-        tabIndex={tab === 'history' ? undefined : 0}
       >
         {tab === 'history' ? (
           <HistoryList instrumentId={selectedInstrumentId} />
