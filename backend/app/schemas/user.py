@@ -17,17 +17,6 @@ def _reject_explicit_null(value: Optional[T]) -> T:
     NULL. Validators don't run for fields left at their default, so this only
     fires when the client actually sent `null` — which would otherwise reach
     the DB as a not-null violation (500) instead of a 422.
-
-    The alternative — annotating the fields `WeekStart = None` and dropping
-    this validator — gets the 422 for free from enum validation and keeps
-    `"type": "null"` out of the generated OpenAPI schema. We don't, on
-    purpose: it makes the annotation lie (the field is typed non-optional but
-    holds `None` until set), it swaps this actionable message for a generic
-    "input should be 'monday' or 'sunday'", and the schema still misreports
-    `"default": null`. JSON Schema treats "may be absent" and "may be null" as
-    separate axes; Python's `Optional[X] = None` conflates them, so some
-    inaccuracy is unavoidable here. An over-permissive schema is the cheapest
-    of the three.
     """
     if value is None:
         raise ValueError("cannot be null; omit the field to leave it unchanged")
@@ -54,6 +43,14 @@ class UserSettingsRead(BaseModel):
 
 
 class UserSettingsUpdate(BaseModel):
+    # These stay `Optional[...]` even though it publishes a schema saying null
+    # is acceptable when it isn't. Annotating them non-optional instead
+    # (`week_starts_on: WeekStart = None`) would publish an accurate schema and
+    # reject null with no validator at all — but the annotation would then lie,
+    # since the field holds `None` until set, and the 422 degrades to "Input
+    # should be a valid string" (the enums are `str, Enum`, so null fails
+    # string coercion before membership is checked) instead of naming the
+    # actual remedy. An over-permissive schema is the cheaper inaccuracy.
     suggestions_preference: Optional[SuggestionsPreference] = None
     default_session_duration_minutes: Optional[int] = Field(default=None, ge=1)
     week_starts_on: Optional[WeekStart] = None
