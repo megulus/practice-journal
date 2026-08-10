@@ -108,6 +108,46 @@ class TestUpdateSettings:
         assert data["week_starts_on"] == "monday"
         assert data["theme_preference"] == "system"
 
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "suggestions_preference",
+            "default_session_duration_minutes",
+            "week_starts_on",
+            "theme_preference",
+        ],
+    )
+    async def test_explicit_null_returns_422(self, client: AsyncClient, field: str):
+        """An explicit null survives exclude_unset and would hit a NOT NULL
+        column — it must be rejected at the schema layer (#254)."""
+        await client.get("/api/settings")
+
+        resp = await client.patch("/api/settings", json={field: None})
+        assert resp.status_code == 422
+        # The error points at the offending field, so a client can act on it
+        detail = resp.json()["detail"]
+        assert [d["loc"] for d in detail] == [["body", field]]
+        assert "cannot be null" in detail[0]["msg"]
+
+        # ...and nothing was written
+        data = (await client.get("/api/settings")).json()
+        assert data["suggestions_preference"] == "all"
+        assert data["default_session_duration_minutes"] == 30
+        assert data["week_starts_on"] == "monday"
+        assert data["theme_preference"] == "system"
+
+    async def test_explicit_null_alongside_valid_field_returns_422(
+        self, client: AsyncClient
+    ):
+        await client.get("/api/settings")
+
+        resp = await client.patch(
+            "/api/settings",
+            json={"week_starts_on": "sunday", "theme_preference": None},
+        )
+        assert resp.status_code == 422
+        assert (await client.get("/api/settings")).json()["week_starts_on"] == "monday"
+
     async def test_invalid_duration_returns_422(self, client: AsyncClient):
         resp = await client.patch(
             "/api/settings",
