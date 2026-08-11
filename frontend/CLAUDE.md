@@ -93,9 +93,9 @@ All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
 ### Components
 
 - `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav)
-- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
+- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `RepertoireBlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
 - `src/components/profile/` — Profile tab sections (`AccountHeader`, `InstrumentManager`/`InstrumentCard`, `ProfileSettings`)
-- `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`)
+- `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`) plus the template editor's `SpotManagementDrawer` and the shared `SearchCreateInput` (the search-doubles-as-create field)
 - `src/components/ui/` — design-system primitives (Button, Card, Pill, etc.) — added incrementally during Phase 0 PR 3+
 
 ### Styling
@@ -119,6 +119,40 @@ All core screens (Today, Active session, Session summary, Plans list, Plans edit
 ### Previewing primitives
 
 `/preview` is a dev-only route that renders every primitive in light and dark scope side by side. Available locally at http://localhost:3000/preview without any flag. The gate lives in `src/app/preview/page.tsx` (server component checks `NODE_ENV` and redirects to `/today` in prod unless `NEXT_PUBLIC_PREVIEW_ENABLED=1` was set at build time); the side-by-side render is in `src/app/preview/PreviewContent.tsx`.
+
+## Tests
+
+Vitest + Testing Library in jsdom (`vitest.config.ts`, `npm test`). Tests live
+next to what they cover as `*.test.tsx`. `src/test/setup.ts` globally mocks
+`next/navigation` and `@clerk/nextjs` and stubs the DOM APIs jsdom lacks;
+`src/test/utils.tsx` re-exports `render`/`screen`/`waitFor`/`userEvent` — import
+from `@/test/utils`, not from `@testing-library/react` directly.
+
+### Mock `useApi` with a *stable* object
+
+The real `useApi` memoizes its client, so `api` keeps one identity across
+renders. A mock that returns an object literal breaks that — it hands back a new
+object every render, and any component with the standard load effect
+(`const load = useCallback(..., [api])` + `useEffect(() => { load() }, [load])`,
+the shape Today/Plans/Progress use) re-runs its effect forever. Nothing throws;
+the component just sits in its loading state until the test fails somewhere else
+on a confusing "unable to find element". Hoist one object instead:
+
+```ts
+const { mockGetHistory, mockApi } = vi.hoisted(() => {
+  const mockGetHistory = vi.fn()
+  return { mockGetHistory, mockApi: { getHistory: mockGetHistory } }
+})
+vi.mock('@/lib/useApi', () => ({ useApi: () => mockApi }))
+// then per test: mockGetHistory.mockReset().mockResolvedValue(...)
+```
+
+`vi.hoisted` is what makes this legal — `vi.mock` factories are hoisted above
+module scope, so they can't close over a plain `const`. Several older test files
+still use the fresh-object form; they pass because those components only call
+the API from event handlers. Leave them be unless you're editing one anyway, but
+write new tests this way — `src/components/profile/ProfileSettings.test.tsx` is
+the reference.
 
 ## Environment Variables
 

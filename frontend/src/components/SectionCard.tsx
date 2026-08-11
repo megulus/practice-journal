@@ -5,6 +5,7 @@ import type { Section } from '@/lib/types'
 import type { SectionColor } from '@/lib/section-colors'
 import { AutoSaveInput, Menu, SectionPip, useAutoSaveField, type MenuItem } from './ui'
 import BlockRow from './BlockRow'
+import RepertoireBlockRow from './RepertoireBlockRow'
 
 export default function SectionCard({
   section,
@@ -20,6 +21,7 @@ export default function SectionCard({
   onRenameBlock,
   onChangeBlockDuration,
   onDeleteBlock,
+  onOpenBlockSpots,
 }: {
   section: Section
   color: SectionColor
@@ -34,6 +36,8 @@ export default function SectionCard({
   onRenameBlock: (blockId: number, name: string) => void
   onChangeBlockDuration: (blockId: number, minutes: number) => void
   onDeleteBlock: (blockId: number) => void
+  /** Opens the spot management drawer for a repertoire block. */
+  onOpenBlockSpots: (blockId: number) => void
 }) {
   const duration = useAutoSaveField<number>({
     value: section.estimated_duration_minutes,
@@ -97,15 +101,26 @@ export default function SectionCard({
         <ul>
           {section.blocks.map((b, i) => (
             <li key={b.id}>
-              <BlockRow
-                block={b}
-                isFirst={i === 0}
-                isLast={i === section.blocks.length - 1}
-                onMove={(dir) => onMoveBlock(b.id, dir)}
-                onRename={(name) => onRenameBlock(b.id, name)}
-                onDurationChange={(min) => onChangeBlockDuration(b.id, min)}
-                onDelete={() => onDeleteBlock(b.id)}
-              />
+              {b.piece_id != null ? (
+                <RepertoireBlockRow
+                  block={b}
+                  isFirst={i === 0}
+                  isLast={i === section.blocks.length - 1}
+                  onMove={(dir) => onMoveBlock(b.id, dir)}
+                  onDelete={() => onDeleteBlock(b.id)}
+                  onOpenSpots={() => onOpenBlockSpots(b.id)}
+                />
+              ) : (
+                <BlockRow
+                  block={b}
+                  isFirst={i === 0}
+                  isLast={i === section.blocks.length - 1}
+                  onMove={(dir) => onMoveBlock(b.id, dir)}
+                  onRename={(name) => onRenameBlock(b.id, name)}
+                  onDurationChange={(min) => onChangeBlockDuration(b.id, min)}
+                  onDelete={() => onDeleteBlock(b.id)}
+                />
+              )}
             </li>
           ))}
         </ul>
