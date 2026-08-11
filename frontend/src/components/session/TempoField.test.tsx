@@ -128,7 +128,7 @@ describe('TempoField — smart tempo defaults (#181)', () => {
     expect(field()).toHaveValue('400')
   })
 
-  it('rolls back to the last saved value when the save fails', async () => {
+  it('keeps the typed value and flags the failure when the save fails', async () => {
     mockApi.updateBlockLog.mockRejectedValueOnce(new Error('offline'))
     const user = userEvent.setup()
     render(<TempoField logId={1} blockLog={makeLog({ last_tempo_bpm: 72 })} />)
@@ -137,7 +137,51 @@ describe('TempoField — smart tempo defaults (#181)', () => {
     await user.type(field(), '80')
     await user.tab()
 
-    await waitFor(() => expect(field()).toHaveValue(''))
+    expect(
+      await screen.findByRole('button', { name: 'Not saved — retry' })
+    ).toBeInTheDocument()
+    // The user's number stays put — and stays muted, since it isn't logged
+    expect(field()).toHaveValue('80')
     expect(field()).toHaveClass('text-text-tertiary')
+  })
+
+  it('retries a failed save and clears the warning on success', async () => {
+    mockApi.updateBlockLog.mockRejectedValueOnce(new Error('offline'))
+    const user = userEvent.setup()
+    render(<TempoField logId={1} blockLog={makeLog({ last_tempo_bpm: 72 })} />)
+
+    await user.clear(field())
+    await user.type(field(), '80')
+    await user.tab()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Not saved — retry' })
+    )
+
+    await waitFor(() =>
+      expect(mockApi.updateBlockLog).toHaveBeenLastCalledWith(1, 7, {
+        tempo_bpm: 80,
+      })
+    )
+    await waitFor(() => expect(field()).toHaveClass('text-text-primary'))
+    expect(
+      screen.queryByRole('button', { name: 'Not saved — retry' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('re-blurring after a failure retries the save', async () => {
+    mockApi.updateBlockLog.mockRejectedValueOnce(new Error('offline'))
+    const user = userEvent.setup()
+    render(<TempoField logId={1} blockLog={makeLog({ last_tempo_bpm: 72 })} />)
+
+    await user.click(field())
+    await user.tab()
+    await screen.findByRole('button', { name: 'Not saved — retry' })
+
+    await user.click(field())
+    await user.tab()
+
+    await waitFor(() => expect(mockApi.updateBlockLog).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(field()).toHaveClass('text-text-primary'))
   })
 })

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import {
+  countsTowardProgress,
   isSectionDone,
   sectionCompletionLabel,
   useLastCompletedSection,
@@ -77,6 +78,23 @@ describe('isSectionDone', () => {
   it('is not done when the section has no blocks yet', () => {
     // `completed` defaults true at session start and nothing maintains it (#233)
     expect(isSectionDone(makeSection({ completed: true }))).toBe(false)
+  })
+})
+
+describe('countsTowardProgress', () => {
+  it('counts a section that has blocks', () => {
+    expect(
+      countsTowardProgress(makeSection({ block_logs: [makeBlock()] }))
+    ).toBe(true)
+  })
+
+  it('leaves an empty section out of the ratio', () => {
+    // "+ Add a section" creates one of these mid-session; counting it would
+    // pin the ratio below 100% for the rest of the session.
+    expect(countsTowardProgress(makeSection({ block_logs: [] }))).toBe(false)
+    expect(
+      countsTowardProgress(makeSection({ block_logs: [], skipped: true }))
+    ).toBe(false)
   })
 })
 

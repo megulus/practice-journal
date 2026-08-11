@@ -173,6 +173,26 @@ describe('ActiveSessionPage — progress label (#183)', () => {
     ).toBeInTheDocument()
   })
 
+  it('leaves an empty freeform section out of the ratio', async () => {
+    mockGetPractice.mockResolvedValue({
+      ...baseLog,
+      section_logs: [
+        makeSection({
+          id: 1,
+          section_name: 'Scales',
+          block_logs: [makeBlock({ id: 1, completed: true })],
+        }),
+        // "+ Add a section" mid-session — nothing in it to complete
+        makeSection({ id: 2, section_name: 'Sight-reading', block_logs: [] }),
+      ],
+    })
+    render(<ActiveSessionPage />)
+
+    expect(
+      await screen.findByText('1 of 1 sections done · Scales complete')
+    ).toBeInTheDocument()
+  })
+
   it('says "Skipped <name>" for a skipped section', async () => {
     mockGetPractice.mockResolvedValue({
       ...baseLog,

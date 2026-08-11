@@ -12,6 +12,7 @@ function block(o: Partial<BlockLog> = {}): BlockLog {
     notes: null,
     completed: true,
     display_order: 0,
+    tempo_bpm: null,
     last_tempo_bpm: null,
     ...o,
   }

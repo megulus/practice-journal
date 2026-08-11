@@ -57,7 +57,7 @@ export function QuickAddBlock({
           <button
             type="button"
             onClick={() => setBrowsing(true)}
-            className="flex-shrink-0 text-xs text-text-link hover:underline"
+            className="flex-shrink-0 text-[11px] text-text-link hover:underline"
           >
             Browse library
           </button>

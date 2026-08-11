@@ -9,6 +9,7 @@ import {
   SectionCard,
   AddSectionButton,
   SessionNotes,
+  countsTowardProgress,
   isSectionDone,
   sectionCompletionLabel,
   useLastCompletedSection,
@@ -198,9 +199,11 @@ export default function ActiveSessionPage() {
 
   // Progress is counted in sections, per spec §5.2 ("2 of 5 sections done").
   // A skipped section counts as done — skipping is a decision, not a gap, and
-  // leaving it out would make 100% unreachable.
-  const totalCount = log.section_logs.length
-  const completedCount = log.section_logs.filter(isSectionDone).length
+  // leaving it out would make 100% unreachable. Empty sections are out of the
+  // ratio entirely (see countsTowardProgress).
+  const countedSections = log.section_logs.filter(countsTowardProgress)
+  const totalCount = countedSections.length
+  const completedCount = countedSections.filter(isSectionDone).length
   const progressLabel = lastCompletedSection
     ? sectionCompletionLabel(lastCompletedSection)
     : null

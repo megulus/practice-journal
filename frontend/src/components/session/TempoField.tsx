@@ -31,20 +31,20 @@ export function TempoField({
   const [value, setValue] = useState(prefill != null ? String(prefill) : '')
   // Confirmed = logged for this session (either already persisted or just now).
   const [confirmed, setConfirmed] = useState(blockLog.tempo_bpm != null)
+  const [saveFailed, setSaveFailed] = useState(false)
   const saved = useRef<number | null>(blockLog.tempo_bpm)
 
+  // Only mark the value as logged once the server has it. A failure leaves
+  // what the user typed on screen — throwing it away loses their work — and
+  // says so, with a retry; `saved` stays put, so re-blurring retries too.
   const persist = async (next: number | null) => {
-    const previous = saved.current
-    saved.current = next
-    setConfirmed(next != null)
+    setSaveFailed(false)
     try {
       await api.updateBlockLog(logId, blockLog.id, { tempo_bpm: next })
+      saved.current = next
+      setConfirmed(next != null)
     } catch {
-      // Roll back to what the server last accepted rather than showing a
-      // confirmed tempo that isn't stored.
-      saved.current = previous
-      setConfirmed(previous != null)
-      setValue(previous != null ? String(previous) : '')
+      setSaveFailed(true)
     }
   }
 
@@ -52,7 +52,10 @@ export function TempoField({
     const digits = value.trim()
     if (digits === '') {
       if (saved.current != null) persist(null)
-      else setConfirmed(false)
+      else {
+        setConfirmed(false)
+        setSaveFailed(false)
+      }
       return
     }
     const parsed = Math.min(Math.max(Number(digits), MIN_BPM), MAX_BPM)
@@ -84,6 +87,15 @@ export function TempoField({
         )}
       />
       <span className="text-xs text-text-tertiary">bpm</span>
+      {saveFailed && (
+        <button
+          type="button"
+          onClick={handleBlur}
+          className="text-[11px] text-danger-text hover:underline"
+        >
+          Not saved — retry
+        </button>
+      )}
     </div>
   )
 }

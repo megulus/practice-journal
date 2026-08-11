@@ -3,6 +3,7 @@ export { BlockRow } from './BlockRow'
 export { QuickAddBlock } from './QuickAddBlock'
 export { TempoField } from './TempoField'
 export {
+  countsTowardProgress,
   isSectionDone,
   sectionCompletionLabel,
   useLastCompletedSection,

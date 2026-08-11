@@ -19,6 +19,17 @@ export function isSectionDone(sectionLog: SectionLog): boolean {
   )
 }
 
+/**
+ * Whether a section belongs in the "X of Y" ratio at all.
+ *
+ * A section with no blocks isn't work to complete — and `AddSectionButton`
+ * creates exactly that mid-session, which would otherwise pin the count below
+ * 100% for the rest of the session.
+ */
+export function countsTowardProgress(sectionLog: SectionLog): boolean {
+  return sectionLog.block_logs.length > 0
+}
+
 /** "Scales complete" / "Skipped warm-up" — the label after the count. */
 export function sectionCompletionLabel(sectionLog: SectionLog): string {
   return sectionLog.skipped
