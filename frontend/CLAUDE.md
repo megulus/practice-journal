@@ -93,7 +93,7 @@ All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
 ### Components
 
 - `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav). `appChrome.tsx` holds the context a page uses to hide the nav (`useHideAppChrome`) — the quick-start wizard is the only current caller
-- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
+- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`)
 - `src/components/profile/` — Profile tab sections (`AccountHeader`, `InstrumentManager`/`InstrumentCard`, `ProfileSettings`)
 - `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`)
 - `src/components/quickstart/` — the quick-start wizard the Today tab shows when the user has no active plan (`QuickStartWizard` + one component per step); the plan-balancing rules and the `needsQuickStart` gate live in `src/lib/quickstart.ts`

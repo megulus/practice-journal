@@ -280,8 +280,8 @@ route). Key context: the Phase-0 rebuild against the new Kantelo schema and
 design system is complete (all core screens retoned to tokens/primitives, PRs
 #203–#210); current work is post-Phase-0 features. The Profile tab — account
 header, instruments, repertoire library, coaching/preference settings — landed
-with #148, and the quick-start wizard (Today tab, for users with no active
-plan) with #151. The Progress tab is still a `ComingSoonPlaceholder`.
+with #148, the Progress tab (history + insights) with #252/#261, and the
+quick-start wizard (Today tab, for users with no active plan) with #151.
 
 ## Conventions for working here
 
