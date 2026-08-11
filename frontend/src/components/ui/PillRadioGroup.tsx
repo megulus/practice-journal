@@ -16,7 +16,15 @@ export interface PillRadioGroupProps<T> {
   options: PillRadioOption<T>[]
   value: T
   onChange: (value: T) => void
+  /**
+   * Container layout classes. Defaults to a wrapping row (`flex flex-wrap
+   * gap-sm`); pass a full *replacement* when a call site needs different
+   * spacing or overflow behavior. `cx` is a plain joiner, not tailwind-merge,
+   * so an appended `gap-*` would collide with the default rather than beat it.
+   */
   className?: string
+  /** Extra classes for each pill (e.g. `whitespace-nowrap`). */
+  pillClassName?: string
 }
 
 /**
@@ -39,6 +47,7 @@ export function PillRadioGroup<T>({
   value,
   onChange,
   className,
+  pillClassName,
 }: PillRadioGroupProps<T>) {
   const pills = useRef<(HTMLButtonElement | null)[]>([])
   const checkedIndex = options.findIndex((option) => option.value === value)
@@ -71,7 +80,7 @@ export function PillRadioGroup<T>({
       role="radiogroup"
       aria-label={label}
       onKeyDown={handleKeyDown}
-      className={cx('flex flex-wrap gap-sm', className)}
+      className={className ?? 'flex flex-wrap gap-sm'}
     >
       {options.map((option, index) => {
         const checked = index === checkedIndex
@@ -85,6 +94,7 @@ export function PillRadioGroup<T>({
             aria-checked={checked}
             tabIndex={index === tabStopIndex ? 0 : -1}
             active={checked}
+            className={pillClassName}
             onClick={() => onChange(option.value)}
           >
             {option.label}

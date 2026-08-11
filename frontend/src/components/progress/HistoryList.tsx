@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
-import { Button, Card, Pill } from '@/components/ui'
+import { Button, Card, PillRadioGroup } from '@/components/ui'
 import { SessionHistoryCard } from './SessionHistoryCard'
 import type { HistoryItem, HistoryPeriod } from '@/lib/types'
 
@@ -93,19 +93,14 @@ export function HistoryList({ instrumentId }: { instrumentId: number | null }) {
 
   return (
     <div className="space-y-4">
-      <div role="group" aria-label="Time range" className="flex gap-2">
-        {PERIODS.map((p) => (
-          <Pill
-            key={p.value}
-            variant="instrument"
-            active={p.value === period}
-            onClick={() => setPeriod(p.value)}
-            className="whitespace-nowrap"
-          >
-            {p.label}
-          </Pill>
-        ))}
-      </div>
+      <PillRadioGroup
+        label="Time range"
+        options={PERIODS}
+        value={period}
+        onChange={setPeriod}
+        className="flex gap-2"
+        pillClassName="whitespace-nowrap"
+      />
 
       {loading ? (
         <p className="py-12 text-center text-sm text-text-secondary">Loading…</p>
