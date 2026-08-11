@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { TextInput } from '@/components/ui'
+import { TextInput, VoiceInput } from '@/components/ui'
 
 /**
  * Smart-insert chips for the location field, in their default order
@@ -113,13 +113,25 @@ export function LocationInput({
 
   return (
     <div className="space-y-sm">
-      <TextInput
-        ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={label}
-      />
+      <div className="relative">
+        <TextInput
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          className="pr-11"
+        />
+        <VoiceInput
+          aria-label={`${label} by voice`}
+          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+          onTranscript={(text) => {
+            const next = value && !/\s$/.test(value) ? `${value} ${text}` : value + text
+            onChange(next)
+            pendingCaret.current = next.length
+          }}
+        />
+      </div>
       <div className="flex flex-wrap gap-sm">
         {chips.map((chip) => (
           <button
