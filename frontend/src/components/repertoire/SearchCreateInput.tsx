@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, type RefObject } from 'react'
 import { Search } from 'lucide-react'
 import { VoiceInput } from '@/components/ui'
 
@@ -11,6 +11,8 @@ export interface SearchCreateInputProps {
   /** Accessible name for the field. */
   label: string
   autoFocus?: boolean
+  /** Lets the caller move focus back here after a result is acted on. */
+  inputRef?: RefObject<HTMLInputElement>
 }
 
 /**
@@ -30,8 +32,10 @@ export function SearchCreateInput({
   placeholder,
   label,
   autoFocus,
+  inputRef: externalRef,
 }: SearchCreateInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const internalRef = useRef<HTMLInputElement>(null)
+  const inputRef = externalRef ?? internalRef
 
   return (
     <div className="relative">
