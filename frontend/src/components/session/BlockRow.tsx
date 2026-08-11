@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
-import { Card, Checkbox, RatingChevrons, TextArea } from '@/components/ui'
+import {
+  Card,
+  Checkbox,
+  RatingChevrons,
+  TextArea,
+  VoiceInput,
+  useDictation,
+  useSerializedSave,
+} from '@/components/ui'
 import { TempoField } from './TempoField'
 import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
 
@@ -27,7 +35,6 @@ export function BlockRow({
   const api = useApi()
   const [showNotes, setShowNotes] = useState(!!blockLog.notes)
   const [notes, setNotes] = useState(blockLog.notes ?? '')
-  const [savingNotes, setSavingNotes] = useState(false)
 
   const handleToggleCompleted = async () => {
     await api.updateBlockLog(logId, blockLog.id, {
@@ -44,14 +51,29 @@ export function BlockRow({
     onUpdate()
   }
 
-  const handleSaveNotes = useCallback(async () => {
-    setSavingNotes(true)
-    try {
-      await api.updateBlockLog(logId, blockLog.id, { notes })
-    } finally {
-      setSavingNotes(false)
-    }
-  }, [api, logId, blockLog.id, notes])
+  // Dictation queues a save per finalized phrase, so these are serialized:
+  // concurrent PATCHes to the same row have no guaranteed apply order.
+  const { save: saveNotes, saving: savingNotes } = useSerializedSave(
+    useCallback(
+      async (value: string) => {
+        await api.updateBlockLog(logId, blockLog.id, { notes: value })
+      },
+      [api, logId, blockLog.id],
+    ),
+  )
+
+  const handleSaveNotes = useCallback(
+    () => saveNotes(notes),
+    [saveNotes, notes],
+  )
+
+  // Dictation persists on commit — the mic click blurs the textarea, so the
+  // blur-save alone would only ever write the pre-dictation value.
+  const dictation = useDictation({
+    value: notes,
+    onChange: setNotes,
+    onCommit: saveNotes,
+  })
 
   // Register/unregister the flush callback so Finish can save pending notes
   useEffect(() => {
@@ -99,14 +121,21 @@ export function BlockRow({
           </button>
         ) : (
           <div className="mt-1">
-            <TextArea
-              variant="recessed"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={handleSaveNotes}
-              placeholder="Notes..."
-              rows={2}
-            />
+            <div className="flex items-start gap-2">
+              <TextArea
+                variant="recessed"
+                value={dictation.value}
+                onChange={(e) => dictation.onChange(e.target.value)}
+                onBlur={handleSaveNotes}
+                placeholder="Notes..."
+                rows={2}
+                className="flex-1"
+              />
+              <VoiceInput
+                {...dictation.voiceProps}
+                aria-label={`Dictate notes for ${blockLog.block_name}`}
+              />
+            </div>
             {savingNotes && (
               <span className="text-xs text-text-tertiary">Saving...</span>
             )}

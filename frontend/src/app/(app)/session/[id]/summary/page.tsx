@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
-import { Button, Card, StatCard, TextArea } from '@/components/ui'
+import {
+  Button,
+  Card,
+  StatCard,
+  TextArea,
+  VoiceInput,
+  useDictation,
+} from '@/components/ui'
 import { formatSessionDate } from '@/lib/dates'
 import type { FinishResponse } from '@/lib/types'
 
@@ -24,6 +31,12 @@ export default function SessionSummaryPage() {
   const [data, setData] = useState<FinishResponse | null>(null)
   const [reflection, setReflection] = useState('')
   const [reflectionSaved, setReflectionSaved] = useState(false)
+
+  // Committed by the explicit "Save reflection" button, so no onCommit here.
+  const dictation = useDictation({
+    value: reflection,
+    onChange: setReflection,
+  })
 
   useEffect(() => {
     // Try to load from sessionStorage (set by the finish flow)
@@ -175,14 +188,20 @@ export default function SessionSummaryPage() {
           <p className="mb-3 mt-1 text-xs text-text-tertiary">
             Optional — a moment to notice what you might forget later.
           </p>
-          <TextArea
-            variant="recessed"
-            value={reflection}
-            onChange={(e) => setReflection(e.target.value)}
-            placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
-            rows={3}
-            className="mb-2"
-          />
+          <div className="mb-2 flex items-start gap-2">
+            <TextArea
+              variant="recessed"
+              value={dictation.value}
+              onChange={(e) => dictation.onChange(e.target.value)}
+              placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
+              rows={3}
+              className="flex-1"
+            />
+            <VoiceInput
+              {...dictation.voiceProps}
+              aria-label="Dictate your reflection"
+            />
+          </div>
           <Button
             variant="ghost"
             size="sm"

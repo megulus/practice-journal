@@ -3,7 +3,16 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Check, Minus, ChevronDown } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { Card, Checkbox, RatingChevrons, TextArea, TextInput } from '@/components/ui'
+import {
+  Card,
+  Checkbox,
+  RatingChevrons,
+  TextArea,
+  TextInput,
+  VoiceInput,
+  useDictation,
+  useSerializedSave,
+} from '@/components/ui'
 import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
 
 /**
@@ -41,6 +50,12 @@ export default function RepertoireBlock({
   const [addingSpot, setAddingSpot] = useState(false)
   const [newSpotName, setNewSpotName] = useState('')
   const [saveForNextTime, setSaveForNextTime] = useState(true)
+
+  // Form field: committed on submit, so no onCommit persistence here.
+  const spotDictation = useDictation({
+    value: newSpotName,
+    onChange: setNewSpotName,
+  })
 
   const isWholePieceMode = pieceLog !== null && spotLogs.length === 0
 
@@ -180,13 +195,20 @@ export default function RepertoireBlock({
             </button>
           ) : (
             <form onSubmit={handleAddSpot} className="px-4 py-2 space-y-2">
-              <TextInput
-                variant="recessed"
-                value={newSpotName}
-                onChange={(e) => setNewSpotName(e.target.value)}
-                placeholder="Add a spot..."
-                autoFocus
-              />
+              <div className="flex items-center gap-2">
+                <TextInput
+                  variant="recessed"
+                  value={spotDictation.value}
+                  onChange={(e) => spotDictation.onChange(e.target.value)}
+                  placeholder="Add a spot..."
+                  autoFocus
+                  className="flex-1 min-w-0"
+                />
+                <VoiceInput
+                  {...spotDictation.voiceProps}
+                  aria-label="Dictate spot name"
+                />
+              </div>
               <Checkbox
                 checked={saveForNextTime}
                 onChange={(e) => setSaveForNextTime(e.target.checked)}
@@ -243,7 +265,6 @@ function SpotRow({
   const api = useApi()
   const [showNotes, setShowNotes] = useState(!!blockLog.notes)
   const [notes, setNotes] = useState(blockLog.notes ?? '')
-  const [savingNotes, setSavingNotes] = useState(false)
 
   // Extract spot name from "Piece — Spot" format
   const parts = blockLog.block_name.split(' — ')
@@ -264,14 +285,29 @@ function SpotRow({
     onUpdate()
   }
 
-  const handleSaveNotes = useCallback(async () => {
-    setSavingNotes(true)
-    try {
-      await api.updateBlockLog(logId, blockLog.id, { notes })
-    } finally {
-      setSavingNotes(false)
-    }
-  }, [api, logId, blockLog.id, notes])
+  // Dictation queues a save per finalized phrase, so these are serialized:
+  // concurrent PATCHes to the same row have no guaranteed apply order.
+  const { save: saveNotes, saving: savingNotes } = useSerializedSave(
+    useCallback(
+      async (value: string) => {
+        await api.updateBlockLog(logId, blockLog.id, { notes: value })
+      },
+      [api, logId, blockLog.id],
+    ),
+  )
+
+  const handleSaveNotes = useCallback(
+    () => saveNotes(notes),
+    [saveNotes, notes],
+  )
+
+  // Dictation persists on commit — the mic click blurs the textarea, so the
+  // blur-save alone would only ever write the pre-dictation value.
+  const dictation = useDictation({
+    value: notes,
+    onChange: setNotes,
+    onCommit: saveNotes,
+  })
 
   useEffect(() => {
     const flushes = pendingFlushes.current
@@ -310,14 +346,21 @@ function SpotRow({
           </button>
         ) : (
           <div className="mt-1">
-            <TextArea
-              variant="recessed"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={handleSaveNotes}
-              placeholder="Notes..."
-              rows={2}
-            />
+            <div className="flex items-start gap-2">
+              <TextArea
+                variant="recessed"
+                value={dictation.value}
+                onChange={(e) => dictation.onChange(e.target.value)}
+                onBlur={handleSaveNotes}
+                placeholder="Notes..."
+                rows={2}
+                className="flex-1"
+              />
+              <VoiceInput
+                {...dictation.voiceProps}
+                aria-label={`Dictate notes for ${spotName}`}
+              />
+            </div>
             {savingNotes && (
               <span className="text-xs text-text-tertiary">Saving...</span>
             )}
@@ -363,9 +406,29 @@ function WholePieceRating({
     onUpdate()
   }
 
-  const handleSaveNotes = useCallback(async () => {
-    await api.updateBlockLog(logId, blockLog.id, { notes })
-  }, [api, logId, blockLog.id, notes])
+  // Serialized for the same reason as SpotRow: dictation queues one save per
+  // finalized phrase and concurrent PATCHes have no guaranteed apply order.
+  const { save: saveNotes } = useSerializedSave(
+    useCallback(
+      async (value: string) => {
+        await api.updateBlockLog(logId, blockLog.id, { notes: value })
+      },
+      [api, logId, blockLog.id],
+    ),
+  )
+
+  const handleSaveNotes = useCallback(
+    () => saveNotes(notes),
+    [saveNotes, notes],
+  )
+
+  // Dictation persists on commit — the mic click blurs the textarea, so the
+  // blur-save alone would only ever write the pre-dictation value.
+  const dictation = useDictation({
+    value: notes,
+    onChange: setNotes,
+    onCommit: saveNotes,
+  })
 
   useEffect(() => {
     const flushes = pendingFlushes.current
@@ -392,14 +455,21 @@ function WholePieceRating({
             + add note
           </button>
         ) : (
-          <TextArea
-            variant="recessed"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={handleSaveNotes}
-            placeholder="Notes..."
-            rows={2}
-          />
+          <div className="flex items-start gap-2">
+            <TextArea
+              variant="recessed"
+              value={dictation.value}
+              onChange={(e) => dictation.onChange(e.target.value)}
+              onBlur={handleSaveNotes}
+              placeholder="Notes..."
+              rows={2}
+              className="flex-1"
+            />
+            <VoiceInput
+              {...dictation.voiceProps}
+              aria-label="Dictate notes for this piece"
+            />
+          </div>
         )}
       </div>
 
