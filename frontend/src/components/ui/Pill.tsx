@@ -58,6 +58,9 @@ export const Pill = forwardRef<HTMLButtonElement, PillProps>(function Pill(
   }
 
   const {
+    // Pulled out of `rest` so it can't be spread onto the <button> — React
+    // passes unknown lowercase props straight through as DOM attributes.
+    variant: _variant,
     active = false,
     className,
     type = 'button',
