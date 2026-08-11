@@ -34,6 +34,8 @@ export interface VoiceInputProps {
   onInterimTranscript?: (text: string) => void
   /** Recognition errors, normalized. Optional. */
   onError?: (error: VoiceInputError) => void
+  /** Fired once when a session ends for any reason. Optional. */
+  onEnd?: () => void
   /** BCP-47 language tag. Defaults to `en-US`. */
   lang?: string
   /** Extra classes for the button. */
@@ -64,6 +66,7 @@ export function VoiceInput({
   onTranscript,
   onInterimTranscript,
   onError,
+  onEnd,
   lang,
   className,
   ...aria
@@ -76,6 +79,7 @@ export function VoiceInput({
   const { supported, isRecording, toggle } = useSpeechRecognition({
     onTranscript,
     onInterimTranscript,
+    onEnd,
     lang,
     onError: (error) => {
       if (error === 'not-allowed') setDenied(true)
@@ -142,6 +146,9 @@ export function VoiceInput({
               ...(noticePos ?? { position: 'fixed', top: 0, left: 0 }),
               // Hide until measured so it can't flash at the wrong spot.
               visibility: noticePos ? 'visible' : 'hidden',
+              // It floats over page content for 5s at document level — never
+              // let it swallow a tap meant for whatever is underneath.
+              pointerEvents: 'none',
             }}
             className="z-50 whitespace-nowrap rounded-md border border-border-default bg-card-bg px-3 py-2 text-xs text-text-secondary shadow-lg"
           >

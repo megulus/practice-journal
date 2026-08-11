@@ -8,6 +8,7 @@ import {
   TextArea,
   VoiceInput,
   useDictation,
+  useSerializedSave,
 } from '@/components/ui'
 import type { BlockLog, Rating } from '@/lib/types'
 
@@ -29,7 +30,6 @@ export function BlockRow({
   const api = useApi()
   const [showNotes, setShowNotes] = useState(!!blockLog.notes)
   const [notes, setNotes] = useState(blockLog.notes ?? '')
-  const [savingNotes, setSavingNotes] = useState(false)
 
   const handleToggleCompleted = async () => {
     await api.updateBlockLog(logId, blockLog.id, {
@@ -46,16 +46,15 @@ export function BlockRow({
     onUpdate()
   }
 
-  const saveNotes = useCallback(
-    async (value: string) => {
-      setSavingNotes(true)
-      try {
+  // Dictation queues a save per finalized phrase, so these are serialized:
+  // concurrent PATCHes to the same row have no guaranteed apply order.
+  const { save: saveNotes, saving: savingNotes } = useSerializedSave(
+    useCallback(
+      async (value: string) => {
         await api.updateBlockLog(logId, blockLog.id, { notes: value })
-      } finally {
-        setSavingNotes(false)
-      }
-    },
-    [api, logId, blockLog.id],
+      },
+      [api, logId, blockLog.id],
+    ),
   )
 
   const handleSaveNotes = useCallback(

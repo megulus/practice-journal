@@ -14,11 +14,11 @@ export interface UseDictationOptions {
    * would write the *pre*-dictation value and never fire again (focus stays on
    * the mic), losing dictated text that typed text would have kept.
    */
-  onCommit?: (next: string) => void
+  onCommit?: (next: string) => void | Promise<unknown>
 }
 
 export interface DictationBinding {
-  /** Value to render in the field: committed text plus any live interim text. */
+  /** Value to render in the field: committed text plus any live preview. */
   value: string
   /** Wire to the field's change handler, in place of the raw setState. */
   onChange: (next: string) => void
@@ -26,21 +26,83 @@ export interface DictationBinding {
   voiceProps: {
     onTranscript: (text: string) => void
     onInterimTranscript: (text: string) => void
+    onEnd: () => void
   }
+}
+
+/**
+ * Re-derive the committed value after the user edits a field that is showing
+ * an interim preview.
+ *
+ * The preview is a trailing overlay on the *displayed* text and must never
+ * become part of the committed value. The edit is treated as one replacement:
+ * the untouched head and tail around it fall out of the longest common prefix
+ * and suffix, and the result keeps only characters that came from the
+ * committed region (indices `< committedLength`) plus whatever the user
+ * actually inserted. Overlay characters are dropped wherever they survived.
+ *
+ * With no overlay (`committedLength === displayed.length`) this reconstructs
+ * `next` exactly, so it is safe to run on every change.
+ *
+ * Exported for direct testing.
+ */
+export function stripPreview(
+  displayed: string,
+  next: string,
+  committedLength: number,
+): string {
+  const displayLength = displayed.length
+
+  let prefix = 0
+  while (
+    prefix < displayLength &&
+    prefix < next.length &&
+    displayed[prefix] === next[prefix]
+  ) {
+    prefix++
+  }
+
+  let suffix = 0
+  while (
+    suffix < displayLength - prefix &&
+    suffix < next.length - prefix &&
+    displayed[displayLength - 1 - suffix] === next[next.length - 1 - suffix]
+  ) {
+    suffix++
+  }
+
+  const head = displayed.slice(0, Math.min(prefix, committedLength))
+  const inserted = next.slice(prefix, next.length - suffix)
+  // Surviving tail characters only count when they came from the committed
+  // region; anything at index >= committedLength is overlay.
+  const tailStart = displayLength - suffix
+  const tail = tailStart < committedLength
+    ? displayed.slice(tailStart, committedLength)
+    : ''
+
+  return head + inserted + tail
 }
 
 /**
  * Streams speech into a text field (design-tokens §6: "text streams into the
  * field as it's recognized").
  *
- * Interim results are held separately from the committed value and rendered as
- * a trailing preview, so when the engine finalizes a chunk the preview is
- * **replaced** rather than appended twice.
+ * The ownership rule is that **interim text is an ephemeral overlay that never
+ * merges into the committed value**. It is held in separate state and rendered
+ * as a trailing preview; a finalized chunk always appends to the committed
+ * value, so a final that extends its own preview keeps every word. Because
+ * nothing is ever provisionally merged, there is no pending-chunk suppression
+ * to get out of sync — an edit made mid-preview can't swallow words from a
+ * later utterance.
  *
- * If the user types while a preview is showing, their edit wins: what they see
- * becomes the committed value and the interim preview is dropped. The final
- * chunk for that preview is then suppressed, since its words are already in
- * the field — otherwise the phrase would land a second time.
+ * A user edit during a preview discards only that preview (see
+ * {@link stripPreview}); the edit itself applies to the committed value.
+ *
+ * When a session ends without finalizing — stopped early, `no-speech`,
+ * `network` — the preview is unconfirmed text that never belonged to the
+ * value, so it is dropped rather than flushed. Every persistence path (blur,
+ * the Finish flush, form submits) reads the committed value, and this keeps
+ * them all in agreement.
  */
 export function useDictation({
   value,
@@ -56,21 +118,18 @@ export function useDictation({
   const interimRef = useRef(interim)
   interimRef.current = interim
 
-  // Set when the user edits over a preview: the matching final chunk is
-  // already in the field and must not be appended again.
-  const skipNextFinal = useRef(false)
-
   const handleTranscript = useCallback(
     (text: string) => {
       setInterim('')
-      if (skipNextFinal.current) {
-        skipNextFinal.current = false
-        return
-      }
       const next = appendTranscript(valueRef.current, text)
       valueRef.current = next
       onChange(next)
-      onCommit?.(next)
+      // A failed background save isn't fatal — blur and the Finish flush
+      // retry — but it must not surface as an unhandled rejection.
+      const saved = onCommit?.(next)
+      if (saved && typeof (saved as Promise<unknown>).catch === 'function') {
+        ;(saved as Promise<unknown>).catch(() => {})
+      }
     },
     [onChange, onCommit],
   )
@@ -79,14 +138,18 @@ export function useDictation({
     setInterim(text)
   }, [])
 
+  const handleEnd = useCallback(() => {
+    setInterim('')
+  }, [])
+
   const handleChange = useCallback(
-    (next: string) => {
-      if (interimRef.current) {
-        // The preview was visible in what the user just edited, so it's part
-        // of `next` now. Drop the preview and ignore its final chunk.
-        setInterim('')
-        skipNextFinal.current = true
-      }
+    (nextDisplayed: string) => {
+      const committed = valueRef.current
+      const shown = interimRef.current
+        ? appendTranscript(committed, interimRef.current)
+        : committed
+      const next = stripPreview(shown, nextDisplayed, committed.length)
+      if (interimRef.current) setInterim('')
       valueRef.current = next
       onChange(next)
     },
@@ -99,6 +162,7 @@ export function useDictation({
     voiceProps: {
       onTranscript: handleTranscript,
       onInterimTranscript: handleInterim,
+      onEnd: handleEnd,
     },
   }
 }

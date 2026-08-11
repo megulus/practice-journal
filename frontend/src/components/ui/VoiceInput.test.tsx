@@ -7,6 +7,7 @@ import {
   uninstallSpeechMock,
 } from '@/test/speechMock'
 import { VoiceInput, appendTranscript } from './VoiceInput'
+import { stripPreview } from './useDictation'
 
 beforeEach(installSpeechMock)
 afterEach(uninstallSpeechMock)
@@ -120,6 +121,37 @@ describe('VoiceInput', () => {
     expect(
       screen.getByRole('button', { name: 'Start voice input' }),
     ).toHaveAttribute('aria-pressed', 'false')
+  })
+})
+
+describe('stripPreview', () => {
+  // `displayed` is committed + overlay; committedLength marks the boundary.
+  it('drops the overlay when the edit lands before it', () => {
+    // "bar 12" committed, " still rushing" overlay; user fixes 12 -> 14.
+    expect(
+      stripPreview('bar 12 still rushing', 'bar 14 still rushing', 6),
+    ).toBe('bar 14')
+  })
+
+  it('drops the overlay when the user appends past it', () => {
+    expect(stripPreview('hello world', 'hello world there', 5)).toBe(
+      'hello there',
+    )
+  })
+
+  it('keeps a deletion that only touches committed text', () => {
+    expect(stripPreview('hello world', 'ello world', 5)).toBe('ello')
+  })
+
+  it('handles the field being cleared outright', () => {
+    expect(stripPreview('hello world', '', 5)).toBe('')
+  })
+
+  it('reconstructs the edit exactly when there is no overlay', () => {
+    // committedLength === displayed.length — safe to run on every change.
+    expect(stripPreview('hello', 'hello!', 5)).toBe('hello!')
+    expect(stripPreview('hello', 'hallo', 5)).toBe('hallo')
+    expect(stripPreview('hello', 'ello', 5)).toBe('ello')
   })
 })
 

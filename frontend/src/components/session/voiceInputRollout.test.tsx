@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act } from '@testing-library/react'
+import { act, fireEvent } from '@testing-library/react'
 import { render, screen, userEvent } from '@/test/utils'
 import {
   installSpeechMock,
@@ -486,8 +486,28 @@ describe('interim transcription', () => {
     expect(field).toHaveValue('the octaves finally')
 
     // Finalizing REPLACES the preview rather than appending it a second time.
-    act(() => dictate('the octaves finally locked in'))
+    await act(async () => {
+      dictate('the octaves finally locked in')
+    })
     expect(field).toHaveValue('the octaves finally locked in')
+  })
+
+  it('keeps every word when a final extends its own preview', async () => {
+    const user = userEvent.setup()
+    render(
+      <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />,
+    )
+    const field = screen.getByPlaceholderText(/^Notes —/)
+
+    await user.click(screen.getByRole('button', { name: 'Dictate session notes' }))
+    act(() => dictateInterim('slow practice'))
+
+    // The preview never merged, so the longer final lands whole — the words
+    // it added beyond the preview are not lost.
+    await act(async () => {
+      dictate('slow practice today with the metronome')
+    })
+    expect(field).toHaveValue('slow practice today with the metronome')
   })
 
   it('only persists finalized text, never the interim preview', async () => {
@@ -500,13 +520,15 @@ describe('interim transcription', () => {
     act(() => dictateInterim('half a thought'))
     expect(mockApi.updatePractice).not.toHaveBeenCalled()
 
-    act(() => dictate('a whole thought'))
+    await act(async () => {
+      dictate('a whole thought')
+    })
     expect(mockApi.updatePractice).toHaveBeenLastCalledWith(3, {
       notes: 'a whole thought',
     })
   })
 
-  it('keeps a user edit made over a live preview, without duplicating the phrase', async () => {
+  it('drops only the preview when the user edits the committed text under it', async () => {
     const user = userEvent.setup()
     render(
       <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />,
@@ -514,17 +536,76 @@ describe('interim transcription', () => {
     const field = screen.getByPlaceholderText(/^Notes —/)
 
     await user.click(screen.getByRole('button', { name: 'Dictate session notes' }))
+    await act(async () => {
+      dictate('bar 12')
+    })
+    act(() => dictateInterim('still rushing'))
+    expect(field).toHaveValue('bar 12 still rushing')
+
+    // The user corrects the committed part while the preview is live.
+    fireEvent.change(field, { target: { value: 'bar 14 still rushing' } })
+
+    // Their edit survives; the ephemeral preview does not.
+    expect(field).toHaveValue('bar 14')
+
+    // And the final still lands in full — nothing was swallowed.
+    await act(async () => {
+      dictate('still rushing')
+    })
+    expect(field).toHaveValue('bar 14 still rushing')
+  })
+
+  it('does not let an edit mid-preview swallow a later, separate dictation', async () => {
+    const user = userEvent.setup()
+    render(
+      <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />,
+    )
+    const field = screen.getByPlaceholderText(/^Notes —/)
+
+    // Session 1: the user edits over a live preview, which then never
+    // finalizes — the engine gives up instead.
+    await user.click(screen.getByRole('button', { name: 'Dictate session notes' }))
+    await act(async () => {
+      dictate('warm up')
+    })
     act(() => dictateInterim('slow practice'))
-    expect(field).toHaveValue('slow practice')
+    fireEvent.change(field, { target: { value: 'warm ups slow practice' } })
+    expect(field).toHaveValue('warm ups')
+    act(() => MockSpeechRecognition.last!.emitError('no-speech'))
 
-    // The user edits over the preview — their text wins.
-    await user.type(field, ' helped')
-    expect(field).toHaveValue('slow practice helped')
+    // Session 2, later: its first finalized chunk belongs to a different
+    // utterance and must not be discarded on account of that earlier edit.
+    await user.click(screen.getByRole('button', { name: 'Dictate session notes' }))
+    await act(async () => {
+      dictate('completely different words')
+    })
 
-    // The final chunk for that preview is already in the field, so it must
-    // not land a second time.
-    act(() => dictate('slow practice'))
-    expect(field).toHaveValue('slow practice helped')
+    expect(field).toHaveValue('warm ups completely different words')
+  })
+
+  it('clears a stranded preview when recognition ends without finalizing', async () => {
+    const user = userEvent.setup()
+    render(
+      <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />,
+    )
+    const field = screen.getByPlaceholderText(/^Notes —/)
+
+    await user.click(screen.getByRole('button', { name: 'Dictate session notes' }))
+    await act(async () => {
+      dictate('the committed part')
+    })
+    act(() => dictateInterim('a trailing preview'))
+    expect(field).toHaveValue('the committed part a trailing preview')
+
+    // The engine drops the session without finalizing. The preview is
+    // unconfirmed text that no persistence path would have written, so it
+    // must not be left stranded in the field.
+    act(() => MockSpeechRecognition.last!.emitError('network'))
+
+    expect(field).toHaveValue('the committed part')
+    expect(mockApi.updatePractice).toHaveBeenLastCalledWith(3, {
+      notes: 'the committed part',
+    })
   })
 })
 

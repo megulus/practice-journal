@@ -2,7 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
-import { TextArea, VoiceInput, useDictation } from '@/components/ui'
+import {
+  TextArea,
+  VoiceInput,
+  useDictation,
+  useSerializedSave,
+} from '@/components/ui'
 
 // ---------------------------------------------------------------------------
 // Session notes
@@ -20,11 +25,15 @@ export function SessionNotes({
   const api = useApi()
   const [notes, setNotes] = useState(initialNotes)
 
-  const saveNotes = useCallback(
-    async (value: string) => {
-      await api.updatePractice(logId, { notes: value || undefined })
-    },
-    [api, logId],
+  // Dictation queues a save per finalized phrase, so these are serialized:
+  // concurrent PATCHes to the same log have no guaranteed apply order.
+  const { save: saveNotes } = useSerializedSave(
+    useCallback(
+      async (value: string) => {
+        await api.updatePractice(logId, { notes: value || undefined })
+      },
+      [api, logId],
+    ),
   )
 
   const handleSave = useCallback(() => saveNotes(notes), [saveNotes, notes])

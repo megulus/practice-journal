@@ -75,6 +75,12 @@ export interface UseSpeechRecognitionOptions {
   onInterimTranscript?: (text: string) => void
   /** Recognition errors, normalized. Optional. */
   onError?: (error: VoiceInputError) => void
+  /**
+   * Fired once when a session ends for any reason — user stop, engine
+   * timeout, or error. Consumers holding transient per-session state (an
+   * interim preview) must reset it here, or it strands on screen.
+   */
+  onEnd?: () => void
   /** BCP-47 language tag. Defaults to `en-US`. */
   lang?: string
 }
@@ -175,12 +181,16 @@ export function useSpeechRecognition(
       if (recognitionRef.current === recognition) recognitionRef.current = null
       if (activeSession === selfRef.current) activeSession = null
       optsRef.current.onError?.(normalizeError(e.error))
+      // The engine also fires `end` after `error`, but the identity guard in
+      // onend will skip it now that the ref is cleared — so signal from here.
+      optsRef.current.onEnd?.()
       setIsRecording(false)
     }
     recognition.onend = () => {
       if (recognitionRef.current === recognition) {
         recognitionRef.current = null
         if (activeSession === selfRef.current) activeSession = null
+        optsRef.current.onEnd?.()
         setIsRecording(false)
       }
     }
