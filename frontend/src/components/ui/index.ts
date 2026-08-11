@@ -4,6 +4,9 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './Button'
 export { Pill } from './Pill'
 export type { PillProps } from './Pill'
 
+export { PillRadioGroup } from './PillRadioGroup'
+export type { PillRadioGroupProps, PillRadioOption } from './PillRadioGroup'
+
 export { Checkbox } from './Checkbox'
 export type { CheckboxProps } from './Checkbox'
 
@@ -49,8 +52,14 @@ export type {
   AutoSaveFieldBinding,
 } from './useAutoSaveField'
 
-export { VoiceInput } from './VoiceInput'
+export { VoiceInput, appendTranscript } from './VoiceInput'
 export type { VoiceInputProps } from './VoiceInput'
+
+export { useDictation, stripPreview } from './useDictation'
+export type { UseDictationOptions, DictationBinding } from './useDictation'
+
+export { useSerializedSave } from './useSerializedSave'
+export type { SerializedSave } from './useSerializedSave'
 
 export { useSpeechRecognition } from './useSpeechRecognition'
 export type {

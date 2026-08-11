@@ -8,9 +8,9 @@ import TimeStepper from './ui/TimeStepper'
 /**
  * Standard (non-repertoire) block row in the template editor.
  *
- * Repertoire blocks (piece_id != null) are rendered by a separate component
- * landing in #167 — for now this row falls back to displaying piece_name if it
- * encounters one, but does not attempt the spot-management drawer.
+ * Repertoire blocks (piece_id != null) are rendered by `RepertoireBlockRow`,
+ * which `SectionCard` picks between. This row still falls back to piece_name
+ * if it is handed one, but a repertoire block should never reach it.
  */
 export default function BlockRow({
   block,

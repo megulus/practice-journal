@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useApi } from '@/lib/useApi'
-import { Button, TextInput } from '@/components/ui'
+import { Button, TextInput, VoiceInput, useDictation } from '@/components/ui'
 import type { SectionType } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -20,6 +20,9 @@ export function AddSectionButton({
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [type, setType] = useState<SectionType>('other')
+
+  // Form field: committed on submit, so no onCommit persistence here.
+  const dictation = useDictation({ value: name, onChange: setName })
 
   const sectionTypes: { value: SectionType; label: string }[] = [
     { value: 'warmup', label: 'Warm-up' },
@@ -61,12 +64,16 @@ export function AddSectionButton({
       onSubmit={handleSubmit}
       className="bg-card-bg rounded-xl border border-border-default p-4 space-y-3"
     >
-      <TextInput
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Section name..."
-        autoFocus
-      />
+      <div className="flex items-center gap-2">
+        <TextInput
+          value={dictation.value}
+          onChange={(e) => dictation.onChange(e.target.value)}
+          placeholder="Section name..."
+          autoFocus
+          className="flex-1 min-w-0"
+        />
+        <VoiceInput {...dictation.voiceProps} aria-label="Dictate section name" />
+      </div>
       <div className="flex flex-wrap gap-2">
         {sectionTypes.map((st) => (
           <button

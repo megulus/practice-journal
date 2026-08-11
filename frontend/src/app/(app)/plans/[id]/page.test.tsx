@@ -97,6 +97,54 @@ const template: Template = {
   ],
 }
 
+/**
+ * The same plan with a repertoire block (piece_id set, two default spots)
+ * alongside the standard one — #283's editor surface.
+ */
+function withRepertoireBlock(defaultSpotCount: number): Template {
+  const [session] = template.sessions
+  const [section] = session.sections
+  return {
+    ...template,
+    sessions: [
+      {
+        ...session,
+        sections: [
+          {
+            ...section,
+            blocks: [
+              ...section.blocks,
+              {
+                id: 2000,
+                name: null,
+                description: null,
+                estimated_duration_minutes: 10,
+                tempo_bpm: null,
+                key: null,
+                difficulty_level: null,
+                display_order: 1,
+                curated_block_id: null,
+                piece_id: 7,
+                piece_name: 'Bach Partita',
+                default_spots: Array.from(
+                  { length: defaultSpotCount },
+                  (_, i) => ({
+                    id: 3000 + i,
+                    name: `Spot ${i + 1}`,
+                    location: null,
+                    display_order: i,
+                  }),
+                ),
+              },
+            ],
+          },
+        ],
+      },
+      ...template.sessions.slice(1),
+    ],
+  }
+}
+
 /** Open an overflow menu and pick an item from it. */
 async function chooseFromMenu(
   user: ReturnType<typeof userEvent.setup>,
@@ -132,6 +180,47 @@ describe('TemplateEditorPage — destructive confirmations', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(mocks.deleteBlock).toHaveBeenCalledWith(1000))
+  })
+
+  // A repertoire block is the piece's slot in this plan, not the piece.
+  // delete_block hard-deletes the block row and its default-spot links; the
+  // Piece and Spot rows are untouched, so the copy has to say which one goes.
+  it('confirms a repertoire block delete without implying the piece goes', async () => {
+    const user = userEvent.setup()
+    mocks.getTemplate.mockResolvedValue(withRepertoireBlock(2))
+    await renderEditor()
+
+    await chooseFromMenu(user, 'Bach Partita actions', 'Delete')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('Delete “Bach Partita”?')
+    expect(dialog).toHaveTextContent(
+      'This deletes the repertoire block “Bach Partita”.',
+    )
+    expect(dialog).toHaveTextContent(
+      'Deleting it also removes its 2 default spots.',
+    )
+    expect(dialog).toHaveTextContent(
+      'The piece and its spots stay in your repertoire.',
+    )
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(mocks.deleteBlock).toHaveBeenCalledWith(2000))
+  })
+
+  it('omits the spot cascade for a repertoire block with no defaults', async () => {
+    const user = userEvent.setup()
+    mocks.getTemplate.mockResolvedValue(withRepertoireBlock(0))
+    await renderEditor()
+
+    await chooseFromMenu(user, 'Bach Partita actions', 'Delete')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).not.toHaveTextContent('0 default spot')
+    // The reassurance holds whether or not there were defaults.
+    expect(dialog).toHaveTextContent(
+      'The piece and its spots stay in your repertoire.',
+    )
   })
 
   it('leaves the block alone when the confirm is cancelled', async () => {

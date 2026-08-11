@@ -8,12 +8,13 @@ import type {
   Template,
   TemplateSession,
   Section,
-  StandardBlockCreate,
+  BlockCreate,
   SectionType,
 } from '@/lib/types'
 import SessionTabs from '@/components/SessionTabs'
 import SectionCard from '@/components/SectionCard'
 import AddBlockSheet from '@/components/AddBlockSheet'
+import { SpotManagementDrawer } from '@/components/repertoire'
 import { AutoSaveInput, Button, ConfirmDialog, Pill } from '@/components/ui'
 import { getSectionColor } from '@/lib/section-colors'
 import {
@@ -38,6 +39,7 @@ export default function TemplateEditorPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [addBlockSectionId, setAddBlockSectionId] = useState<number | null>(null)
+  const [spotDrawerBlockId, setSpotDrawerBlockId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{
     kind: 'template' | 'session' | 'section' | 'block'
@@ -199,7 +201,7 @@ export default function TemplateEditorPage() {
     await refresh()
   }
 
-  const addBlock = async (sectionId: number, data: StandardBlockCreate) => {
+  const addBlock = async (sectionId: number, data: BlockCreate) => {
     await api.createBlock(sectionId, data)
     await refresh()
   }
@@ -279,6 +281,10 @@ export default function TemplateEditorPage() {
   const addBlockSection = selectedSession?.sections.find(
     (s) => s.id === addBlockSectionId
   )
+
+  const spotDrawerBlock = selectedSession?.sections
+    .flatMap((s) => s.blocks)
+    .find((b) => b.id === spotDrawerBlockId)
 
   // Section pip colors: pinned warm-up/cool-down plus the pool by display order.
   let nonPinnedIndex = 0
@@ -447,13 +453,29 @@ export default function TemplateEditorPage() {
                     onChangeBlockDuration={setBlockDuration}
                     onDeleteBlock={(blockId) => {
                       const block = section.blocks.find((b) => b.id === blockId)
+                      const isRepertoire = block?.piece_id != null
+                      const spotCount = block?.default_spots?.length ?? 0
                       setConfirmDelete({
                         kind: 'block',
-                        noun: 'block',
+                        // A repertoire block is the piece's slot in this plan,
+                        // not the piece. Deleting it drops the block row and
+                        // its default-spot links; the piece and its spots stay
+                        // in the library. Say so — "delete the block Bach
+                        // Partita" otherwise reads like the piece is going.
+                        noun: isRepertoire ? 'repertoire block' : 'block',
                         id: blockId,
                         label: block?.name ?? block?.piece_name ?? 'block',
+                        cascade: isRepertoire
+                          ? [
+                              ...(spotCount
+                                ? [alsoRemoves(spotCount, 'default spot')]
+                                : []),
+                              'The piece and its spots stay in your repertoire.',
+                            ]
+                          : undefined,
                       })
                     }}
+                    onOpenBlockSpots={setSpotDrawerBlockId}
                   />
                 )
               })}
@@ -477,6 +499,19 @@ export default function TemplateEditorPage() {
           instrumentId={instrument.id}
           onAdd={(data) => addBlock(addBlockSection.id, data)}
           onClose={() => setAddBlockSectionId(null)}
+        />
+      )}
+
+      {/* Spot management drawer (repertoire blocks) */}
+      {spotDrawerBlock?.piece_id != null && (
+        <SpotManagementDrawer
+          key={spotDrawerBlock.id}
+          blockId={spotDrawerBlock.id}
+          pieceId={spotDrawerBlock.piece_id}
+          pieceName={spotDrawerBlock.piece_name ?? 'Piece'}
+          defaultSpots={spotDrawerBlock.default_spots ?? []}
+          onChange={refresh}
+          onClose={() => setSpotDrawerBlockId(null)}
         />
       )}
 
