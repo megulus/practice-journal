@@ -61,6 +61,9 @@ export function SpotManagementDrawer({
   } | null>(null)
   // Spots un-retired during this drawer session — same idea, for `bringBack`.
   const unretired = useRef<Set<number>>(new Set())
+  // Spots already written into this block's defaults, so a retry after a
+  // failed post-write refetch doesn't re-send the add and 409.
+  const addedToDefaults = useRef<Set<number>>(new Set())
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const addSpotRef = useRef<HTMLButtonElement>(null)
@@ -115,9 +118,21 @@ export function SpotManagementDrawer({
     pendingFocus.current = 'addSpot'
   }
 
+  /**
+   * Adds a spot to the defaults at most once per drawer session. Every write
+   * here is followed by unguarded refetches (`loadPiece`, and `onChange`,
+   * which is a bare `getTemplate` in the editor page); if one of those
+   * rejects, the whole step is retried, and an unguarded re-add would 409.
+   */
+  const ensureDefault = async (spotId: number) => {
+    if (addedToDefaults.current.has(spotId)) return
+    await api.addDefaultSpot(blockId, spotId)
+    addedToDefaults.current.add(spotId)
+  }
+
   const addToDefaults = (spot: Spot) =>
     run(async () => {
-      await api.addDefaultSpot(blockId, spot.id)
+      await ensureDefault(spot.id)
       await onChange()
       // Stay in the search: "one tap, no confirmation" means a second and third
       // spot shouldn't cost a reopen and a retype. The row just tapped moves to
@@ -136,7 +151,7 @@ export function SpotManagementDrawer({
         // again, so the search should stop calling it retired.
         await loadPiece()
       }
-      await api.addDefaultSpot(blockId, spot.id)
+      await ensureDefault(spot.id)
       await onChange()
       setConfirming(null)
       backToList()
@@ -165,10 +180,13 @@ export function SpotManagementDrawer({
         })
         setCreatedSpot({ ...values, id })
       }
-      await api.addDefaultSpot(blockId, id)
-      setCreatedSpot(null)
+      await ensureDefault(id)
       await loadPiece()
       await onChange()
+      // Only once every write *and* refetch has landed: clearing it any
+      // earlier means a refetch failure discards the resume state, and the
+      // retry creates a second identical spot.
+      setCreatedSpot(null)
       backToList()
     })
   }
@@ -186,6 +204,8 @@ export function SpotManagementDrawer({
   const removeFromDefaults = (spotId: number) =>
     run(async () => {
       await api.removeDefaultSpot(blockId, spotId)
+      // It's out of the defaults again, so a later add has to be re-sent.
+      addedToDefaults.current.delete(spotId)
       await onChange()
     })
 
@@ -437,6 +457,7 @@ function SpotSearchResults({
   }
   if (active.length === 0 && retired.length === 0 && added.length === 0) {
     return (
+      // 24px has no spacing token; keeping the raw value.
       <p className="py-6 text-center text-sm text-text-tertiary">
         No other spots on this piece.
       </p>

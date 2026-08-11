@@ -273,6 +273,53 @@ describe('SpotManagementDrawer', () => {
     expect(mockAddDefaultSpot).toHaveBeenLastCalledWith(10, 99)
   })
 
+  it('does not re-create the spot when the post-write refetch is what failed', async () => {
+    const user = userEvent.setup()
+    // Both writes land; the refresh that follows them doesn't. Discarding the
+    // resume state before this point would make the retry create a duplicate.
+    const onChange = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValue(undefined)
+    renderDrawer({ onChange })
+
+    await search(user, 'cadenza')
+    await user.click(await screen.findByRole('button', { name: /Create .cadenza/ }))
+    await user.click(await screen.findByRole('button', { name: 'Create' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/didn't save/)
+
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(screen.getByText('Default spots')).toBeInTheDocument())
+    expect(mockCreateSpot).toHaveBeenCalledTimes(1)
+    // The add already succeeded too, so re-sending it would only 409.
+    expect(mockAddDefaultSpot).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not re-add on retry when the refresh after bringing a spot back failed', async () => {
+    const user = userEvent.setup()
+    const onChange = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValue(undefined)
+    renderDrawer({ onChange })
+
+    await search(user, 'de')
+    await user.click(
+      screen.getByRole('button', { name: /descending arpeggios drill/ }),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Bring back' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/didn't save/)
+
+    await user.click(screen.getByRole('button', { name: 'Bring back' }))
+
+    await waitFor(() => expect(screen.getByText('Default spots')).toBeInTheDocument())
+    expect(mockUnretireSpot).toHaveBeenCalledTimes(1)
+    expect(mockAddDefaultSpot).toHaveBeenCalledTimes(1)
+  })
+
   it('carries an edit made before the retry onto the spot it already created', async () => {
     const user = userEvent.setup()
     mockAddDefaultSpot.mockRejectedValueOnce(new Error('boom'))
