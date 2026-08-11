@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, TextInput } from '@/components/ui'
+import { Button, TextInput, VoiceInput } from '@/components/ui'
 import { LocationInput } from './LocationInput'
 
 export interface SpotFormValues {
@@ -51,13 +51,23 @@ export function SpotEditForm({
       onSubmit={handleSubmit}
       className="space-y-md rounded-lg bg-card-bg-inset p-md"
     >
-      <TextInput
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Spot name"
-        aria-label="Spot name"
-        autoFocus
-      />
+      <div className="relative">
+        <TextInput
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Spot name"
+          aria-label="Spot name"
+          className="pr-11"
+          autoFocus
+        />
+        <VoiceInput
+          aria-label="Spot name by voice"
+          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+          onTranscript={(text) =>
+            setName((prev) => (prev ? `${prev} ${text}` : text))
+          }
+        />
+      </div>
       <LocationInput value={location} onChange={setLocation} />
       <div className="flex gap-sm">
         <Button type="submit" size="sm" disabled={busy || !name.trim()}>
