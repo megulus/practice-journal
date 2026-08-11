@@ -134,30 +134,33 @@ export default function SessionSummaryPage() {
           How it went
         </h2>
         <div className="space-y-2">
+          {/* Dot colors are the rating-state *icon* tokens, matching the
+              History list — see components/progress/ratingDisplay.ts for why
+              the border tokens don't work as a solid fill. */}
           {ratings.step_forward > 0 && (
             <RatingRow
-              color="bg-rating-forward-border"
+              color="bg-rating-forward-icon"
               label="Step forward"
               count={ratings.step_forward}
             />
           )}
           {ratings.steady > 0 && (
             <RatingRow
-              color="bg-rating-steady-border"
+              color="bg-rating-steady-icon"
               label="Steady"
               count={ratings.steady}
             />
           )}
           {ratings.step_back > 0 && (
             <RatingRow
-              color="bg-rating-back-border"
+              color="bg-rating-back-icon"
               label="Step back"
               count={ratings.step_back}
             />
           )}
           {ratings.skipped > 0 && (
             <RatingRow
-              color="bg-rating-unselected-border"
+              color="bg-rating-unselected-icon"
               label="Skipped"
               count={ratings.skipped}
             />

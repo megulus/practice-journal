@@ -63,3 +63,23 @@ export function formatSessionDate(dateStr: string): string {
     year: 'numeric',
   })
 }
+
+/**
+ * Date label for a Progress → History row (a `YYYY-MM-DD` `practice_date`).
+ * Always carries the calendar date so a session is identifiable at a glance,
+ * with a relative prefix for the last two days:
+ * "Today, Mar 23" / "Yesterday, Mar 22" / "Sat, Mar 21" / "Sat, Mar 21, 2025".
+ */
+export function formatHistoryDate(dateStr: string): string {
+  const [y, m, day] = dateStr.split('-').map(Number)
+  if (!y || !m || !day) return dateStr
+  const d = new Date(y, m - 1, day)
+  const now = new Date()
+  const diff = calendarDayDiff(d, now)
+  const monthDay = d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  if (diff === 0) return `Today, ${monthDay}`
+  if (diff === 1) return `Yesterday, ${monthDay}`
+  const weekday = d.toLocaleDateString([], { weekday: 'short' })
+  const year = d.getFullYear() === now.getFullYear() ? '' : `, ${d.getFullYear()}`
+  return `${weekday}, ${monthDay}${year}`
+}
