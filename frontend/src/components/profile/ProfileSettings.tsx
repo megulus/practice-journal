@@ -36,6 +36,13 @@ const SUGGESTION_OPTIONS: {
   },
 ]
 
+/**
+ * How long a run of preference changes has to settle before it's written.
+ * Long enough to swallow a held arrow key, short enough that a click feels
+ * saved by the time the eye leaves the control.
+ */
+const SAVE_DEBOUNCE_MS = 350
+
 const DURATION_OPTIONS = [15, 30, 45, 60].map((minutes) => ({
   value: minutes,
   label: `${minutes} min`,
@@ -62,8 +69,9 @@ const THEME_OPTIONS: {
  * one fetch and one save path rather than each owning a copy.
  *
  * Writes are optimistic — a preference toggle should feel instant — and
- * resync to the server's value if the PATCH fails. Saves are issued one at a
- * time (see `pending` below) so rapid toggling can't leave the two out of step.
+ * resync to the server's value if the PATCH fails. Saves are debounced (see
+ * `save`) and then issued one at a time (see `pending`) so rapid toggling can't
+ * leave the two out of step.
  */
 export function ProfileSettings() {
   const api = useApi()
@@ -76,10 +84,13 @@ export function ProfileSettings() {
   // Chaining keeps both orders honest; the optimistic paint means nobody waits.
   const pending = useRef<Promise<void>>(Promise.resolve())
   // How many saves are queued or in flight. Only the last one may paint the
-  // server's document: an earlier response was composed before the later
-  // click happened, so painting it would flash the older value back for a
-  // round trip before the later save's response corrected it.
+  // server's document (see `isLastWord`): an earlier response was composed
+  // before the later click happened, so painting it would flash the older
+  // value back for a round trip before the later save's response corrected it.
   const outstanding = useRef(0)
+  // The debounce timer and the patch it will send when it fires.
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const queued = useRef<UserSettingsUpdate>({})
 
   const load = useCallback(async () => {
     try {
@@ -94,13 +105,19 @@ export function ProfileSettings() {
     load()
   }, [load])
 
-  const save = (patch: UserSettingsUpdate) => {
-    setSettings((current) => (current ? { ...current, ...patch } : current))
+  // Whether this save is still the user's last word. A response carries the
+  // whole settings document, so painting it once something newer exists —
+  // another save queued behind it, or a change still sitting in the debounce —
+  // would flash away a value the user has already seen applied.
+  const isLastWord = () =>
+    outstanding.current === 1 && Object.keys(queued.current).length === 0
+
+  const persist = (patch: UserSettingsUpdate) => {
     outstanding.current += 1
     pending.current = pending.current.then(async () => {
       try {
         const saved = await api.updateSettings(patch)
-        if (outstanding.current === 1) setSettings(saved)
+        if (isLastWord()) setSettings(saved)
         setError(null)
       } catch {
         setError("Couldn't save that change. Please try again.")
@@ -109,7 +126,7 @@ export function ProfileSettings() {
         // save that did land, silently reverting it. A later save still
         // queued will establish the truth itself, so only the last one reads.
         try {
-          if (outstanding.current === 1) setSettings(await api.getSettings())
+          if (isLastWord()) setSettings(await api.getSettings())
         } catch {
           // Leave the optimistic value; the banner already says it didn't save.
         }
@@ -117,6 +134,41 @@ export function ProfileSettings() {
         outstanding.current -= 1
       }
     })
+  }
+
+  /** Send whatever has been queued, if anything, and cancel the timer. */
+  const flush = () => {
+    if (debounce.current !== null) {
+      clearTimeout(debounce.current)
+      debounce.current = null
+    }
+    const patch = queued.current
+    queued.current = {}
+    if (Object.keys(patch).length > 0) persist(patch)
+  }
+
+  // The unmount effect must not resubscribe on every render, so it reads the
+  // latest flush through a ref rather than closing over one render's copy.
+  const flushRef = useRef(flush)
+  flushRef.current = flush
+
+  // Navigating away from Profile unmounts this; a queued change is a change the
+  // user already saw applied, so it goes out rather than being dropped.
+  useEffect(() => () => flushRef.current(), [])
+
+  const save = (patch: UserSettingsUpdate) => {
+    // Paint now, write later: the pill radiogroups select on every arrow press
+    // (selection follows focus, per the WAI-ARIA pattern), so persisting each
+    // change as it happens would PATCH once per keystroke. Coalescing by
+    // merging into one patch also means a run touching two different
+    // preferences settles into a single request.
+    setSettings((current) => (current ? { ...current, ...patch } : current))
+    queued.current = { ...queued.current, ...patch }
+    if (debounce.current !== null) clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => {
+      debounce.current = null
+      flushRef.current()
+    }, SAVE_DEBOUNCE_MS)
   }
 
   return (

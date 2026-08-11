@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { act } from 'react'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { ProfileSettings } from './ProfileSettings'
 import type { UserSettings } from '@/lib/types'
@@ -94,6 +95,57 @@ describe('ProfileSettings', () => {
     )
   })
 
+  it('collapses a run of arrow presses into one PATCH of the final value', async () => {
+    // Selection follows focus, so each arrow press is a change. Without the
+    // debounce, arrowing across the group writes once per keystroke.
+    const user = userEvent.setup()
+    render(<ProfileSettings />)
+    const checked = await screen.findByRole('radio', { name: '30 min' })
+    checked.focus()
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}') // 45 → 60 → 15
+
+    // The UI doesn't wait for the write.
+    expect(screen.getByRole('radio', { name: '15 min' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    expect(mockUpdate).toHaveBeenCalledWith({
+      default_session_duration_minutes: 15,
+    })
+  })
+
+  it('merges changes to different preferences into one PATCH', async () => {
+    const user = userEvent.setup()
+    render(<ProfileSettings />)
+    await user.click(await screen.findByRole('radio', { name: '45 min' }))
+    await user.click(screen.getByRole('radio', { name: 'Sunday' }))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    expect(mockUpdate).toHaveBeenCalledWith({
+      default_session_duration_minutes: 45,
+      week_starts_on: 'sunday',
+    })
+  })
+
+  it('flushes a queued save when the component unmounts', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<ProfileSettings />)
+    await user.click(await screen.findByRole('radio', { name: '45 min' }))
+    expect(mockUpdate).not.toHaveBeenCalled() // still inside the debounce
+
+    // Navigating away mid-debounce must not drop a change the user already saw
+    // applied. Flushing microtasks rather than waiting distinguishes this from
+    // the debounce simply firing later: no wall clock passes here.
+    unmount()
+    await act(async () => {})
+    expect(mockUpdate).toHaveBeenCalledWith({
+      default_session_duration_minutes: 45,
+    })
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+  })
+
   it('lands on the last choice when saves are toggled faster than they resolve', async () => {
     // Responses come back in reverse order: without serialization the stale
     // "45" response would win and the UI would disagree with the server.
@@ -107,11 +159,14 @@ describe('ProfileSettings', () => {
 
     const user = userEvent.setup()
     render(<ProfileSettings />)
+    // Let the first save leave the debounce before the second click, so the
+    // two are separate requests rather than one coalesced one.
     await user.click(await screen.findByRole('radio', { name: '45 min' }))
+    await waitFor(() => expect(resolvers).toHaveLength(1))
     await user.click(screen.getByRole('radio', { name: '60 min' }))
 
     // Only the first request is in flight; the second is queued behind it.
-    await waitFor(() => expect(resolvers).toHaveLength(1))
+    expect(resolvers).toHaveLength(1)
     resolvers[0]()
     await waitFor(() => expect(resolvers).toHaveLength(2))
     resolvers[1]()
@@ -125,10 +180,11 @@ describe('ProfileSettings', () => {
     expect(mockUpdate).toHaveBeenCalledTimes(2)
   })
 
-  it('does not flash an earlier response over a later click', async () => {
+  it('does not flash an earlier response over a later change', async () => {
     // Each PATCH response is the *whole* settings document, so the duration
     // save's response still carries week_starts_on: monday — the state before
-    // the Sunday click. Painting it would flip Sunday back for a round trip.
+    // the Sunday click, which at that point is still sitting in the debounce.
+    // Painting it would flip Sunday back for a round trip.
     const resolvers: Array<() => void> = []
     mockUpdate.mockImplementation(
       (patch: Partial<UserSettings>) =>
@@ -140,28 +196,27 @@ describe('ProfileSettings', () => {
     const user = userEvent.setup()
     render(<ProfileSettings />)
     await user.click(await screen.findByRole('radio', { name: '45 min' }))
-    await user.click(screen.getByRole('radio', { name: 'Sunday' }))
-
+    // Wait for the duration PATCH to leave the debounce, so the Sunday click
+    // lands as a separate change rather than being coalesced into it.
     await waitFor(() => expect(resolvers).toHaveLength(1))
+    await user.click(screen.getByRole('radio', { name: 'Sunday' }))
     resolvers[0]() // duration response lands, carrying the pre-Sunday week
-    await waitFor(() => expect(resolvers).toHaveLength(2))
 
+    // Waiting for the Sunday PATCH to go out gives any stale paint time to
+    // land, so this is a real observation rather than a check that got in
+    // first: both the optimistic Sunday and the saved 45 must still stand.
+    await waitFor(() => expect(resolvers).toHaveLength(2))
     expect(screen.getByRole('radio', { name: 'Sunday' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('radio', { name: '45 min' })).toHaveAttribute(
       'aria-checked',
       'true',
     )
 
     resolvers[1]()
-    await waitFor(() =>
-      expect(screen.getByRole('radio', { name: '45 min' })).toHaveAttribute(
-        'aria-checked',
-        'true',
-      ),
-    )
-    expect(screen.getByRole('radio', { name: 'Sunday' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
   })
 
   it('resyncs from the server and explains when a save fails', async () => {
