@@ -105,23 +105,23 @@ describe('HistoryList', () => {
     render(<HistoryList instrumentId={1} />)
     await screen.findByText('Technique focus')
 
-    await user.click(screen.getByRole('button', { name: 'This week' }))
+    await user.click(screen.getByRole('radio', { name: 'This week' }))
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
         period: 'week',
       }),
     )
-    expect(screen.getByRole('button', { name: 'This week' })).toHaveAttribute(
-      'aria-pressed',
+    expect(screen.getByRole('radio', { name: 'This week' })).toHaveAttribute(
+      'aria-checked',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'All sessions' })).toHaveAttribute(
-      'aria-pressed',
+    expect(screen.getByRole('radio', { name: 'All sessions' })).toHaveAttribute(
+      'aria-checked',
       'false',
     )
 
-    await user.click(screen.getByRole('button', { name: 'This month' }))
+    await user.click(screen.getByRole('radio', { name: 'This month' }))
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
@@ -147,7 +147,7 @@ describe('HistoryList', () => {
     await screen.findByText('Technique focus')
 
     mockGetHistory.mockResolvedValue(page([]))
-    await user.click(screen.getByRole('button', { name: 'This week' }))
+    await user.click(screen.getByRole('radio', { name: 'This week' }))
 
     expect(
       await screen.findByText('No sessions in this time range.'),
@@ -300,13 +300,32 @@ describe('HistoryList', () => {
     expect(await screen.findByText('Viola page two')).toBeInTheDocument()
   })
 
+  it('moves through the time-range filter with the arrow keys', async () => {
+    const user = userEvent.setup()
+    mockGetHistory.mockResolvedValue(page([makeItem()]))
+    render(<HistoryList instrumentId={1} />)
+    await screen.findByText('Technique focus')
+
+    // One tab stop on the checked option, arrows move and select from there.
+    screen.getByRole('radio', { name: 'All sessions' }).focus()
+    await user.keyboard('{ArrowRight}')
+
+    expect(screen.getByRole('radio', { name: 'This week' })).toHaveFocus()
+    await waitFor(() =>
+      expect(mockGetHistory).toHaveBeenLastCalledWith({
+        instrumentId: 1,
+        period: 'week',
+      }),
+    )
+  })
+
   it('keeps the selected time range when the instrument changes', async () => {
     const user = userEvent.setup()
     mockGetHistory.mockResolvedValue(page([makeItem()]))
     const { rerender } = render(<HistoryList instrumentId={1} />)
     await screen.findByText('Technique focus')
 
-    await user.click(screen.getByRole('button', { name: 'This month' }))
+    await user.click(screen.getByRole('radio', { name: 'This month' }))
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
@@ -321,8 +340,8 @@ describe('HistoryList', () => {
         period: 'month',
       }),
     )
-    expect(screen.getByRole('button', { name: 'This month' })).toHaveAttribute(
-      'aria-pressed',
+    expect(screen.getByRole('radio', { name: 'This month' })).toHaveAttribute(
+      'aria-checked',
       'true',
     )
   })

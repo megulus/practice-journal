@@ -5,6 +5,7 @@ import { Lightbulb, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 import {
   Button,
   Pill,
+  PillRadioGroup,
   Checkbox,
   Radio,
   TextInput,
@@ -63,6 +64,7 @@ function Showcase() {
   const [rating, setRating] = useState<Rating | null>(null)
   const [minutes, setMinutes] = useState(15)
   const [menuAction, setMenuAction] = useState('—')
+  const [pillChoice, setPillChoice] = useState(30)
 
   const sectionColorNames: SectionColorName[] = [
     'warmup',
@@ -126,6 +128,18 @@ function Showcase() {
           <Pill active>Active</Pill>
           <Pill disabled>Disabled</Pill>
         </Row>
+      </Section>
+
+      <Section title="PillRadioGroup (one tab stop, arrow keys)">
+        <PillRadioGroup
+          label="Preview duration"
+          options={[15, 30, 45, 60].map((value) => ({
+            value,
+            label: `${value} min`,
+          }))}
+          value={pillChoice}
+          onChange={setPillChoice}
+        />
       </Section>
 
       <Section title="Pill — sectionType (all colors)">
