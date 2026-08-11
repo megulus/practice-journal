@@ -27,6 +27,12 @@ type PendingAction = 'start' | 'save' | 'customize'
 export interface QuickStartWizardProps {
   /** Instruments the user already has (usually none). */
   instruments: Instrument[]
+  /**
+   * Where step 1 starts. Set when the wizard was opened from a specific
+   * instrument's card, so the plan lands on the one the user was looking at.
+   * Still editable — it's a starting point, not a lock.
+   */
+  initialSelection?: InstrumentSelection | null
   /** "Skip setup" — hand the user back to the ordinary Today content. */
   onSkip: () => void
   /** A plan was saved without starting a session; Today should reload. */
@@ -44,6 +50,7 @@ export interface QuickStartWizardProps {
  */
 export function QuickStartWizard({
   instruments,
+  initialSelection = null,
   onSkip,
   onSaved,
 }: QuickStartWizardProps) {
@@ -51,7 +58,9 @@ export function QuickStartWizard({
   const router = useRouter()
 
   const [step, setStep] = useState(1)
-  const [selection, setSelection] = useState<InstrumentSelection | null>(null)
+  const [selection, setSelection] = useState<InstrumentSelection | null>(
+    initialSelection,
+  )
   const [otherName, setOtherName] = useState('')
   const [goal, setGoal] = useState('')
   const [areas, setAreas] = useState<SectionType[]>(DEFAULT_AREA_TYPES)

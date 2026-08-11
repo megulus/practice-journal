@@ -47,13 +47,25 @@ export default function TodayPage() {
   const [wizardMode, setWizardMode] = useState<'auto' | 'open' | 'skipped'>(
     'auto',
   )
+  // Which instrument the wizard should open on, when it was opened from a
+  // specific instrument's card rather than by the no-plan-anywhere gate.
+  const [wizardInstrumentId, setWizardInstrumentId] = useState<number | null>(
+    null,
+  )
+
+  const openWizard = useCallback((instrumentId?: number) => {
+    setWizardInstrumentId(instrumentId ?? null)
+    setWizardMode('open')
+  }, [])
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      // Today doesn't say whether an instrument has an *active plan*, so the
-      // instrument list comes along to decide between the plan card and the
-      // quick-start wizard. Parallel, so it costs no extra round trip.
+      // `TodayResponse` doesn't expose whether an instrument has an *active
+      // plan* — an instrument with no plan and one that simply isn't due both
+      // arrive without a `current_session` — so deciding between the plan card
+      // and the quick-start wizard needs the instrument list too. It's a second
+      // request, issued in parallel so it doesn't add a round trip's latency.
       const [today, instrumentList] = await Promise.all([
         api.getToday(),
         api.listInstruments(),
@@ -126,6 +138,11 @@ export default function TodayPage() {
     return (
       <QuickStartWizard
         instruments={instruments}
+        initialSelection={
+          wizardInstrumentId === null
+            ? null
+            : { kind: 'existing', id: wizardInstrumentId }
+        }
         onSkip={() => setWizardMode('skipped')}
         onSaved={() => {
           setWizardMode('auto')
@@ -197,7 +214,7 @@ export default function TodayPage() {
       {selectedDue && (
         <DueInstrumentCard
           entry={selectedDue}
-          onQuickStart={() => setWizardMode('open')}
+          onQuickStart={() => openWizard(selectedDue.instrument.id)}
         />
       )}
 
@@ -206,7 +223,7 @@ export default function TodayPage() {
 
       {/* No instruments at all */}
       {allInstruments.length === 0 && (
-        <EmptyState onQuickStart={() => setWizardMode('open')} />
+        <EmptyState onQuickStart={() => openWizard()} />
       )}
     </div>
   )

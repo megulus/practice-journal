@@ -55,6 +55,30 @@ const PLANNED_TODAY: TodayResponse = {
   instruments_not_due: [],
 }
 
+/** Violin is due but planless; Piano has the only active plan. */
+const MIXED_TODAY: TodayResponse = {
+  active_session: null,
+  instruments_due: [
+    {
+      instrument: { id: 1, name: 'Violin', practice_frequency: 'daily' },
+      last_practiced_at: null,
+      days_since_last: null,
+      current_session: null,
+      repeat_session: null,
+      all_sessions: [],
+    },
+    {
+      instrument: { id: 2, name: 'Piano', practice_frequency: 'daily' },
+      last_practiced_at: null,
+      days_since_last: null,
+      current_session: PLANNED_TODAY.instruments_due[0].current_session,
+      repeat_session: null,
+      all_sessions: [],
+    },
+  ],
+  instruments_not_due: [],
+}
+
 const EMPTY_TODAY: TodayResponse = {
   active_session: null,
   instruments_due: [],
@@ -118,6 +142,43 @@ describe('Today tab — quick-start gating', () => {
     expect(
       await screen.findByRole('heading', { name: 'Welcome to Kantelo' }),
     ).toBeInTheDocument()
+  })
+
+  it('opens the wizard on the instrument whose card asked for a plan', async () => {
+    const user = userEvent.setup()
+    mockApi.getToday.mockResolvedValue(MIXED_TODAY)
+    mockApi.listInstruments.mockResolvedValue([
+      makeInstrument({ id: 1, name: 'Violin', active_template_count: 0 }),
+      makeInstrument({ id: 2, name: 'Piano', active_template_count: 1 }),
+    ])
+
+    render(<TodayPage />)
+    // Violin is the selected instrument and has no plan, so its card offers one.
+    await user.click(await screen.findByRole('button', { name: 'Set up a plan' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'What do you play?' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Violin' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Piano' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  })
+
+  it('opens the wizard with nothing preselected from the empty state', async () => {
+    const user = userEvent.setup()
+    mockApi.getToday.mockResolvedValue(EMPTY_TODAY)
+    mockApi.listInstruments.mockResolvedValue([])
+
+    render(<TodayPage />)
+    await user.click(await screen.findByRole('button', { name: 'Skip setup' }))
+    await user.click(await screen.findByRole('button', { name: 'Get started' }))
+
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 
   it('lets the user re-open the wizard from the empty state', async () => {

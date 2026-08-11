@@ -151,11 +151,104 @@ describe('QuickStartWizard — step flow', () => {
     expect(screen.getByDisplayValue('Scales')).toBeInTheDocument()
   })
 
+  it('starts on the instrument it was opened for', () => {
+    renderWizard({
+      instruments: [
+        makeInstrument({ id: 4, name: 'Cello' }),
+        makeInstrument({ id: 5, name: 'Piano' }),
+      ],
+      initialSelection: { kind: 'existing', id: 5 },
+    })
+
+    expect(screen.getByRole('button', { name: 'Piano' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Cello' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
+  })
+
+  it('lets a preselected instrument be changed', async () => {
+    const user = userEvent.setup()
+    renderWizard({
+      instruments: [
+        makeInstrument({ id: 4, name: 'Cello' }),
+        makeInstrument({ id: 5, name: 'Piano' }),
+      ],
+      initialSelection: { kind: 'existing', id: 5 },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Cello' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: /just get me started/ }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: /Skip — I'll add later/ }))
+    await user.click(screen.getByRole('button', { name: 'Start practicing' }))
+
+    await waitFor(() => expect(mockApi.quickStart).toHaveBeenCalled())
+    expect(lastRequest().instrument_id).toBe(4)
+  })
+
   it('reports "Skip setup" to the caller', async () => {
     const user = userEvent.setup()
     const { onSkip } = renderWizard()
     await user.click(screen.getByRole('button', { name: 'Skip setup' }))
     expect(onSkip).toHaveBeenCalled()
+  })
+
+  it('moves focus to the new step so it is announced', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    // Steps whose field autofocuses keep it — the field's accessible name is
+    // the question, so it still announces, and the step opens ready to type.
+    await user.click(screen.getByRole('button', { name: 'Violin' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(document.activeElement).toBe(
+      screen.getByLabelText('What are you working on right now?'),
+    )
+
+    // Steps without one would otherwise drop focus to <body>.
+    await user.type(
+      screen.getByLabelText('What are you working on right now?'),
+      'Scales',
+    )
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { name: 'What should a session include?' }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: /Skip — I'll add later/ }))
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { name: 'How much time today?' }),
+    )
+  })
+
+  it('moves focus to the step when stepping backwards too', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+    await fillToPreview(user)
+
+    await user.click(screen.getByRole('button', { name: 'Back' })) // piece
+    expect(document.activeElement).toBe(
+      screen.getByLabelText(/Piece you're working on/),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Back' })) // areas
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { name: 'What should a session include?' }),
+    )
+  })
+
+  it('keeps the focused heading out of the tab order', () => {
+    renderWizard()
+    expect(
+      screen.getByRole('heading', { name: 'What do you play?' }),
+    ).toHaveAttribute('tabindex', '-1')
   })
 
   it('hides the nav until the final step (spec §5.6)', async () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Card } from '@/components/ui'
 import { cx } from '@/lib/cx'
 
@@ -45,6 +45,20 @@ export function WizardFrame({
   showWordmark = true,
   children,
 }: WizardFrameProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  // Advancing a step swaps the whole card out, which would otherwise drop
+  // focus to <body>: nothing announces the new question and tab order restarts
+  // at the top of the document. Move focus to the new heading instead — but
+  // only when nothing else has claimed it, so the steps whose field carries
+  // `autoFocus` (goal, piece) still open ready to type. React applies
+  // `autoFocus` during commit, before this effect runs, so the check is
+  // reliable rather than a race.
+  useEffect(() => {
+    const active = document.activeElement
+    if (!active || active === document.body) headingRef.current?.focus()
+  }, [step])
+
   return (
     <Card style={{ padding: 0 }} className="overflow-hidden">
       <div className="flex items-center justify-between border-b border-border-default px-4xl py-lg">
@@ -71,7 +85,16 @@ export function WizardFrame({
 
       <div className="px-4xl py-3xl">
         <StepDots total={totalSteps} current={step} className="mb-2xl" />
-        <h1 className={WIZARD_HEADING}>{title}</h1>
+        {/* tabIndex -1 makes the heading programmatically focusable without
+            adding it to the tab order; the focus ring is redundant on a
+            heading the user never tabbed to. */}
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className={cx(WIZARD_HEADING, 'outline-none')}
+        >
+          {title}
+        </h1>
         {subtitle && <p className={cx(WIZARD_SUBTITLE, 'mt-md')}>{subtitle}</p>}
         <div className="mt-2xl">{children}</div>
       </div>
