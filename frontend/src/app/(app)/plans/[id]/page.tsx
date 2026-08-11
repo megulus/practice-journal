@@ -17,8 +17,8 @@ import AddBlockSheet from '@/components/AddBlockSheet'
 import { AutoSaveInput, Button, ConfirmDialog, Pill } from '@/components/ui'
 import { getSectionColor } from '@/lib/section-colors'
 import {
+  alsoRemoves,
   archiveConfirmCopy,
-  count,
   deleteConfirmCopy,
 } from '@/lib/confirm-copy'
 
@@ -338,7 +338,14 @@ export default function TemplateEditorPage() {
                 id: template.id,
                 label: template.name,
                 cascade: [
-                  `Its ${count(sessionCount, 'session')} and everything in them go too.`,
+                  // "session" is overloaded — a rotation day here, a logged
+                  // practice there. Say which, then say the other survives:
+                  // delete_template only soft-deletes the template row, so
+                  // practice logs (and their history cards) are untouched.
+                  alsoRemoves(sessionCount, 'rotation session', {
+                    andContents: true,
+                  }),
+                  'Your logged practice history is kept.',
                 ],
               })
             }
@@ -380,7 +387,9 @@ export default function TemplateEditorPage() {
                 id: selectedSession.id,
                 label: selectedSession.name,
                 cascade: [
-                  `Its ${count(selectedSession.sections.length, 'section')} and everything in them go too.`,
+                  alsoRemoves(selectedSession.sections.length, 'section', {
+                    andContents: true,
+                  }),
                 ],
               })
             }
@@ -419,7 +428,7 @@ export default function TemplateEditorPage() {
                         id: section.id,
                         label: section.name,
                         cascade: section.blocks.length
-                          ? [`Its ${count(section.blocks.length, 'block')} go too.`]
+                          ? [alsoRemoves(section.blocks.length, 'block')]
                           : undefined,
                       })
                     }

@@ -111,8 +111,52 @@ class TestListInstruments:
         resp = await client.get("/api/instruments")
         data = resp.json()
         assert data[0]["active_template_count"] == 1
+        assert data[0]["template_count"] == 1
         assert data[0]["piece_count"] == 2
         assert data[0]["last_practiced_at"] == "2026-03-20"
+
+    async def test_template_count_includes_archived_templates(
+        self, client: AsyncClient, db_session: AsyncSession, test_user
+    ):
+        """`template_count` counts what a delete cascades to, not what's in
+        rotation. delete_instrument filters on deleted_at alone, so archived
+        templates go too — copy that warned using active_template_count would
+        promise "no plans" while silently dropping two."""
+        instrument = Instrument(user_id=test_user.id, name="Violin")
+        db_session.add(instrument)
+        await db_session.commit()
+        await db_session.refresh(instrument)
+
+        db_session.add_all(
+            [
+                Template(
+                    user_id=test_user.id,
+                    instrument_id=instrument.id,
+                    name="Archived A",
+                    is_active=False,
+                ),
+                Template(
+                    user_id=test_user.id,
+                    instrument_id=instrument.id,
+                    name="Archived B",
+                    is_active=False,
+                ),
+                # Already gone — outside both counts.
+                Template(
+                    user_id=test_user.id,
+                    instrument_id=instrument.id,
+                    name="Deleted",
+                    is_active=True,
+                    deleted_at=utcnow(),
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        resp = await client.get("/api/instruments")
+        data = resp.json()
+        assert data[0]["active_template_count"] == 0
+        assert data[0]["template_count"] == 2
 
     async def test_unauthenticated_returns_401(self, unauth_client: AsyncClient):
         resp = await unauth_client.get("/api/instruments")

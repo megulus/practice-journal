@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ChevronRight, Trash2 } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { AutoSaveInput, Card, ConfirmDialog, Menu, Pill } from '@/components/ui'
-import { count, deleteConfirmCopy } from '@/lib/confirm-copy'
+import { alsoRemoves, deleteConfirmCopy } from '@/lib/confirm-copy'
 import { formatRelativeDay } from '@/lib/dates'
 import type { Instrument, PracticeFrequency } from '@/lib/types'
 import { PRACTICE_FREQUENCIES } from './frequencies'
@@ -61,10 +61,14 @@ export function InstrumentCard({
     }
   }
 
-  const planCount = instrument.active_template_count
+  // Two different questions: the summary line describes the rotation, the
+  // delete cascade describes what a delete takes. Archived plans are outside
+  // the first and inside the second.
+  const activePlanCount = instrument.active_template_count
+  const cascadingPlanCount = instrument.template_count
   const pieceCount = instrument.piece_count
   const summary = [
-    `${planCount} active plan${planCount !== 1 ? 's' : ''}`,
+    `${activePlanCount} active plan${activePlanCount !== 1 ? 's' : ''}`,
     `${pieceCount} piece${pieceCount !== 1 ? 's' : ''}`,
     instrument.last_practiced_at
       ? `last practiced ${formatRelativeDay(instrument.last_practiced_at)}`
@@ -120,12 +124,15 @@ export function InstrumentCard({
       {confirmingDelete && (
         <ConfirmDialog
           {...deleteConfirmCopy('instrument', instrument.name, {
-            // The backend cascades: templates are soft-deleted and any
-            // in-progress log on this instrument is marked abandoned.
+            // Matches delete_instrument: it soft-deletes every live template
+            // for the instrument (archived included — it filters on
+            // deleted_at, not is_active) and marks in-progress logs abandoned.
+            // Completed logs are left alone, so history survives.
             cascade: [
-              planCount > 0
-                ? `Its ${count(planCount, 'plan')} go too, and any practice session in progress on it ends.`
-                : 'Any practice session in progress on it ends.',
+              ...(cascadingPlanCount > 0
+                ? [alsoRemoves(cascadingPlanCount, 'plan')]
+                : []),
+              'Any practice session in progress on it ends, but your logged practice history is kept.',
             ],
           })}
           confirmLabel="Delete"

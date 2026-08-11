@@ -46,6 +46,8 @@ class InstrumentRead(BaseModel):
     display_order: int
     # Computed fields — populated by the API layer
     active_template_count: int = 0
+    # All live templates, archived included — what a delete would cascade to.
+    template_count: int = 0
     piece_count: int = 0
     last_practiced_at: Optional[date] = None
 

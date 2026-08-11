@@ -41,6 +41,7 @@ const instrument: Instrument = {
   practice_frequency: 'daily',
   display_order: 0,
   active_template_count: 1,
+  template_count: 1,
   piece_count: 0,
   last_practiced_at: null,
 }
@@ -169,7 +170,7 @@ describe('TemplateEditorPage — destructive confirmations', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Delete “Warm-up”?')
-    expect(dialog).toHaveTextContent('Its 1 block go')
+    expect(dialog).toHaveTextContent('Deleting it also removes its 1 block.')
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(mocks.deleteSection).toHaveBeenCalledWith(100))
@@ -183,7 +184,9 @@ describe('TemplateEditorPage — destructive confirmations', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Delete “Session 1”?')
-    expect(dialog).toHaveTextContent('Its 1 section')
+    expect(dialog).toHaveTextContent(
+      'Deleting it also removes its 1 section and everything in it.',
+    )
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() =>
@@ -200,7 +203,12 @@ describe('TemplateEditorPage — destructive confirmations', () => {
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Delete “Morning routine”?')
     expect(dialog).toHaveTextContent('This deletes the plan “Morning routine”.')
-    expect(dialog).toHaveTextContent('Its 2 sessions')
+    // "rotation sessions", not bare "sessions" — the word means both a
+    // rotation day and a logged practice, and only the former goes.
+    expect(dialog).toHaveTextContent(
+      'Deleting it also removes its 2 rotation sessions and everything in them.',
+    )
+    expect(dialog).toHaveTextContent('Your logged practice history is kept.')
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(mocks.deleteTemplate).toHaveBeenCalledWith(1))

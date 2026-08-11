@@ -512,13 +512,21 @@ All endpoints except `GET /` and `GET /health` require Clerk authentication. Use
     "practice_frequency": "daily",
     "display_order": 0,
     "active_template_count": 1,
+    "template_count": 2,
     "piece_count": 3,
     "last_practiced_at": "2026-03-23"
   }
 ]
 ```
 
-`active_template_count`, `piece_count`, and `last_practiced_at` are computed fields.
+`active_template_count`, `template_count`, `piece_count`, and
+`last_practiced_at` are computed fields.
+
+`active_template_count` counts live templates with `is_active = true`;
+`template_count` counts every live template, archived ones included. The second
+is what `DELETE /api/instruments/{id}` cascades to — that cascade filters on
+`deleted_at` alone — so confirmation copy warning about the cascade must use
+`template_count`, not `active_template_count`.
 
 ---
 
