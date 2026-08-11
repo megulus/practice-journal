@@ -34,6 +34,15 @@ describe('StatCard', () => {
     expect(screen.getByTestId('stat')).toHaveClass('bg-card-bg-inset')
   })
 
+  it('renders supporting lines below the label when given children', () => {
+    render(
+      <StatCard value="4 days" label="This week">
+        <p>1 hr 42 min total</p>
+      </StatCard>,
+    )
+    expect(screen.getByText('1 hr 42 min total')).toBeInTheDocument()
+  })
+
   it('forwards ref to underlying div', () => {
     let captured: HTMLDivElement | null = null
     render(
