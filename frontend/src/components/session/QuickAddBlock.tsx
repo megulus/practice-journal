@@ -2,12 +2,22 @@
 
 import { useState } from 'react'
 import { useApi } from '@/lib/useApi'
-import AddBlockSheet from '@/components/AddBlockSheet'
-import type { Instrument } from '@/lib/types'
+import AddBlockSheet, { type BlockLibraryTab } from '@/components/AddBlockSheet'
+import type { BlockCreate, Instrument } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Quick-add block
 // ---------------------------------------------------------------------------
+
+/**
+ * The library sheet's standard-block tabs. Repertoire is deliberately absent
+ * mid-session: the only endpoint for adding a block to a live session
+ * (`POST /practice/{logId}/sections/{sectionLogId}/blocks`) takes a name and
+ * creates a block log with `block_id` null, so it can't attach a piece — and
+ * repertoire mid-session is `RepertoireBlock`'s "Add a spot" flow anyway
+ * (#182, out of scope). Module-level so the prop identity is stable.
+ */
+const SESSION_TABS: BlockLibraryTab[] = ['curated', 'recent']
 
 export function QuickAddBlock({
   logId,
@@ -31,6 +41,24 @@ export function QuickAddBlock({
   const addBlock = async (blockName: string) => {
     await api.addFreeformBlock(logId, sectionLogId, { block_name: blockName })
     onAdd()
+  }
+
+  // `BlockCreate` is a union, and only the standard variant can become a block
+  // log mid-session. The sheet is scoped so the repertoire variant can't be
+  // returned here; the exhaustiveness check keeps that a compile error rather
+  // than a runtime surprise if a third variant is ever added.
+  const handleLibraryPick = async (data: BlockCreate) => {
+    if ('name' in data) {
+      await addBlock(data.name)
+      return
+    }
+    if ('piece_id' in data) {
+      throw new Error(
+        'Repertoire blocks cannot be added mid-session — use "Add a spot" on the piece.'
+      )
+    }
+    const unhandled: never = data
+    throw new Error(`Unhandled block type: ${JSON.stringify(unhandled)}`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,7 +99,8 @@ export function QuickAddBlock({
           sectionName={sectionName}
           instrumentCategory={instrument.instrument_category}
           instrumentId={instrument.id}
-          onAdd={(data) => addBlock(data.name)}
+          tabs={SESSION_TABS}
+          onAdd={handleLibraryPick}
           onClose={() => setBrowsing(false)}
         />
       )}

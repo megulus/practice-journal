@@ -10,6 +10,7 @@ const { mockApi } = vi.hoisted(() => ({
     addFreeformBlock: vi.fn().mockResolvedValue(undefined),
     browseCuratedBlocks: vi.fn().mockResolvedValue([]),
     listRecentBlocks: vi.fn().mockResolvedValue([]),
+    listRepertoirePieces: vi.fn().mockResolvedValue({ pieces: [] }),
   },
 }))
 
@@ -30,6 +31,7 @@ function resetApi() {
   mockApi.addFreeformBlock.mockClear().mockResolvedValue(undefined)
   mockApi.browseCuratedBlocks.mockClear().mockResolvedValue([])
   mockApi.listRecentBlocks.mockClear().mockResolvedValue([])
+  mockApi.listRepertoirePieces.mockClear().mockResolvedValue({ pieces: [] })
 }
 
 describe('QuickAddBlock', () => {
@@ -164,6 +166,30 @@ describe('QuickAddBlock — Browse library (#182)', () => {
       expect(screen.queryByText('Add to: Scales')).not.toBeInTheDocument()
     )
     expect(mockApi.addFreeformBlock).not.toHaveBeenCalled()
+  })
+
+  it('scopes the sheet to standard blocks — no repertoire mid-session', async () => {
+    const user = userEvent.setup()
+    render(
+      <QuickAddBlock
+        logId={1}
+        sectionLogId={2}
+        sectionName="Scales"
+        instrument={instrument}
+        onAdd={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Browse library' }))
+    await screen.findByText('Add to: Scales')
+
+    // Repertoire mid-session is RepertoireBlock's "Add a spot" flow (#182),
+    // and the practice-log endpoint can't attach a piece to a block log —
+    // so the tab that returns `{ piece_id }` isn't offered here at all.
+    expect(screen.getByRole('button', { name: 'Curated' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Your rep.' })).toBeNull()
+    expect(mockApi.listRepertoirePieces).not.toHaveBeenCalled()
   })
 
   it('hides the link until the session instrument is known', () => {
