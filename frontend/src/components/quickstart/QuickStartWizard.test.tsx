@@ -372,6 +372,54 @@ describe('QuickStartWizard — plan preview', () => {
     expect(screen.getByText('30 min')).toBeInTheDocument()
   })
 
+  it('is one tab stop, on the selected budget', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+    await fillToPreview(user)
+
+    const budgets = screen.getAllByRole('radio')
+    expect(budgets.map((b) => b.getAttribute('tabindex'))).toEqual([
+      '-1',
+      '0',
+      '-1',
+      '-1',
+    ])
+
+    // From the heading the step focused, one Tab reaches the group and the
+    // next leaves it — not four stops through the budgets.
+    await user.tab()
+    expect(screen.getByRole('radio', { name: '30 min' })).toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('radio', { name: '30 min' })).not.toHaveFocus()
+  })
+
+  it('moves between budgets with the arrow keys, wrapping', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+    await fillToPreview(user)
+
+    screen.getByRole('radio', { name: '30 min' }).focus()
+
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('radio', { name: '45 min' })).toHaveFocus()
+    // Selection follows focus, so the preview rebalances as you arrow.
+    expect(screen.getByRole('radio', { name: '45 min' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByText('Violin · 45 minutes · 4 sections')).toBeInTheDocument()
+
+    // Up/Down are equivalent to Left/Right in a radiogroup.
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('radio', { name: '60 min' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('radio', { name: '15 min' })).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(screen.getByRole('radio', { name: '60 min' })).toHaveFocus()
+    await user.keyboard('{ArrowLeft}')
+    expect(screen.getByRole('radio', { name: '45 min' })).toHaveFocus()
+  })
+
   it('shows the named piece as the repertoire line', async () => {
     const user = userEvent.setup()
     renderWizard()

@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@/components/ui'
+import { Button, useRovingFocus } from '@/components/ui'
 import { cx } from '@/lib/cx'
 import { TIME_BUDGETS, type QuickStartPlan } from '@/lib/quickstart'
 import { PlanPreview } from './PlanPreview'
@@ -41,6 +41,18 @@ export function StepTimeBudget({
 }: StepTimeBudgetProps) {
   const busy = pending !== null
 
+  // Two-line cards in a 4-up grid, so `PillRadioGroup` doesn't fit — but the
+  // radiogroup keyboard contract is the same one every other group in the app
+  // honors (#263, #278), so it comes from the same hook.
+  const { checkedIndex, tabStopIndex, handleKeyDown, itemRef } = useRovingFocus<
+    number,
+    HTMLButtonElement
+  >({
+    values: [...TIME_BUDGETS],
+    value: minutes,
+    onChange: onMinutesChange,
+  })
+
   return (
     <WizardFrame
       step={5}
@@ -54,10 +66,11 @@ export function StepTimeBudget({
       <div
         role="radiogroup"
         aria-label="Time budget"
+        onKeyDown={handleKeyDown}
         className="grid grid-cols-4 gap-md"
       >
-        {TIME_BUDGETS.map((budget) => {
-          const selected = budget === minutes
+        {TIME_BUDGETS.map((budget, index) => {
+          const selected = index === checkedIndex
           return (
             <button
               key={budget}
@@ -65,6 +78,8 @@ export function StepTimeBudget({
               role="radio"
               aria-checked={selected}
               aria-label={`${budget} min`}
+              tabIndex={index === tabStopIndex ? 0 : -1}
+              ref={itemRef(index)}
               onClick={() => onMinutesChange(budget)}
               className={cx(
                 'flex flex-col items-center rounded-lg border py-lg transition-colors',
