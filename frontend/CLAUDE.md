@@ -121,6 +121,40 @@ All core screens (Today, Active session, Session summary, Plans list, Plans edit
 
 `/preview` is a dev-only route that renders every primitive in light and dark scope side by side. Available locally at http://localhost:3000/preview without any flag. The gate lives in `src/app/preview/page.tsx` (server component checks `NODE_ENV` and redirects to `/today` in prod unless `NEXT_PUBLIC_PREVIEW_ENABLED=1` was set at build time); the side-by-side render is in `src/app/preview/PreviewContent.tsx`.
 
+## Tests
+
+Vitest + Testing Library in jsdom (`vitest.config.ts`, `npm test`). Tests live
+next to what they cover as `*.test.tsx`. `src/test/setup.ts` globally mocks
+`next/navigation` and `@clerk/nextjs` and stubs the DOM APIs jsdom lacks;
+`src/test/utils.tsx` re-exports `render`/`screen`/`waitFor`/`userEvent` — import
+from `@/test/utils`, not from `@testing-library/react` directly.
+
+### Mock `useApi` with a *stable* object
+
+The real `useApi` memoizes its client, so `api` keeps one identity across
+renders. A mock that returns an object literal breaks that — it hands back a new
+object every render, and any component with the standard load effect
+(`const load = useCallback(..., [api])` + `useEffect(() => { load() }, [load])`,
+the shape Today/Plans/Progress use) re-runs its effect forever. Nothing throws;
+the component just sits in its loading state until the test fails somewhere else
+on a confusing "unable to find element". Hoist one object instead:
+
+```ts
+const { mockGetHistory, mockApi } = vi.hoisted(() => {
+  const mockGetHistory = vi.fn()
+  return { mockGetHistory, mockApi: { getHistory: mockGetHistory } }
+})
+vi.mock('@/lib/useApi', () => ({ useApi: () => mockApi }))
+// then per test: mockGetHistory.mockReset().mockResolvedValue(...)
+```
+
+`vi.hoisted` is what makes this legal — `vi.mock` factories are hoisted above
+module scope, so they can't close over a plain `const`. Several older test files
+still use the fresh-object form; they pass because those components only call
+the API from event handlers. Leave them be unless you're editing one anyway, but
+write new tests this way — `src/components/profile/ProfileSettings.test.tsx` is
+the reference.
+
 ## Environment Variables
 
 Required in `.env.local`:
