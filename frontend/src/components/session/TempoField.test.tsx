@@ -169,6 +169,31 @@ describe('TempoField — smart tempo defaults (#181)', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('drops the failure warning once the value matches the server again', async () => {
+    mockApi.updateBlockLog.mockRejectedValueOnce(new Error('offline'))
+    const user = userEvent.setup()
+    render(<TempoField logId={1} blockLog={makeLog({ tempo_bpm: 72 })} />)
+
+    await user.clear(field())
+    await user.type(field(), '80')
+    await user.tab()
+    await screen.findByRole('button', { name: 'Not saved — retry' })
+
+    // Typing 72 back means the server already has what's on screen — there is
+    // nothing to save and nothing left to warn about.
+    await user.clear(field())
+    await user.type(field(), '72')
+    await user.tab()
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Not saved — retry' })
+      ).not.toBeInTheDocument()
+    )
+    expect(mockApi.updateBlockLog).toHaveBeenCalledOnce()
+    expect(field()).toHaveClass('text-text-primary')
+  })
+
   it('re-blurring after a failure retries the save', async () => {
     mockApi.updateBlockLog.mockRejectedValueOnce(new Error('offline'))
     const user = userEvent.setup()

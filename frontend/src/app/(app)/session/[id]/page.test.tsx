@@ -193,6 +193,33 @@ describe('ActiveSessionPage — progress label (#183)', () => {
     ).toBeInTheDocument()
   })
 
+  it('never credits a section the ratio does not count', async () => {
+    mockGetPractice.mockResolvedValue({
+      ...baseLog,
+      section_logs: [
+        makeSection({
+          id: 1,
+          section_name: 'Scales',
+          block_logs: [makeBlock({ id: 1, completed: true })],
+        }),
+        // Added mid-session and skipped before anything went in it: "done",
+        // but outside the ratio, so it must not name the label either.
+        makeSection({
+          id: 2,
+          section_name: 'Sight-reading',
+          skipped: true,
+          block_logs: [],
+        }),
+      ],
+    })
+    render(<ActiveSessionPage />)
+
+    expect(
+      await screen.findByText('1 of 1 sections done · Scales complete')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Skipped Sight-reading/)).not.toBeInTheDocument()
+  })
+
   it('says "Skipped <name>" for a skipped section', async () => {
     mockGetPractice.mockResolvedValue({
       ...baseLog,

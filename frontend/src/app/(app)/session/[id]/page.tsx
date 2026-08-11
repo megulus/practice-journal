@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
@@ -137,9 +137,14 @@ export default function ActiveSessionPage() {
     }
   }, [instrumentId])
 
-  const lastCompletedSection = useLastCompletedSection(
-    log?.section_logs ?? NO_SECTIONS
+  // The sections progress is measured in — the label names one of these, so
+  // it can't credit a section the ratio doesn't count (an empty freeform
+  // section is "done" the moment it's skipped, but isn't work to complete).
+  const countedSections = useMemo(
+    () => (log?.section_logs ?? NO_SECTIONS).filter(countsTowardProgress),
+    [log]
   )
+  const lastCompletedSection = useLastCompletedSection(countedSections)
 
   // Collect pending note-save callbacks so we can flush before finish
   const pendingFlushes = useRef<Set<() => Promise<void>>>(new Set())
@@ -199,9 +204,7 @@ export default function ActiveSessionPage() {
 
   // Progress is counted in sections, per spec §5.2 ("2 of 5 sections done").
   // A skipped section counts as done — skipping is a decision, not a gap, and
-  // leaving it out would make 100% unreachable. Empty sections are out of the
-  // ratio entirely (see countsTowardProgress).
-  const countedSections = log.section_logs.filter(countsTowardProgress)
+  // leaving it out would make 100% unreachable.
   const totalCount = countedSections.length
   const completedCount = countedSections.filter(isSectionDone).length
   const progressLabel = lastCompletedSection

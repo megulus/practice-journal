@@ -60,7 +60,12 @@ export function TempoField({
     }
     const parsed = Math.min(Math.max(Number(digits), MIN_BPM), MAX_BPM)
     if (String(parsed) !== digits) setValue(String(parsed))
-    if (parsed === saved.current) return
+    if (parsed === saved.current) {
+      // Back to what the server already has — nothing to save, and nothing
+      // left to warn about if an earlier edit failed.
+      setSaveFailed(false)
+      return
+    }
     persist(parsed)
   }
 
