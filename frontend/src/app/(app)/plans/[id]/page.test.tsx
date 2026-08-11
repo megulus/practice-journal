@@ -194,6 +194,45 @@ describe('TemplateEditorPage — destructive confirmations', () => {
     )
   })
 
+  // `alsoRemoves` agrees at any count, but "its 0 sections and everything in
+  // them" is still nonsense to show — an empty session has no cascade to name.
+  // Reachable: the page renders a "No sections yet." empty state, and session
+  // delete stays available whenever the plan has more than one session.
+  it('omits the cascade when deleting a session with no sections', async () => {
+    const user = userEvent.setup()
+    await renderEditor()
+
+    // Session 2 in the fixture has no sections.
+    await user.click(screen.getByRole('button', { name: 'Session 2' }))
+    await screen.findByText('No sections yet.')
+    await user.click(screen.getByRole('button', { name: 'Delete session' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('Delete “Session 2”?')
+    expect(dialog).toHaveTextContent('This deletes the session “Session 2”.')
+    expect(dialog).not.toHaveTextContent('0 section')
+    expect(dialog).not.toHaveTextContent('everything in')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() =>
+      expect(mocks.deleteTemplateSession).toHaveBeenCalledWith(11),
+    )
+  })
+
+  it('omits the rotation cascade when a plan has no sessions', async () => {
+    const user = userEvent.setup()
+    mocks.getTemplate.mockResolvedValue({ ...template, sessions: [] })
+    await renderEditor()
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).not.toHaveTextContent('0 rotation session')
+    expect(dialog).not.toHaveTextContent('everything in')
+    // The reassurance holds regardless of session count.
+    expect(dialog).toHaveTextContent('Your logged practice history is kept.')
+  })
+
   it('confirms a plan delete and names the sessions that go with it', async () => {
     const user = userEvent.setup()
     await renderEditor()

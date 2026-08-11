@@ -342,9 +342,14 @@ export default function TemplateEditorPage() {
                   // practice there. Say which, then say the other survives:
                   // delete_template only soft-deletes the template row, so
                   // practice logs (and their history cards) are untouched.
-                  alsoRemoves(sessionCount, 'rotation session', {
-                    andContents: true,
-                  }),
+                  ...(sessionCount
+                    ? [
+                        alsoRemoves(sessionCount, 'rotation session', {
+                          andContents: true,
+                        }),
+                      ]
+                    : []),
+                  // True at any session count.
                   'Your logged practice history is kept.',
                 ],
               })
@@ -386,11 +391,13 @@ export default function TemplateEditorPage() {
                 noun: 'session',
                 id: selectedSession.id,
                 label: selectedSession.name,
-                cascade: [
-                  alsoRemoves(selectedSession.sections.length, 'section', {
-                    andContents: true,
-                  }),
-                ],
+                cascade: selectedSession.sections.length
+                  ? [
+                      alsoRemoves(selectedSession.sections.length, 'section', {
+                        andContents: true,
+                      }),
+                    ]
+                  : undefined,
               })
             }
           />
