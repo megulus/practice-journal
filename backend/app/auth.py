@@ -191,9 +191,11 @@ async def get_or_create_user(
     # DO NOTHING resolves the collision in a single statement — the losers no-op
     # instead of erroring — so no request fails. We then read the row back
     # (whichever request actually inserted it) to return a session-managed
-    # instance. created_at is set explicitly so the row carries the app's naive-
-    # UTC clock (utcnow()) rather than the column's tz-aware now() server_default
-    # — a Core insert bypasses the model's Python-side default_factory.
+    # instance. created_at is passed explicitly to keep the app's naive-UTC
+    # clock (utcnow()) visible at the call site rather than the column's
+    # tz-aware now() server_default. It isn't strictly required: the model's
+    # default_factory becomes a column-level default that Core applies to this
+    # statement on its own, so the emitted SQL names created_at either way.
     stmt = (
         pg_insert(User)
         .values(

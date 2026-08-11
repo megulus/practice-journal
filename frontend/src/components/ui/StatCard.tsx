@@ -4,10 +4,12 @@ import { cx } from '@/lib/cx'
 export interface StatCardProps extends HTMLAttributes<HTMLDivElement> {
   value: ReactNode
   label: string
+  /** Optional supporting lines below the label (Insights comparison cards). */
+  children?: ReactNode
 }
 
 export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
-  function StatCard({ value, label, className, style, ...rest }, ref) {
+  function StatCard({ value, label, children, className, style, ...rest }, ref) {
     return (
       <div
         ref={ref}
@@ -27,6 +29,9 @@ export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
         >
           {label}
         </div>
+        {children != null && children !== false && (
+          <div style={{ marginTop: 6 }}>{children}</div>
+        )}
       </div>
     )
   },

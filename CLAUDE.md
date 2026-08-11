@@ -287,5 +287,9 @@ plan) with #151. The Progress tab is still a `ComingSoonPlaceholder`.
 
 - Match surrounding style; keep changes scoped to the task.
 - Don't commit or push unless asked. Branch off `main` before committing.
+- When the work traces to a GitHub issue (e.g. a Niteshift run dispatched from a
+  ticket), **include the issue number in the branch name** —
+  `issue-<N>-<slug>`, e.g. `issue-150-insights-tab`. It ties the branch, its PR,
+  and the ticket together at a glance and makes the board easy to cross-reference.
 - Backend and frontend each have their own `.env`; the repo root `.env` also
   feeds `NEXT_PUBLIC_*` build args into the frontend Docker build.
