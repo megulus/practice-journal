@@ -827,6 +827,27 @@ class TestUpdateBlockLog:
         assert resp.status_code == 200
         assert resp.json()["tempo_bpm"] == 96
 
+    async def test_updating_tempo_leaves_notes_alone(
+        self, client: AsyncClient, started_session
+    ):
+        """The other direction: the tempo field and the (dictation-driven)
+        notes field write the same row from different UI paths, so neither
+        update may clobber the other's column.
+        """
+        data, _, _, _, _ = started_session
+        bl = data["section_logs"][0]["block_logs"][0]
+        await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"notes": "dictated mid-session"},
+        )
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 92},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["notes"] == "dictated mid-session"
+        assert resp.json()["tempo_bpm"] == 92
+
     async def test_rating_validation(
         self, client: AsyncClient, started_session
     ):

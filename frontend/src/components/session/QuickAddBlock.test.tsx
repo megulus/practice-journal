@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { QuickAddBlock } from './QuickAddBlock'
 import type { Instrument } from '@/lib/types'
+import { installSpeechMock, uninstallSpeechMock } from '@/test/speechMock'
 
 // One stable object: AddBlockSheet loads the library in an `api`-dependent
 // effect, and a fresh mock per render would loop it forever (#277).
@@ -166,6 +167,67 @@ describe('QuickAddBlock — Browse library (#182)', () => {
       expect(screen.queryByText('Add to: Scales')).not.toBeInTheDocument()
     )
     expect(mockApi.addFreeformBlock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the mic and the library link as separate reachable controls', () => {
+    // #281 put a submit button and a mic in this row; the library link joins
+    // them. All four controls stay distinct, in reading order, in one row.
+    // (The mic only renders where the Web Speech API exists — hence the mock;
+    // without it the row is input + submit + link, which is also correct.)
+    installSpeechMock()
+    try {
+      render(
+        <QuickAddBlock
+          logId={1}
+          sectionLogId={2}
+          sectionName="Scales"
+          instrument={instrument}
+          onAdd={vi.fn()}
+        />
+      )
+
+      const row = screen
+        .getByPlaceholderText('Add an exercise…')
+        .closest('form')!
+      const controls = Array.from(row.querySelectorAll('input, button')).map(
+        (el) => el.getAttribute('aria-label') || el.textContent
+      )
+
+      expect(controls).toEqual([
+        '', // the text input, labelled by its placeholder
+        'Add exercise',
+        'Dictate exercise name',
+        'Browse library',
+      ])
+    } finally {
+      uninstallSpeechMock()
+    }
+  })
+
+  it('opening the library does not submit the typed name', async () => {
+    // The link sits inside the quick-add <form>, so it must be type="button" —
+    // otherwise browsing would also create a block from whatever was typed.
+    const onAdd = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <QuickAddBlock
+        logId={1}
+        sectionLogId={2}
+        sectionName="Scales"
+        instrument={instrument}
+        onAdd={onAdd}
+      />
+    )
+
+    await user.type(
+      screen.getByPlaceholderText('Add an exercise…'),
+      'Half-finished thought'
+    )
+    await user.click(screen.getByRole('button', { name: 'Browse library' }))
+
+    expect(await screen.findByText('Add to: Scales')).toBeInTheDocument()
+    expect(mockApi.addFreeformBlock).not.toHaveBeenCalled()
+    expect(onAdd).not.toHaveBeenCalled()
   })
 
   it('scopes the sheet to standard blocks — no repertoire mid-session', async () => {

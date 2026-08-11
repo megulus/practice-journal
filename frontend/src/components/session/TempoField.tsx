@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useApi } from '@/lib/useApi'
+import { useSerializedSave } from '@/components/ui'
 import { cx } from '@/lib/cx'
 import type { BlockLog } from '@/lib/types'
 
@@ -18,6 +19,11 @@ const MAX_BPM = 400
  *
  * Saves on blur without asking the parent to refetch: a refetch remounts the
  * whole session and would fight the field the user is still working in.
+ *
+ * Writes only `tempo_bpm`, so it never contends with the row's notes saves
+ * (#281) — the backend applies `exclude_unset` field by field — and it uses
+ * the same `useSerializedSave` chain those saves use, so two quick blurs can't
+ * land out of order and resurrect the earlier tempo.
  */
 export function TempoField({
   logId,
@@ -34,13 +40,22 @@ export function TempoField({
   const [saveFailed, setSaveFailed] = useState(false)
   const saved = useRef<number | null>(blockLog.tempo_bpm)
 
+  const { save: saveTempo } = useSerializedSave(
+    useCallback(
+      async (next: number | null) => {
+        await api.updateBlockLog(logId, blockLog.id, { tempo_bpm: next })
+      },
+      [api, logId, blockLog.id]
+    )
+  )
+
   // Only mark the value as logged once the server has it. A failure leaves
   // what the user typed on screen — throwing it away loses their work — and
   // says so, with a retry; `saved` stays put, so re-blurring retries too.
   const persist = async (next: number | null) => {
     setSaveFailed(false)
     try {
-      await api.updateBlockLog(logId, blockLog.id, { tempo_bpm: next })
+      await saveTempo(next)
       saved.current = next
       setConfirmed(next != null)
     } catch {
