@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { VoiceInput, appendTranscript } from '@/components/ui'
+import { VoiceInput, useDictation } from '@/components/ui'
 
 // ---------------------------------------------------------------------------
 // Quick-add block
@@ -21,6 +21,9 @@ export function QuickAddBlock({
   const api = useApi()
   const [name, setName] = useState('')
 
+  // Form field: committed on submit, so no onCommit persistence here.
+  const dictation = useDictation({ value: name, onChange: setName })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = name.trim()
@@ -37,8 +40,8 @@ export function QuickAddBlock({
     >
       <input
         type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
+        value={dictation.value}
+        onChange={(e) => dictation.onChange(e.target.value)}
         placeholder="Add an exercise…"
         className="flex-1 min-w-0 text-xs text-text-secondary bg-transparent py-1 focus:outline-none placeholder:text-text-tertiary"
       />
@@ -52,10 +55,7 @@ export function QuickAddBlock({
       >
         <Plus size={16} aria-hidden />
       </button>
-      <VoiceInput
-        onTranscript={(text) => setName((prev) => appendTranscript(prev, text))}
-        aria-label="Dictate exercise name"
-      />
+      <VoiceInput {...dictation.voiceProps} aria-label="Dictate exercise name" />
     </form>
   )
 }

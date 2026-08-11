@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
-import { TextArea, VoiceInput, appendTranscript } from '@/components/ui'
+import { TextArea, VoiceInput, useDictation } from '@/components/ui'
 
 // ---------------------------------------------------------------------------
 // Session notes
@@ -20,9 +20,22 @@ export function SessionNotes({
   const api = useApi()
   const [notes, setNotes] = useState(initialNotes)
 
-  const handleSave = useCallback(async () => {
-    await api.updatePractice(logId, { notes: notes || undefined })
-  }, [api, logId, notes])
+  const saveNotes = useCallback(
+    async (value: string) => {
+      await api.updatePractice(logId, { notes: value || undefined })
+    },
+    [api, logId],
+  )
+
+  const handleSave = useCallback(() => saveNotes(notes), [saveNotes, notes])
+
+  // Dictation persists on commit — the mic click blurs the field, so the
+  // blur-save alone would only ever write the pre-dictation value.
+  const dictation = useDictation({
+    value: notes,
+    onChange: setNotes,
+    onCommit: saveNotes,
+  })
 
   // Register flush so Finish saves pending session notes
   useEffect(() => {
@@ -36,17 +49,14 @@ export function SessionNotes({
   return (
     <div className="flex items-start gap-2">
       <TextArea
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={dictation.value}
+        onChange={(e) => dictation.onChange(e.target.value)}
         onBlur={handleSave}
         placeholder="Notes — breakthroughs, challenges, ideas..."
         rows={3}
         className="flex-1"
       />
-      <VoiceInput
-        onTranscript={(text) => setNotes((prev) => appendTranscript(prev, text))}
-        aria-label="Dictate session notes"
-      />
+      <VoiceInput {...dictation.voiceProps} aria-label="Dictate session notes" />
     </div>
   )
 }

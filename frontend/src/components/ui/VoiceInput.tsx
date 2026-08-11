@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { Mic, MicOff } from 'lucide-react'
 import { cx } from '@/lib/cx'
 import {
@@ -35,6 +42,14 @@ export interface VoiceInputProps {
   'aria-label'?: string
 }
 
+/** Gap between the mic and its notice, in px. */
+const NOTICE_GAP = 8
+
+// useLayoutEffect warns during SSR; the effect only measures the DOM, so
+// falling back to useEffect on the server is safe.
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
 /**
  * Voice-input mic button wrapping the Web Speech API (design-tokens §6). The
  * primary text-entry affordance for notes/reflection fields — typing is the
@@ -43,6 +58,7 @@ export interface VoiceInputProps {
  * pulse; a denied mic permission surfaces a brief non-blocking notice.
  *
  * State lives with the consumer: append `onTranscript` chunks to the field.
+ * Pair with {@link useDictation} to also stream interim results and persist.
  */
 export function VoiceInput({
   onTranscript,
@@ -53,6 +69,9 @@ export function VoiceInput({
   ...aria
 }: VoiceInputProps) {
   const [denied, setDenied] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const noticeRef = useRef<HTMLSpanElement>(null)
+  const [noticePos, setNoticePos] = useState<CSSProperties | null>(null)
 
   const { supported, isRecording, toggle } = useSpeechRecognition({
     onTranscript,
@@ -71,14 +90,71 @@ export function VoiceInput({
     return () => clearTimeout(timer)
   }, [denied])
 
+  // Anchor the portaled notice to the mic in viewport coordinates, flipping
+  // above the button when there's no room below.
+  useIsomorphicLayoutEffect(() => {
+    if (!denied) {
+      setNoticePos(null)
+      return
+    }
+    const place = () => {
+      const anchor = buttonRef.current
+      if (!anchor) return
+      const rect = anchor.getBoundingClientRect()
+      const height = noticeRef.current?.offsetHeight ?? 0
+      const below = rect.bottom + NOTICE_GAP
+      const flip = below + height > window.innerHeight
+      setNoticePos({
+        position: 'fixed',
+        top: flip ? Math.max(NOTICE_GAP, rect.top - NOTICE_GAP - height) : below,
+        left: rect.right,
+        // Right-align to the mic without needing to measure our own width.
+        transform: 'translateX(-100%)',
+      })
+    }
+    place()
+    // `true` captures scrolls on any ancestor, not just the window.
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [denied])
+
   if (!supported) return null
 
   const label =
     aria['aria-label'] ?? (isRecording ? 'Stop voice input' : 'Start voice input')
 
+  // The notice is portaled to <body> rather than positioned relative to the
+  // mic: several call sites sit inside an `overflow-hidden` ancestor (the
+  // quick-add form is the last child of SectionCard's Card) which would clip
+  // an absolutely-positioned notice away entirely. #179 requires the denied
+  // -permission notice to be visible at *every* field.
+  const notice =
+    denied && typeof document !== 'undefined'
+      ? createPortal(
+          <span
+            ref={noticeRef}
+            role="status"
+            style={{
+              ...(noticePos ?? { position: 'fixed', top: 0, left: 0 }),
+              // Hide until measured so it can't flash at the wrong spot.
+              visibility: noticePos ? 'visible' : 'hidden',
+            }}
+            className="z-50 whitespace-nowrap rounded-md border border-border-default bg-card-bg px-3 py-2 text-xs text-text-secondary shadow-lg"
+          >
+            Microphone access is needed for voice input.
+          </span>,
+          document.body,
+        )
+      : null
+
   return (
-    <span className="relative inline-flex">
+    <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => {
           setDenied(false)
@@ -106,15 +182,7 @@ export function VoiceInput({
           <Mic size={20} strokeWidth={1.5} aria-hidden />
         )}
       </button>
-
-      {denied && (
-        <span
-          role="status"
-          className="absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-md border border-border-default bg-card-bg px-3 py-2 text-xs text-text-secondary shadow-lg"
-        >
-          Microphone access is needed for voice input.
-        </span>
-      )}
-    </span>
+      {notice}
+    </>
   )
 }

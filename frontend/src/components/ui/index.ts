@@ -49,6 +49,9 @@ export type {
 export { VoiceInput, appendTranscript } from './VoiceInput'
 export type { VoiceInputProps } from './VoiceInput'
 
+export { useDictation } from './useDictation'
+export type { UseDictationOptions, DictationBinding } from './useDictation'
+
 export { useSpeechRecognition } from './useSpeechRecognition'
 export type {
   UseSpeechRecognitionOptions,

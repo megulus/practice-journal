@@ -10,7 +10,7 @@ import {
   StatCard,
   TextArea,
   VoiceInput,
-  appendTranscript,
+  useDictation,
 } from '@/components/ui'
 import { formatSessionDate } from '@/lib/dates'
 import type { FinishResponse } from '@/lib/types'
@@ -31,6 +31,12 @@ export default function SessionSummaryPage() {
   const [data, setData] = useState<FinishResponse | null>(null)
   const [reflection, setReflection] = useState('')
   const [reflectionSaved, setReflectionSaved] = useState(false)
+
+  // Committed by the explicit "Save reflection" button, so no onCommit here.
+  const dictation = useDictation({
+    value: reflection,
+    onChange: setReflection,
+  })
 
   useEffect(() => {
     // Try to load from sessionStorage (set by the finish flow)
@@ -185,16 +191,14 @@ export default function SessionSummaryPage() {
           <div className="mb-2 flex items-start gap-2">
             <TextArea
               variant="recessed"
-              value={reflection}
-              onChange={(e) => setReflection(e.target.value)}
+              value={dictation.value}
+              onChange={(e) => dictation.onChange(e.target.value)}
               placeholder="Felt more relaxed in the left hand. Maybe the new warm-up is helping..."
               rows={3}
               className="flex-1"
             />
             <VoiceInput
-              onTranscript={(text) =>
-                setReflection((prev) => appendTranscript(prev, text))
-              }
+              {...dictation.voiceProps}
               aria-label="Dictate your reflection"
             />
           </div>

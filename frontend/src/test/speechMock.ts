@@ -64,3 +64,11 @@ export function uninstallSpeechMock() {
 export function dictate(text: string) {
   MockSpeechRecognition.last?.emitResult([{ transcript: text, isFinal: true }])
 }
+
+/**
+ * Emit `text` as an interim (not-yet-final) result — what the engine shows
+ * while it's still deciding. Must be wrapped in `act()` by the caller.
+ */
+export function dictateInterim(text: string) {
+  MockSpeechRecognition.last?.emitResult([{ transcript: text, isFinal: false }])
+}

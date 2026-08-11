@@ -9,7 +9,7 @@ import {
   TextArea,
   TextInput,
   VoiceInput,
-  appendTranscript,
+  useDictation,
 } from '@/components/ui'
 import type { BlockLog, Rating } from '@/lib/types'
 
@@ -45,6 +45,12 @@ export default function RepertoireBlock({
   const [addingSpot, setAddingSpot] = useState(false)
   const [newSpotName, setNewSpotName] = useState('')
   const [saveForNextTime, setSaveForNextTime] = useState(true)
+
+  // Form field: committed on submit, so no onCommit persistence here.
+  const spotDictation = useDictation({
+    value: newSpotName,
+    onChange: setNewSpotName,
+  })
 
   const isWholePieceMode = pieceLog !== null && spotLogs.length === 0
 
@@ -185,16 +191,14 @@ export default function RepertoireBlock({
               <div className="flex items-center gap-2">
                 <TextInput
                   variant="recessed"
-                  value={newSpotName}
-                  onChange={(e) => setNewSpotName(e.target.value)}
+                  value={spotDictation.value}
+                  onChange={(e) => spotDictation.onChange(e.target.value)}
                   placeholder="Add a spot..."
                   autoFocus
                   className="flex-1 min-w-0"
                 />
                 <VoiceInput
-                  onTranscript={(text) =>
-                    setNewSpotName((prev) => appendTranscript(prev, text))
-                  }
+                  {...spotDictation.voiceProps}
                   aria-label="Dictate spot name"
                 />
               </div>
@@ -273,14 +277,30 @@ function SpotRow({
     onUpdate()
   }
 
-  const handleSaveNotes = useCallback(async () => {
-    setSavingNotes(true)
-    try {
-      await api.updateBlockLog(logId, blockLog.id, { notes })
-    } finally {
-      setSavingNotes(false)
-    }
-  }, [api, logId, blockLog.id, notes])
+  const saveNotes = useCallback(
+    async (value: string) => {
+      setSavingNotes(true)
+      try {
+        await api.updateBlockLog(logId, blockLog.id, { notes: value })
+      } finally {
+        setSavingNotes(false)
+      }
+    },
+    [api, logId, blockLog.id],
+  )
+
+  const handleSaveNotes = useCallback(
+    () => saveNotes(notes),
+    [saveNotes, notes],
+  )
+
+  // Dictation persists on commit — the mic click blurs the textarea, so the
+  // blur-save alone would only ever write the pre-dictation value.
+  const dictation = useDictation({
+    value: notes,
+    onChange: setNotes,
+    onCommit: saveNotes,
+  })
 
   useEffect(() => {
     const flushes = pendingFlushes.current
@@ -322,17 +342,15 @@ function SpotRow({
             <div className="flex items-start gap-2">
               <TextArea
                 variant="recessed"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                value={dictation.value}
+                onChange={(e) => dictation.onChange(e.target.value)}
                 onBlur={handleSaveNotes}
                 placeholder="Notes..."
                 rows={2}
                 className="flex-1"
               />
               <VoiceInput
-                onTranscript={(text) =>
-                  setNotes((prev) => appendTranscript(prev, text))
-                }
+                {...dictation.voiceProps}
                 aria-label={`Dictate notes for ${spotName}`}
               />
             </div>
@@ -373,9 +391,25 @@ function WholePieceRating({
     onUpdate()
   }
 
-  const handleSaveNotes = useCallback(async () => {
-    await api.updateBlockLog(logId, blockLog.id, { notes })
-  }, [api, logId, blockLog.id, notes])
+  const saveNotes = useCallback(
+    async (value: string) => {
+      await api.updateBlockLog(logId, blockLog.id, { notes: value })
+    },
+    [api, logId, blockLog.id],
+  )
+
+  const handleSaveNotes = useCallback(
+    () => saveNotes(notes),
+    [saveNotes, notes],
+  )
+
+  // Dictation persists on commit — the mic click blurs the textarea, so the
+  // blur-save alone would only ever write the pre-dictation value.
+  const dictation = useDictation({
+    value: notes,
+    onChange: setNotes,
+    onCommit: saveNotes,
+  })
 
   useEffect(() => {
     const flushes = pendingFlushes.current
@@ -405,17 +439,15 @@ function WholePieceRating({
           <div className="flex items-start gap-2">
             <TextArea
               variant="recessed"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={dictation.value}
+              onChange={(e) => dictation.onChange(e.target.value)}
               onBlur={handleSaveNotes}
               placeholder="Notes..."
               rows={2}
               className="flex-1"
             />
             <VoiceInput
-              onTranscript={(text) =>
-                setNotes((prev) => appendTranscript(prev, text))
-              }
+              {...dictation.voiceProps}
               aria-label="Dictate notes for this piece"
             />
           </div>
