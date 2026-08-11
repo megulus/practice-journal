@@ -49,8 +49,14 @@ export type {
   AutoSaveFieldBinding,
 } from './useAutoSaveField'
 
-export { VoiceInput } from './VoiceInput'
+export { VoiceInput, appendTranscript } from './VoiceInput'
 export type { VoiceInputProps } from './VoiceInput'
+
+export { useDictation, stripPreview } from './useDictation'
+export type { UseDictationOptions, DictationBinding } from './useDictation'
+
+export { useSerializedSave } from './useSerializedSave'
+export type { SerializedSave } from './useSerializedSave'
 
 export { useSpeechRecognition } from './useSpeechRecognition'
 export type {
