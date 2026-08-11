@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, TextInput, VoiceInput } from '@/components/ui'
+import { Button, TextInput, VoiceInput, appendTranscript } from '@/components/ui'
 import { WizardFrame, WIZARD_HINT, WIZARD_LINK } from './WizardFrame'
 
 export interface StepPieceProps {
@@ -26,10 +26,6 @@ export function StepPiece({
   onSkip,
   totalSteps,
 }: StepPieceProps) {
-  const appendTranscript = (text: string) => {
-    onChange(value ? `${value.trimEnd()} ${text}` : text)
-  }
-
   return (
     <WizardFrame
       step={4}
@@ -53,7 +49,7 @@ export function StepPiece({
             placeholder="e.g. Bruch concerto, Autumn Leaves, fiddle tune you're learning…"
           />
           <VoiceInput
-            onTranscript={appendTranscript}
+            onTranscript={(text) => onChange(appendTranscript(value, text))}
             aria-label="Dictate the piece name"
           />
         </div>

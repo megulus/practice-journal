@@ -47,6 +47,18 @@ function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
+/**
+ * The one recognition session allowed to be live across the whole app.
+ *
+ * The browser happily runs several `SpeechRecognition` instances at once, but
+ * a second live mic is always a mistake here: both buttons pulse, and the
+ * first session keeps appending into the *earlier* field while the user
+ * believes they're dictating into the new one. Starting a session stops
+ * whichever one was already running.
+ */
+type ActiveSession = { stop: () => void }
+let activeSession: ActiveSession | null = null
+
 /** Normalized error kinds callers may care about. */
 export type VoiceInputError =
   | 'not-allowed'
@@ -63,6 +75,12 @@ export interface UseSpeechRecognitionOptions {
   onInterimTranscript?: (text: string) => void
   /** Recognition errors, normalized. Optional. */
   onError?: (error: VoiceInputError) => void
+  /**
+   * Fired once when a session ends for any reason — user stop, engine
+   * timeout, or error. Consumers holding transient per-session state (an
+   * interim preview) must reset it here, or it strands on screen.
+   */
+  onEnd?: () => void
   /** BCP-47 language tag. Defaults to `en-US`. */
   lang?: string
 }
@@ -112,6 +130,9 @@ export function useSpeechRecognition(
   const optsRef = useRef(options)
   optsRef.current = options
 
+  // Stable per-instance handle registered as the app-wide active session.
+  const selfRef = useRef<ActiveSession>({ stop: () => {} })
+
   useEffect(() => {
     setSupported(getSpeechRecognitionCtor() != null)
   }, [])
@@ -120,13 +141,20 @@ export function useSpeechRecognition(
     // The ref is cleared by onend (async), not here. Between stop() and onend
     // a re-toggle routes back through stop() — a harmless momentary no-op, not
     // a leak or double-start (start() guards on the ref).
+    if (activeSession === selfRef.current) activeSession = null
     recognitionRef.current?.stop()
     setIsRecording(false)
   }, [])
 
+  selfRef.current.stop = stop
+
   const start = useCallback(() => {
     const Ctor = getSpeechRecognitionCtor()
     if (!Ctor || recognitionRef.current) return
+
+    // Hand the mic over: any other field's live session ends first, so two
+    // buttons can never be recording (and pulsing) simultaneously.
+    if (activeSession && activeSession !== selfRef.current) activeSession.stop()
 
     const recognition = new Ctor()
     recognition.lang = optsRef.current.lang ?? 'en-US'
@@ -151,12 +179,18 @@ export function useSpeechRecognition(
       // onend afterward. Identity-guarded so a late event from a previous
       // session never nulls a newer one's ref.
       if (recognitionRef.current === recognition) recognitionRef.current = null
+      if (activeSession === selfRef.current) activeSession = null
       optsRef.current.onError?.(normalizeError(e.error))
+      // The engine also fires `end` after `error`, but the identity guard in
+      // onend will skip it now that the ref is cleared — so signal from here.
+      optsRef.current.onEnd?.()
       setIsRecording(false)
     }
     recognition.onend = () => {
       if (recognitionRef.current === recognition) {
         recognitionRef.current = null
+        if (activeSession === selfRef.current) activeSession = null
+        optsRef.current.onEnd?.()
         setIsRecording(false)
       }
     }
@@ -164,6 +198,7 @@ export function useSpeechRecognition(
     recognitionRef.current = recognition
     try {
       recognition.start()
+      activeSession = selfRef.current
       setIsRecording(true)
     } catch {
       // start() throws if called while already started — treat as no-op.
@@ -179,7 +214,11 @@ export function useSpeechRecognition(
 
   // Tear down an in-flight session on unmount.
   useEffect(() => {
+    const self = selfRef.current
     return () => {
+      // Release the app-wide slot: an unmounted field holding it would stop
+      // the next mic from ever claiming one.
+      if (activeSession === self) activeSession = null
       const r = recognitionRef.current
       if (r) {
         r.onresult = null
