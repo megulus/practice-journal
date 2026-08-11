@@ -4,6 +4,9 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './Button'
 export { Pill } from './Pill'
 export type { PillProps } from './Pill'
 
+export { PillRadioGroup } from './PillRadioGroup'
+export type { PillRadioGroupProps, PillRadioOption } from './PillRadioGroup'
+
 export { Checkbox } from './Checkbox'
 export type { CheckboxProps } from './Checkbox'
 

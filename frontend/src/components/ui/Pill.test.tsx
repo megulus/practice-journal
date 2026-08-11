@@ -34,6 +34,11 @@ describe('Pill', () => {
       expect(onClick).toHaveBeenCalledOnce()
     })
 
+    it('does not leak variant into the DOM', () => {
+      render(<Pill variant="instrument">Violin</Pill>)
+      expect(screen.getByRole('button')).not.toHaveAttribute('variant')
+    })
+
     it('omits aria-pressed when caller overrides role (e.g., radio)', () => {
       render(
         <Pill role="radio" aria-checked={true} active>
