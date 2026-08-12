@@ -575,6 +575,34 @@ class TestTemplateDetailWithRepertoireBlocks:
         assert b["default_spots"][0]["name"] == "first page"
         assert b["default_spots"][0]["location"] == "mm. 1-32"
 
+    async def test_patch_response_keeps_the_full_nested_shape(
+        self, client: AsyncClient, hierarchy_with_piece
+    ):
+        """PATCH returns `TemplateUpdateRead`, built from the same
+        `TemplateRead` the GET returns (#289) — the enrichment the editor reads
+        (piece_name, default_spots) has to survive that hop."""
+        template, ts, section, piece, spots = hierarchy_with_piece
+        await client.post(
+            f"/api/sections/{section.id}/blocks",
+            json={
+                "piece_id": piece.id,
+                "default_spot_ids": [spots[0].id, spots[1].id],
+            },
+        )
+
+        resp = await client.patch(
+            f"/api/templates/{template.id}", json={"description": "Touched"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["description"] == "Touched"
+        b = data["sessions"][0]["sections"][0]["blocks"][0]
+        assert b["piece_name"] == "Bruch Concerto"
+        assert [s["name"] for s in b["default_spots"]] == [
+            "first page",
+            "development",
+        ]
+
     async def test_standard_block_has_null_repertoire_fields(
         self, client: AsyncClient, hierarchy_with_piece
     ):
