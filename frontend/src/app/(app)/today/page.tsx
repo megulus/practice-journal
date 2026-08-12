@@ -5,15 +5,18 @@ import Link from 'next/link'
 import { AlertCircle, X } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill, RotationDots } from '@/components/ui'
+import { QuickStartWizard } from '@/components/quickstart'
 import { cx } from '@/lib/cx'
 import { getSectionColor } from '@/lib/section-colors'
 import { formatStartedAt } from '@/lib/dates'
+import { needsQuickStart } from '@/lib/quickstart'
 import type {
   TodayResponse,
   TodayInstrumentDue,
   TodayInstrumentNotDue,
   PreSessionResponse,
   SuggestionItem,
+  Instrument,
   InstrumentBrief,
   SectionType,
 } from '@/lib/types'
@@ -29,6 +32,7 @@ const SECONDARY_LINK =
 export default function TodayPage() {
   const api = useApi()
   const [data, setData] = useState<TodayResponse | null>(null)
+  const [instruments, setInstruments] = useState<Instrument[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedInstrumentId, setSelectedInstrumentId] = useState<
@@ -36,12 +40,38 @@ export default function TodayPage() {
   >(null)
   const [suggestion, setSuggestion] = useState<SuggestionItem | null>(null)
   const [suggestionDismissed, setSuggestionDismissed] = useState(false)
+  // 'auto' defers to needsQuickStart; 'skipped' is "Skip setup" (show the
+  // ordinary content instead) and 'open' is the user asking for the wizard
+  // back. Deliberately not persisted — a planless user lands on the wizard
+  // again next visit, and the no-plan states offer a way back in.
+  const [wizardMode, setWizardMode] = useState<'auto' | 'open' | 'skipped'>(
+    'auto',
+  )
+  // Which instrument the wizard should open on, when it was opened from a
+  // specific instrument's card rather than by the no-plan-anywhere gate.
+  const [wizardInstrumentId, setWizardInstrumentId] = useState<number | null>(
+    null,
+  )
+
+  const openWizard = useCallback((instrumentId?: number) => {
+    setWizardInstrumentId(instrumentId ?? null)
+    setWizardMode('open')
+  }, [])
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      const today = await api.getToday()
+      // `TodayResponse` doesn't expose whether an instrument has an *active
+      // plan* — an instrument with no plan and one that simply isn't due both
+      // arrive without a `current_session` — so deciding between the plan card
+      // and the quick-start wizard needs the instrument list too. It's a second
+      // request, issued in parallel so it doesn't add a round trip's latency.
+      const [today, instrumentList] = await Promise.all([
+        api.getToday(),
+        api.listInstruments(),
+      ])
       setData(today)
+      setInstruments(instrumentList)
 
       // Default to the first due instrument (only if none selected yet)
       const allInstruments = [
@@ -96,7 +126,31 @@ export default function TodayPage() {
     )
   }
 
-  if (!data) return null
+  if (!data || !instruments) return null
+
+  // No plan anywhere and nothing to resume — the wizard takes over the tab
+  // (spec §5.6) until the user skips it.
+  const showWizard =
+    wizardMode === 'open' ||
+    (wizardMode === 'auto' && needsQuickStart(instruments, data))
+
+  if (showWizard) {
+    return (
+      <QuickStartWizard
+        instruments={instruments}
+        initialSelection={
+          wizardInstrumentId === null
+            ? null
+            : { kind: 'existing', id: wizardInstrumentId }
+        }
+        onSkip={() => setWizardMode('skipped')}
+        onSaved={() => {
+          setWizardMode('auto')
+          fetchData()
+        }}
+      />
+    )
+  }
 
   // Combine instruments for the toggle
   const allInstruments: InstrumentBrief[] = [
@@ -157,13 +211,20 @@ export default function TodayPage() {
       )}
 
       {/* Plan card — instrument is due */}
-      {selectedDue && <DueInstrumentCard entry={selectedDue} />}
+      {selectedDue && (
+        <DueInstrumentCard
+          entry={selectedDue}
+          onQuickStart={() => openWizard(selectedDue.instrument.id)}
+        />
+      )}
 
       {/* Instrument not due */}
       {selectedNotDue && !selectedDue && <NotDueCard entry={selectedNotDue} />}
 
       {/* No instruments at all */}
-      {allInstruments.length === 0 && <EmptyState />}
+      {allInstruments.length === 0 && (
+        <EmptyState onQuickStart={() => openWizard()} />
+      )}
     </div>
   )
 }
@@ -242,7 +303,13 @@ function SuggestionCard({
   )
 }
 
-function DueInstrumentCard({ entry }: { entry: TodayInstrumentDue }) {
+function DueInstrumentCard({
+  entry,
+  onQuickStart,
+}: {
+  entry: TodayInstrumentDue
+  onQuickStart: () => void
+}) {
   const { current_session, repeat_session, all_sessions } = entry
 
   const total = all_sessions.length
@@ -306,14 +373,15 @@ function DueInstrumentCard({ entry }: { entry: TodayInstrumentDue }) {
           )}
         </>
       ) : (
-        /* No active template — just show freeform option */
+        /* No active template — offer the wizard, or freeform below */
         <Card className="text-center">
           <p className="text-text-secondary">
             No active plan for this instrument.
           </p>
-          <p className="mt-1 text-sm text-text-tertiary">
-            Practice off-plan or create a plan in the Plans tab.
+          <p className="mb-3 mt-1 text-sm text-text-tertiary">
+            Build one in under a minute, or practice off-plan.
           </p>
+          <Button onClick={onQuickStart}>Set up a plan</Button>
         </Card>
       )}
 
@@ -367,20 +435,18 @@ function NotDueCard({ entry }: { entry: TodayInstrumentNotDue }) {
   )
 }
 
-function EmptyState() {
+function EmptyState({ onQuickStart }: { onQuickStart: () => void }) {
   return (
     <div className="py-16 text-center">
       <h1 className="mb-2 text-xl font-semibold text-text-primary">
         Welcome to Kantelo
       </h1>
       <p className="mb-6 text-text-secondary">
-        Add an instrument in the Profile tab to get started.
+        Set up your instrument and first plan — it takes under a minute.
       </p>
-      <Link
-        href="/profile"
-        className="inline-block rounded-lg bg-primary px-6 py-2.5 font-medium text-text-on-primary-action transition-colors hover:bg-primary-hover"
-      >
-        Go to Profile
+      <Button onClick={onQuickStart}>Get started</Button>
+      <Link href="/profile" className={cx(SECONDARY_LINK, 'mt-2')}>
+        Go to Profile instead
       </Link>
     </div>
   )

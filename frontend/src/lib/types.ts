@@ -76,7 +76,14 @@ export interface Instrument {
   instrument_category: string
   practice_frequency: PracticeFrequency
   display_order: number
+  /** Live templates with `is_active` — what's in rotation. */
   active_template_count: number
+  /**
+   * Every live template, archived ones included. This is what deleting the
+   * instrument cascades to, so delete-confirm copy must count this, not
+   * `active_template_count`.
+   */
+  template_count: number
   piece_count: number
   last_practiced_at: string | null
 }
@@ -494,6 +501,41 @@ export interface TodayResponse {
   active_session: ActiveSessionInfo | null
   instruments_due: TodayInstrumentDue[]
   instruments_not_due: TodayInstrumentNotDue[]
+}
+
+// ===================================================================
+// Quick-start wizard
+// ===================================================================
+
+export interface QuickStartBlock {
+  name: string
+  description?: string
+}
+
+export interface QuickStartSection {
+  name: string
+  section_type: SectionType
+  estimated_duration_minutes: number
+  /** The one seed exercise the generated section starts with. */
+  block: QuickStartBlock
+}
+
+export interface QuickStartRequest {
+  /** Exactly one of `instrument_id` (reuse) / `instrument_name` (create). */
+  instrument_id?: number
+  instrument_name?: string
+  plan_name: string
+  /** Becomes a Piece and the repertoire section's subject. Omit to skip. */
+  piece_name?: string
+  sections: QuickStartSection[]
+}
+
+export interface QuickStartResponse {
+  instrument: Instrument
+  template: Template
+  /** The new plan's single rotation session — start practice with this. */
+  template_session_id: number
+  piece: Piece | null
 }
 
 // ===================================================================

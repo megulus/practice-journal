@@ -7,6 +7,9 @@ export type { PillProps } from './Pill'
 export { PillRadioGroup } from './PillRadioGroup'
 export type { PillRadioGroupProps, PillRadioOption } from './PillRadioGroup'
 
+export { useRovingFocus } from './useRovingFocus'
+export type { UseRovingFocusOptions, RovingFocus } from './useRovingFocus'
+
 export { Checkbox } from './Checkbox'
 export type { CheckboxProps } from './Checkbox'
 
@@ -39,6 +42,9 @@ export type { StatCardProps } from './StatCard'
 
 export { Dialog, Sheet } from './Dialog'
 export type { DialogProps, DialogPlacement } from './Dialog'
+
+export { ConfirmDialog } from './ConfirmDialog'
+export type { ConfirmDialogProps, ConfirmVariant } from './ConfirmDialog'
 
 export { AutoSaveInput, AutoSaveTextarea } from './AutoSaveInput'
 export type { AutoSaveInputProps, AutoSaveTextareaProps } from './AutoSaveInput'

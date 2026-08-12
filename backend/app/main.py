@@ -49,7 +49,7 @@ app.add_middleware(
 )
 
 # Kantelo API routers
-from app.api import user_api, settings_api, instruments_api, templates_api, sessions_sections_blocks_api, practice_api, today_api, progress_api, pieces_api, library_api, suggestions_api
+from app.api import user_api, settings_api, instruments_api, templates_api, sessions_sections_blocks_api, practice_api, today_api, progress_api, pieces_api, library_api, suggestions_api, quickstart_api
 
 app.include_router(user_api.router, prefix="/api")
 app.include_router(settings_api.router, prefix="/api")
@@ -62,6 +62,7 @@ app.include_router(practice_api.router, prefix="/api")
 app.include_router(suggestions_api.router, prefix="/api")
 app.include_router(today_api.router, prefix="/api")
 app.include_router(progress_api.router, prefix="/api")
+app.include_router(quickstart_api.router, prefix="/api")
 
 
 @app.get("/")

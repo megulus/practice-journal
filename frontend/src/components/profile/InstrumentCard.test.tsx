@@ -20,6 +20,7 @@ function makeInstrument(o: Partial<Instrument> = {}): Instrument {
     practice_frequency: 'few_times_a_week',
     display_order: 0,
     active_template_count: 1,
+    template_count: 1,
     piece_count: 3,
     last_practiced_at: null,
     ...o,
@@ -106,7 +107,10 @@ describe('InstrumentCard', () => {
     const user = userEvent.setup()
     render(
       <InstrumentCard
-        instrument={makeInstrument({ active_template_count: 2 })}
+        instrument={makeInstrument({
+          active_template_count: 2,
+          template_count: 2,
+        })}
         onChange={vi.fn()}
       />,
     )
@@ -114,9 +118,50 @@ describe('InstrumentCard', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent(/2 plans/)
+    expect(dialog).toHaveTextContent('Deleting it also removes its 2 plans.')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     expect(mockDelete).toHaveBeenCalledWith(1)
+  })
+
+  // The cascade counts every live template; the summary line counts only the
+  // active ones. Reading the cascade off active_template_count meant an
+  // instrument with nothing in rotation warned about no plans at all while
+  // deleting three.
+  it('counts archived plans in the cascade, not just the active ones', async () => {
+    const user = userEvent.setup()
+    render(
+      <InstrumentCard
+        instrument={makeInstrument({
+          active_template_count: 0,
+          template_count: 3,
+        })}
+        onChange={vi.fn()}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Instrument actions' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('Deleting it also removes its 3 plans.')
+  })
+
+  it('omits the plan cascade entirely when there are no plans at all', async () => {
+    const user = userEvent.setup()
+    render(
+      <InstrumentCard
+        instrument={makeInstrument({
+          active_template_count: 0,
+          template_count: 0,
+        })}
+        onChange={vi.fn()}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Instrument actions' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).not.toHaveTextContent(/plans?\./)
+    expect(dialog).toHaveTextContent('your logged practice history is kept')
   })
 
   it('reports a write failure via onError and resyncs', async () => {

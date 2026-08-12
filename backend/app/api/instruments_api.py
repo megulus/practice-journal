@@ -34,6 +34,19 @@ async def _enrich_instrument(
     )
     active_template_count = result.one()
 
+    # Every live template, archived ones included. This is the set
+    # delete_instrument actually cascades to — it filters on deleted_at alone,
+    # not is_active — so a delete-confirm that counted only the active ones
+    # would under-report. Keep the two counts distinct; they answer different
+    # questions ("how much is in rotation" vs. "how much a delete takes").
+    result = await session.exec(
+        select(func.count(Template.id)).where(
+            Template.instrument_id == instrument.id,
+            Template.deleted_at == None,  # noqa: E711
+        )
+    )
+    template_count = result.one()
+
     # Repertoire size (pieces in the instrument's library)
     result = await session.exec(
         select(func.count(Piece.id)).where(
@@ -60,6 +73,7 @@ async def _enrich_instrument(
         practice_frequency=instrument.practice_frequency,
         display_order=instrument.display_order,
         active_template_count=active_template_count,
+        template_count=template_count,
         piece_count=piece_count,
         last_practiced_at=last_practiced_at,
     )

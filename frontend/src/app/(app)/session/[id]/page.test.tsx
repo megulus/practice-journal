@@ -95,7 +95,8 @@ describe('ActiveSessionPage — End session', () => {
     await user.click(screen.getByRole('button', { name: 'End session' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('End this session?')
+    expect(dialog).toHaveTextContent('End “Morning practice”?')
+    expect(dialog).toHaveTextContent('This can’t be undone.')
   })
 
   it('abandons the session and navigates away on confirm', async () => {

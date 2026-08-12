@@ -92,11 +92,21 @@ All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
 
 ### Components
 
-- `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav)
-- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `RepertoireBlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`, `ConfirmDialog`, `ComingSoonPlaceholder`)
+- `src/components/layout/` — `AppShell`, `BottomNav` (and future side nav). `appChrome.tsx` holds the context a page uses to hide the nav (`useHideAppChrome`) — the quick-start wizard is the only current caller
+- `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `RepertoireBlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`)
 - `src/components/profile/` — Profile tab sections (`AccountHeader`, `InstrumentManager`/`InstrumentCard`, `ProfileSettings`)
 - `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`) plus the template editor's `SpotManagementDrawer` and the shared `SearchCreateInput` (the search-doubles-as-create field)
+- `src/components/quickstart/` — the quick-start wizard the Today tab shows when the user has no active plan (`QuickStartWizard` + one component per step); the plan-balancing rules and the `needsQuickStart` gate live in `src/lib/quickstart.ts`
 - `src/components/ui/` — design-system primitives (Button, Card, Pill, etc.) — added incrementally during Phase 0 PR 3+
+
+**Destructive actions go through `ConfirmDialog`** (`src/components/ui/ConfirmDialog.tsx`),
+which wraps the `Dialog` primitive so it inherits the focus trap, Escape-to-dismiss,
+and focus restore. Two invariants make dismissal the safe default: `onCancel` is
+what `Dialog` calls for Escape and backdrop clicks, and Cancel renders before the
+destructive button so `Dialog`'s initial focus lands on it. Don't hand-roll a
+confirm out of `Dialog`, and don't write the copy inline — pull it from
+`deleteConfirmCopy` / `archiveConfirmCopy` in `src/lib/confirm-copy.ts` so every
+call site names its target and states the cascade the same way.
 
 ### Styling
 

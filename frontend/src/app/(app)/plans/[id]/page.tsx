@@ -14,10 +14,14 @@ import type {
 import SessionTabs from '@/components/SessionTabs'
 import SectionCard from '@/components/SectionCard'
 import AddBlockSheet from '@/components/AddBlockSheet'
-import ConfirmDialog from '@/components/ConfirmDialog'
 import { SpotManagementDrawer } from '@/components/repertoire'
-import { AutoSaveInput, Button, Pill } from '@/components/ui'
+import { AutoSaveInput, Button, ConfirmDialog, Pill } from '@/components/ui'
 import { getSectionColor } from '@/lib/section-colors'
+import {
+  alsoRemoves,
+  archiveConfirmCopy,
+  deleteConfirmCopy,
+} from '@/lib/confirm-copy'
 
 // TODO(#168): replace hardcoded section_type with a real picker (template
 // editor + freeform session). All new sections in this PR are 'other'.
@@ -39,9 +43,16 @@ export default function TemplateEditorPage() {
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{
     kind: 'template' | 'session' | 'section' | 'block'
+    /** UI noun for the kind — "plan", not "template". */
+    noun: string
     id: number
     label: string
+    /** Sentences naming what else goes with it. */
+    cascade?: string[]
   } | null>(null)
+  // Archiving is the `is_active` toggle. Only turning it *off* confirms —
+  // re-activating a plan takes nothing away.
+  const [confirmArchive, setConfirmArchive] = useState(false)
 
   // ---------------------------------------------------------------------
   // Initial load
@@ -308,7 +319,9 @@ export default function TemplateEditorPage() {
           <Pill
             variant="instrument"
             active={template.is_active}
-            onClick={() => setActive(!template.is_active)}
+            onClick={() =>
+              template.is_active ? setConfirmArchive(true) : setActive(true)
+            }
           >
             {template.is_active ? 'Active plan' : 'Set as active'}
           </Pill>
@@ -327,8 +340,24 @@ export default function TemplateEditorPage() {
             onClick={() =>
               setConfirmDelete({
                 kind: 'template',
+                noun: 'plan',
                 id: template.id,
                 label: template.name,
+                cascade: [
+                  // "session" is overloaded — a rotation day here, a logged
+                  // practice there. Say which, then say the other survives:
+                  // delete_template only soft-deletes the template row, so
+                  // practice logs (and their history cards) are untouched.
+                  ...(sessionCount
+                    ? [
+                        alsoRemoves(sessionCount, 'rotation session', {
+                          andContents: true,
+                        }),
+                      ]
+                    : []),
+                  // True at any session count.
+                  'Your logged practice history is kept.',
+                ],
               })
             }
           >
@@ -365,8 +394,16 @@ export default function TemplateEditorPage() {
             onDelete={() =>
               setConfirmDelete({
                 kind: 'session',
+                noun: 'session',
                 id: selectedSession.id,
                 label: selectedSession.name,
+                cascade: selectedSession.sections.length
+                  ? [
+                      alsoRemoves(selectedSession.sections.length, 'section', {
+                        andContents: true,
+                      }),
+                    ]
+                  : undefined,
               })
             }
           />
@@ -400,8 +437,12 @@ export default function TemplateEditorPage() {
                     onDelete={() =>
                       setConfirmDelete({
                         kind: 'section',
+                        noun: 'section',
                         id: section.id,
                         label: section.name,
+                        cascade: section.blocks.length
+                          ? [alsoRemoves(section.blocks.length, 'block')]
+                          : undefined,
                       })
                     }
                     onAddBlock={() => setAddBlockSectionId(section.id)}
@@ -412,10 +453,26 @@ export default function TemplateEditorPage() {
                     onChangeBlockDuration={setBlockDuration}
                     onDeleteBlock={(blockId) => {
                       const block = section.blocks.find((b) => b.id === blockId)
+                      const isRepertoire = block?.piece_id != null
+                      const spotCount = block?.default_spots?.length ?? 0
                       setConfirmDelete({
                         kind: 'block',
+                        // A repertoire block is the piece's slot in this plan,
+                        // not the piece. Deleting it drops the block row and
+                        // its default-spot links; the piece and its spots stay
+                        // in the library. Say so — "delete the block Bach
+                        // Partita" otherwise reads like the piece is going.
+                        noun: isRepertoire ? 'repertoire block' : 'block',
                         id: blockId,
                         label: block?.name ?? block?.piece_name ?? 'block',
+                        cascade: isRepertoire
+                          ? [
+                              ...(spotCount
+                                ? [alsoRemoves(spotCount, 'default spot')]
+                                : []),
+                              'The piece and its spots stay in your repertoire.',
+                            ]
+                          : undefined,
                       })
                     }}
                     onOpenBlockSpots={setSpotDrawerBlockId}
@@ -461,10 +518,10 @@ export default function TemplateEditorPage() {
       {/* Confirm delete */}
       {confirmDelete && (
         <ConfirmDialog
-          title={`Delete ${confirmDelete.kind}?`}
-          message={`"${confirmDelete.label}" will be removed.`}
+          {...deleteConfirmCopy(confirmDelete.noun, confirmDelete.label, {
+            cascade: confirmDelete.cascade,
+          })}
           confirmLabel="Delete"
-          confirmVariant="danger"
           onCancel={() => setConfirmDelete(null)}
           onConfirm={async () => {
             const c = confirmDelete
@@ -473,6 +530,24 @@ export default function TemplateEditorPage() {
             else if (c.kind === 'session') await deleteSession(c.id)
             else if (c.kind === 'section') await deleteSection(c.id)
             else if (c.kind === 'block') await deleteBlock(c.id)
+          }}
+        />
+      )}
+
+      {/* Confirm archive (deactivate) */}
+      {confirmArchive && (
+        <ConfirmDialog
+          {...archiveConfirmCopy('plan', template.name, {
+            cascade: [
+              'It moves to Archived on the Plans list and stops being offered on Today.',
+            ],
+          })}
+          confirmLabel="Archive"
+          confirmVariant="default"
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={async () => {
+            setConfirmArchive(false)
+            await setActive(false)
           }}
         />
       )}
