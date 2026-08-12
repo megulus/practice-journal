@@ -54,8 +54,22 @@ Usage in an endpoint::
         ...build rows...
         payload = ThingRead(...)
         idem.store(payload, status_code=201)
-        await session.commit()
+        await idem.commit()
         return payload
+
+Two things to know before adopting it:
+
+- **Commit through `idem.commit()`, not `session.commit()`.** `open()` claims
+  the key with a placeholder row; committing before `store()` has filled it in
+  persists a record that replays a status-0 non-response forever, and the key
+  can never be used again. `commit()` refuses to do that, so the mistake fails
+  in your first test run rather than silently in production.
+- **`open()` may roll the session back.** Losing the concurrent-duplicate race
+  rolls back to release the failed insert, which expires every ORM object
+  loaded before that point — touching one afterwards raises `MissingGreenlet`.
+  Open the request before you load anything you intend to keep using, or
+  re-fetch after. (Quickstart is unaffected: it returns immediately on a
+  replay and loads nothing beforehand.)
 """
 import hashlib
 import json
@@ -120,12 +134,17 @@ class IdempotentRequest:
 
     `open()` either finds the stored response of an earlier identical request
     — replay it and do nothing else — or reserves the key so this request can
-    proceed. `store()` then fills the reservation with the response, which
-    commits alongside the work: the stored result can't exist without the rows
-    it describes, and those rows can't exist without a way to replay them.
+    proceed. `store()` then fills the reservation with the response and
+    `commit()` writes it alongside the work: the stored result can't exist
+    without the rows it describes, and those rows can't exist without a way to
+    replay them.
 
     With no key, every method is a no-op and the endpoint behaves as before.
     """
+
+    #: Reservation status before `store()` fills it in. Committing a row still
+    #: holding it would poison the key, so `commit()` refuses to.
+    _UNSET_STATUS = 0
 
     def __init__(
         self,
@@ -175,14 +194,15 @@ class IdempotentRequest:
             idem.replay = existing
             return idem
 
-        # Placeholder values: the row is only ever committed via store(), and
-        # a request that never gets there rolls the reservation back with it.
+        # Placeholder values, filled in by store(); commit() won't let a row
+        # still holding them reach the database, and a request that fails
+        # before then rolls the whole reservation back with it.
         reservation = IdempotencyRecord(
             user_id=user_id,
             idempotency_key=key,
             endpoint=endpoint,
             request_fingerprint=idem._fingerprint,
-            response_status=0,
+            response_status=cls._UNSET_STATUS,
             response_body={},
         )
         session.add(reservation)
@@ -204,15 +224,41 @@ class IdempotentRequest:
 
     def store(self, body: Union[BaseModel, dict], *, status_code: int) -> None:
         """Attach the response to the reservation, to commit with the work."""
+        assert status_code != self._UNSET_STATUS, (
+            f"{status_code} is the reserved 'not stored yet' status"
+        )
         if self._reservation is None:
             return
         self._reservation.response_status = status_code
         self._reservation.response_body = _as_json(body)
         self._session.add(self._reservation)
 
+    async def commit(self) -> None:
+        """Commit the endpoint's work together with the stored response.
+
+        Refuses to commit a reservation `store()` never filled in: that row
+        would replay a status-0 non-response to every later retry and burn the
+        key permanently. Failing here instead makes the mistake obvious in the
+        adopting endpoint's first test run.
+        """
+        if self._reservation is not None:
+            assert self._reservation.response_status != self._UNSET_STATUS, (
+                "store() must be called before commit() — committing an "
+                "unfilled reservation would poison this idempotency key"
+            )
+        await self._session.commit()
+
     def respond(self, response: Response) -> dict[str, Any]:
         """Return the stored response, with the original status code."""
         assert self.replay is not None, "respond() is only valid for a replay"
+        if self.replay.response_status == self._UNSET_STATUS:
+            # Only reachable if some endpoint committed a reservation without
+            # store(). Not an assert: this one depends on persisted state, and
+            # under `python -O` a stripped check would send a status of 0.
+            raise RuntimeError(
+                f"idempotency record {self.replay.id} was never completed — "
+                f"{self.replay.endpoint} committed without calling store()"
+            )
         response.status_code = self.replay.response_status
         response.headers[REPLAY_HEADER] = "true"
         return self.replay.response_body

@@ -39,16 +39,16 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         # Keys are per-user: a key from one account can never replay another's
-        # result. This is also the lock a concurrent duplicate blocks on.
+        # result. This is also the lock a concurrent duplicate blocks on, and
+        # its leading column serves every user-scoped lookup, so `user_id`
+        # needs no index of its own.
         sa.UniqueConstraint(
             "user_id",
             "idempotency_key",
             name="uq_idempotency_records_user_key",
         ),
     )
-    op.create_index(
-        "ix_idempotency_records_user_id", "idempotency_records", ["user_id"]
-    )
+    # For the eventual purge of expired keys (see the model docstring).
     op.create_index(
         "ix_idempotency_records_created_at", "idempotency_records", ["created_at"]
     )
@@ -56,5 +56,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_idempotency_records_created_at", "idempotency_records")
-    op.drop_index("ix_idempotency_records_user_id", "idempotency_records")
     op.drop_table("idempotency_records")

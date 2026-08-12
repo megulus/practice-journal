@@ -154,5 +154,7 @@ async def quick_start(
     )
     idem.store(payload, status_code=status.HTTP_201_CREATED)
 
-    await session.commit()
+    # Through the guard, not session.commit(): it won't let a reservation the
+    # response was never stored into reach the database.
+    await idem.commit()
     return payload
