@@ -183,13 +183,20 @@ async def test_engine():
     comes close to them. They exist so a test that deadlocks on a lock or
     stalls in the server fails with a traceback pointing at the statement,
     instead of hanging until CI kills the job (#273).
+
+    They form a ladder — lock_timeout 15s, statement_timeout 30s, pytest's
+    --timeout 60s — so the most specific diagnosis is always the one that
+    fires. Postgres names the statement and says whether it was waiting on a
+    lock; pytest's SIGALRM lands wherever the event loop happens to be, which
+    is the least useful of the three. Ties would be decided by whichever timer
+    the server checks first, so the layers are kept distinctly apart.
     """
     engine = create_async_engine(
         _TEST_DB_URL,
         echo=False,
         pool_size=5,
         connect_args={
-            "server_settings": {"statement_timeout": "60000", "lock_timeout": "30000"}
+            "server_settings": {"statement_timeout": "30000", "lock_timeout": "15000"}
         },
     )
     yield engine

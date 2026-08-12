@@ -98,19 +98,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # `next build` type-checks app code but not test files, so a PR could
-      # widen a shared interface, leave every existing fixture ill-typed, and
-      # still go green — which happened three times in one batch (#293).
-      # Vitest doesn't catch it either: it transpiles without type-checking.
-      # `tsc --noEmit` covers everything tsconfig includes, tests included.
-      #
-      # First step after install because it's the cheapest gate here (~6s
-      # locally, against 40s for the tests and 36s for the build in CI) and
-      # because a type error reported on its own is easier to read than the
-      # same error buried in build output.
-      - name: Type check
-        run: npm run typecheck
-
       - name: Run tests
         run: npm test
 
@@ -146,3 +133,28 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8000
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
         run: npm run build
+
+      # `next build` type-checks app code but not test files, so a PR could
+      # widen a shared interface, leave every existing fixture ill-typed, and
+      # still go green — which happened three times in one batch (#293).
+      # Vitest doesn't catch it either: it transpiles without type-checking.
+      # `tsc --noEmit` covers everything tsconfig includes, tests included.
+      #
+      # It has to run *after* the build, not before, or it type-checks a
+      # program no developer ever has. tsconfig includes `next-env.d.ts` and
+      # `.next/types/**/*.ts`; both are generated and both are gitignored, so
+      # in a fresh checkout neither exists. Checked in that state, a perfectly
+      # valid static-asset import fails CI and nowhere else —
+      #
+      #   src/probe-asset.ts(1,18): error TS2307: Cannot find module
+      #     './probe.svg' or its corresponding type declarations.
+      #
+      # — while a break against a generated route type fails locally and not
+      # in CI. Either way the gate disagrees with the developer it exists to
+      # help. Committing `next-env.d.ts` would fix only the first half; the
+      # route types under `.next/types` still need a build. Running after the
+      # build costs the fail-fast ordering, but little in practice: `next
+      # build` type-checks app code itself, so app-code type errors still stop
+      # the job at the build step, and only the test-file coverage waits.
+      - name: Type check
+        run: npm run typecheck
