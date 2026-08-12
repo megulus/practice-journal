@@ -112,13 +112,56 @@ function derivePieceName(logs: BlockLog[]): string {
  * Repertoire spot logs are named "{piece} — {spot}"; a spot row already sits
  * under its piece, so drop the prefix.
  *
- * Strips the group's actual piece name rather than splitting on the first
- * " — ", so a title containing the separator loses only the title, and a name
- * that doesn't carry the expected prefix is left intact.
+ * Two prefixes can be in play, because `block_name` freezes the piece's title
+ * as of the moment it was logged:
+ *
+ * 1. `pieceName` — the piece's *current* name, from the relationship. Matches
+ *    unless the piece has been renamed since.
+ * 2. The name the group's logs were *written with*, recovered from the prefix
+ *    they all share (`groupSpotLogs`). After a rename this is the stale title,
+ *    and stripping it is what keeps a renamed piece's rows reading "mm. 1–8"
+ *    rather than "Old title — mm. 1–8".
+ *
+ * Anything else is left whole: a name that carries neither prefix isn't a
+ * "{piece} — {spot}" pair we can take apart, and chopping it at an arbitrary
+ * " — " would eat part of the spot's own name (#252).
  */
-export function spotDisplayName(blockLog: BlockLog, pieceName: string): string {
-  const prefix = `${pieceName} — `
-  return blockLog.block_name.startsWith(prefix)
-    ? blockLog.block_name.slice(prefix.length)
-    : blockLog.block_name
+export function spotDisplayName(
+  blockLog: BlockLog,
+  pieceName: string,
+  groupSpotLogs: BlockLog[] = [],
+): string {
+  const current = `${pieceName} — `
+  if (blockLog.block_name.startsWith(current)) {
+    return blockLog.block_name.slice(current.length)
+  }
+  const logged = loggedPiecePrefix(groupSpotLogs)
+  if (logged && blockLog.block_name.startsWith(logged)) {
+    return blockLog.block_name.slice(logged.length)
+  }
+  return blockLog.block_name
+}
+
+/**
+ * The "{piece} — " prefix a group's spot logs were denormalized with: their
+ * longest common prefix, cut back to a " — " boundary.
+ *
+ * Spot names differ, so what the logs agree on is the title — including a
+ * title that contains the separator itself. A group of one has nothing to
+ * agree with, and falls back to its own last boundary.
+ */
+function loggedPiecePrefix(spotLogs: BlockLog[]): string {
+  if (spotLogs.length === 0) return ''
+  const shared = spotLogs.reduce(
+    (acc, bl) => commonPrefix(acc, bl.block_name),
+    spotLogs[0].block_name,
+  )
+  const boundary = shared.lastIndexOf(' — ')
+  return boundary === -1 ? '' : shared.slice(0, boundary + 3)
+}
+
+function commonPrefix(a: string, b: string): string {
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  return a.slice(0, i)
 }

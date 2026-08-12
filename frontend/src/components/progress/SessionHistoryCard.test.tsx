@@ -245,6 +245,40 @@ describe('SessionHistoryCard', () => {
     expect(within(detail).getByText('mm. 1–8')).toBeInTheDocument()
   })
 
+  it('shows the renamed piece but still strips the name it was logged with', async () => {
+    const user = userEvent.setup()
+    mockGetHistoryDetail.mockResolvedValue(
+      makeLog([
+        makeSection([
+          makeBlock({
+            block_id: 7,
+            spot_id: 1,
+            block_name: 'Bruch concerto — mm. 1–16',
+            piece_name: 'Bruch — Concerto No. 1',
+            rating: 1,
+          }),
+          makeBlock({
+            block_id: 7,
+            spot_id: 2,
+            block_name: 'Bruch concerto — mm. 17–32',
+            piece_name: 'Bruch — Concerto No. 1',
+            rating: 0,
+          }),
+        ]),
+      ]),
+    )
+    render(<SessionHistoryCard item={makeItem()} />)
+    await user.click(screen.getByRole('button', { name: /Technique focus/ }))
+
+    const detail = await screen.findByTestId('session-detail-42')
+    expect(within(detail).getByText('Bruch — Concerto No. 1')).toBeInTheDocument()
+    expect(within(detail).getByText('mm. 1–16')).toBeInTheDocument()
+    expect(within(detail).getByText('mm. 17–32')).toBeInTheDocument()
+    expect(
+      within(detail).queryByText('Bruch concerto — mm. 1–16'),
+    ).not.toBeInTheDocument()
+  })
+
   it('leaves a spot name intact when it lacks the piece prefix', async () => {
     const user = userEvent.setup()
     mockGetHistoryDetail.mockResolvedValue(

@@ -124,9 +124,23 @@ describe('groupBlockLogs — piece name from the relationship (#274)', () => {
         block_name: 'Old title — mm. 1–8',
         piece_name: 'New title',
       }),
+      makeLog({
+        id: 2,
+        block_id: 10,
+        spot_id: 101,
+        block_name: 'Old title — coda',
+        piece_name: 'New title',
+      }),
     ]
     const groups = groupBlockLogs(logs, null)
     expect(groups[0]).toMatchObject({ pieceName: 'New title' })
+    // …and the rows still drop the prefix they were written with, rather
+    // than showing the stale title back to the user.
+    if (groups[0].type === 'repertoire') {
+      const { spotLogs, pieceName } = groups[0]
+      expect(spotLogs.map((bl) => spotDisplayName(bl, pieceName, spotLogs)))
+        .toEqual(['mm. 1–8', 'coda'])
+    }
   })
 
   it('takes the piece name from whichever log in the group carries one', () => {
@@ -167,8 +181,51 @@ describe('spotDisplayName', () => {
 
   it('leaves a name that lacks the prefix intact', () => {
     const log = makeLog({ block_name: 'Coda, from the top — slowly' })
-    expect(spotDisplayName(log, 'Bruch concerto')).toBe(
+    const group = [makeLog({ block_name: 'Bruch concerto — mm. 1–16' }), log]
+    expect(spotDisplayName(log, 'Bruch concerto', group)).toBe(
       'Coda, from the top — slowly',
     )
+  })
+
+  it('drops the stale prefix a renamed piece left in block_name', () => {
+    const group = [
+      makeLog({ block_name: 'Old title — mm. 1–8', piece_name: 'New title' }),
+      makeLog({ block_name: 'Old title — coda', piece_name: 'New title' }),
+    ]
+    expect(spotDisplayName(group[0], 'New title', group)).toBe('mm. 1–8')
+  })
+
+  it('recovers a stale title that contains the separator', () => {
+    // The logs agree on "Sonata — No. 2 — ", so the whole stale title goes,
+    // which no split on the first " — " could manage.
+    const group = [
+      makeLog({
+        block_name: 'Sonata — No. 2 — mm. 1–8',
+        piece_name: 'Sonata No. 2',
+      }),
+      makeLog({
+        block_name: 'Sonata — No. 2 — coda',
+        piece_name: 'Sonata No. 2',
+      }),
+    ]
+    expect(spotDisplayName(group[0], 'Sonata No. 2', group)).toBe('mm. 1–8')
+  })
+
+  it('trims the shared prefix back to a separator boundary', () => {
+    // Spot names that start alike ("mm. 1–8" / "mm. 17–32") share more than
+    // the title, so the common prefix has to be cut at the last " — ".
+    const group = [
+      makeLog({ block_name: 'Old title — mm. 1–8', piece_name: 'New title' }),
+      makeLog({ block_name: 'Old title — mm. 17–32', piece_name: 'New title' }),
+    ]
+    expect(spotDisplayName(group[1], 'New title', group)).toBe('mm. 17–32')
+  })
+
+  it('falls back to the log itself when the group has one spot', () => {
+    const log = makeLog({
+      block_name: 'Old title — mm. 1–8',
+      piece_name: 'New title',
+    })
+    expect(spotDisplayName(log, 'New title', [log])).toBe('mm. 1–8')
   })
 })

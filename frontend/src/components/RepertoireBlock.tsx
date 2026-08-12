@@ -24,7 +24,9 @@ import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
  * and inline spot creation.
  *
  * Props:
- * - pieceName: extracted from the first blockLog's block_name (before " — ")
+ * - pieceName: the piece's name as `groupBlockLogs` resolved it — from the
+ *   block relationship (`BlockLog.piece_name`), not by splitting block_name,
+ *   which truncates a title that contains " — " (#274)
  * - spotLogs: the BlockLog[] that belong to this piece (same block_id, spot_id set)
  * - pieceLog: a piece-level BlockLog (spot_id null) if in whole-piece mode, else null
  */
@@ -183,6 +185,7 @@ export default function RepertoireBlock({
               logId={logId}
               blockLog={bl}
               pieceName={pieceName}
+              groupSpotLogs={spotLogs}
               suggestion={suggestions?.[String(bl.id)]}
               onUpdate={onUpdate}
               pendingFlushes={pendingFlushes}
@@ -257,6 +260,7 @@ function SpotRow({
   logId,
   blockLog,
   pieceName,
+  groupSpotLogs,
   suggestion,
   onUpdate,
   pendingFlushes,
@@ -264,6 +268,8 @@ function SpotRow({
   logId: number
   blockLog: BlockLog
   pieceName: string
+  /** The piece's other spot logs — see `spotDisplayName`. */
+  groupSpotLogs: BlockLog[]
   suggestion?: InSessionSuggestion
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
@@ -273,7 +279,7 @@ function SpotRow({
   const [notes, setNotes] = useState(blockLog.notes ?? '')
 
   // Extract spot name from the "{piece} — {spot}" denormalized name
-  const spotName = spotDisplayName(blockLog, pieceName)
+  const spotName = spotDisplayName(blockLog, pieceName, groupSpotLogs)
 
   const handleToggle = async () => {
     await api.updateBlockLog(logId, blockLog.id, {

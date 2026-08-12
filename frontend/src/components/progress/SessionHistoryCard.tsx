@@ -142,7 +142,11 @@ function SessionDetail({ log }: { log: PracticeLog }) {
                       <li key={`s-${spot.id}`}>
                         <ExerciseRow
                           blockLog={spot}
-                          name={spotDisplayName(spot, group.pieceName)}
+                          name={spotDisplayName(
+                            spot,
+                            group.pieceName,
+                            group.spotLogs,
+                          )}
                           muted
                         />
                       </li>
