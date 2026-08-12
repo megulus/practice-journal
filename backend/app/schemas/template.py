@@ -158,6 +158,23 @@ class TemplateRead(BaseModel):
     sessions: List[TemplateSessionRead] = []
 
 
+class TemplateUpdateRead(TemplateRead):
+    """`PATCH /api/templates/{id}` response — a `TemplateRead` plus the name of
+    the template this request displaced.
+
+    Activating a template deactivates the instrument's current active one, so
+    one request changes a template the client never named. The extra field
+    carries that template's name, and is set *only* when the write actually
+    displaced something: it is null when `is_active` wasn't set to true, when
+    the template was already active, and when the instrument had no active
+    template. The client needs it to tell the user which plan it just archived
+    on their behalf, and the PATCH already has it in hand — the only
+    alternative is a separate lookup of the instrument's template list (#289).
+    """
+
+    deactivated_template_name: Optional[str] = None
+
+
 class TemplateListItem(BaseModel):
     """Lightweight template for list views (no nested sessions).
 

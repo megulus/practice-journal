@@ -24,6 +24,7 @@ from app.schemas.template import (
     TemplateRead,
     TemplateSessionRead,
     TemplateUpdate,
+    TemplateUpdateRead,
 )
 
 router = APIRouter(tags=["templates"])
@@ -305,7 +306,7 @@ async def get_template(
     return await _build_template_read(session, template)
 
 
-@router.patch("/templates/{template_id}", response_model=TemplateRead)
+@router.patch("/templates/{template_id}", response_model=TemplateUpdateRead)
 async def update_template(
     template_id: int,
     body: TemplateUpdate,
@@ -313,12 +314,14 @@ async def update_template(
     current_user: User = Depends(get_current_user),
 ):
     """Update template metadata. Setting is_active=true deactivates the
-    instrument's current active template first."""
+    instrument's current active template first, and the response names it in
+    `deactivated_template_name` so the client can report the side effect."""
     template = await _get_owned_template(session, template_id, current_user.id)
 
     update_data = body.model_dump(exclude_unset=True, mode="json")
 
     # Handle is_active toggle: deactivate current active template first
+    deactivated_name: str | None = None
     if update_data.get("is_active") is True and not template.is_active:
         result = await session.exec(
             select(Template).where(
@@ -332,6 +335,9 @@ async def update_template(
         if current_active:
             current_active.is_active = False
             session.add(current_active)
+            # Read the name before the commit — it's the only record of what
+            # this write displaced, and the client can't name it otherwise.
+            deactivated_name = current_active.name
 
     for field, value in update_data.items():
         setattr(template, field, value)
@@ -339,7 +345,11 @@ async def update_template(
     session.add(template)
     await session.commit()
     await session.refresh(template)
-    return await _build_template_read(session, template)
+    read = await _build_template_read(session, template)
+    return TemplateUpdateRead(
+        **read.model_dump(),
+        deactivated_template_name=deactivated_name,
+    )
 
 
 @router.post(

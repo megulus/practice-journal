@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { act } from '@testing-library/react'
 import { render, screen, userEvent, waitFor, within } from '@/test/utils'
 import TemplateEditorPage from './page'
-import type { Instrument, Template } from '@/lib/types'
+import type {
+  Instrument,
+  Template,
+  TemplateUpdateResult,
+} from '@/lib/types'
 
 // One hoisted api object, returned by every `useApi()` call. A fresh object
 // per render re-triggers the `api`-dependent load effect forever (#277).
 const mocks = vi.hoisted(() => ({
   getTemplate: vi.fn(),
   listInstruments: vi.fn(),
-  updateTemplate: vi.fn().mockResolvedValue(undefined),
+  updateTemplate: vi.fn(),
   deleteTemplate: vi.fn().mockResolvedValue(undefined),
   deleteTemplateSession: vi.fn().mockResolvedValue(undefined),
   deleteSection: vi.fn().mockResolvedValue(undefined),
@@ -155,11 +160,22 @@ async function chooseFromMenu(
   await user.click(await screen.findByRole('menuitem', { name: itemName }))
 }
 
+/**
+ * A PATCH /api/templates/{id} response. `deactivated_template_name` is the
+ * plan this write displaced, or null when it displaced nothing (#289).
+ */
+function updateResult(
+  patch: Partial<TemplateUpdateResult> = {},
+): TemplateUpdateResult {
+  return { ...template, deactivated_template_name: null, ...patch }
+}
+
 describe('TemplateEditorPage — destructive confirmations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getTemplate.mockResolvedValue(template)
     mocks.listInstruments.mockResolvedValue([instrument])
+    mocks.updateTemplate.mockResolvedValue(updateResult())
   })
 
   async function renderEditor() {
@@ -359,7 +375,10 @@ describe('TemplateEditorPage — destructive confirmations', () => {
     )
   })
 
-  it('re-activating an archived plan takes nothing away, so it skips the confirm', async () => {
+  // Activating *does* take something away — the instrument's previous active
+  // plan — but reversibly, so the effect is reported afterwards rather than
+  // gated behind a dialog (#289). The notice tests live in the block below.
+  it('activating an archived plan skips the confirm', async () => {
     const user = userEvent.setup()
     mocks.getTemplate.mockResolvedValue({ ...template, is_active: false })
     await renderEditor()
@@ -370,5 +389,125 @@ describe('TemplateEditorPage — destructive confirmations', () => {
       expect(mocks.updateTemplate).toHaveBeenCalledWith(1, { is_active: true }),
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * #289: "Set as active" deactivates the instrument's current active plan, which
+ * is a change to a plan that isn't on screen. No confirm — it only flips
+ * `is_active` — but the editor has to say what it did, and name it.
+ */
+describe('TemplateEditorPage — activation notice', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getTemplate.mockResolvedValue({ ...template, is_active: false })
+    mocks.listInstruments.mockResolvedValue([instrument])
+    mocks.updateTemplate.mockResolvedValue(updateResult())
+  })
+
+  async function renderInactiveEditor() {
+    render(<TemplateEditorPage />)
+    await screen.findByDisplayValue('Morning routine')
+    return screen.getByRole('button', { name: 'Set as active' })
+  }
+
+  it('names the plan the activation displaced, in a live region', async () => {
+    const user = userEvent.setup()
+    mocks.updateTemplate.mockResolvedValue(
+      updateResult({ is_active: true, deactivated_template_name: 'Daily warm-up' }),
+    )
+    const pill = await renderInactiveEditor()
+
+    await user.click(pill)
+
+    // A screen reader has to receive this, so it has to be the live region's
+    // content — not just any text that appeared on screen.
+    const live = screen.getByRole('status')
+    await waitFor(() =>
+      expect(live).toHaveTextContent(
+        '“Daily warm-up” is no longer active — an instrument has one active plan at a time.',
+      ),
+    )
+    expect(live).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('claims no displacement when the activation displaced nothing', async () => {
+    const user = userEvent.setup()
+    mocks.updateTemplate.mockResolvedValue(updateResult({ is_active: true }))
+    const pill = await renderInactiveEditor()
+
+    await user.click(pill)
+
+    await waitFor(() =>
+      expect(mocks.updateTemplate).toHaveBeenCalledWith(1, { is_active: true }),
+    )
+    // The plan went active; nothing was archived to report.
+    await screen.findByRole('button', { name: 'Active plan' })
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    expect(screen.queryByText(/no longer active/)).not.toBeInTheDocument()
+  })
+
+  it('reports a failed activation and leaves the pill unchanged', async () => {
+    const user = userEvent.setup()
+    mocks.updateTemplate.mockRejectedValue(new Error('network'))
+    const pill = await renderInactiveEditor()
+
+    await user.click(pill)
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        "Couldn't set this plan as active. Please try again.",
+      ),
+    )
+    // The write didn't land, so the pill must not pretend it did.
+    expect(screen.getByRole('button', { name: 'Set as active' })).toBeInTheDocument()
+    expect(screen.queryByText(/no longer active/)).not.toBeInTheDocument()
+  })
+
+  it('dismisses the displacement notice on its own', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mocks.updateTemplate.mockResolvedValue(
+        updateResult({
+          is_active: true,
+          deactivated_template_name: 'Daily warm-up',
+        }),
+      )
+      const pill = await renderInactiveEditor()
+
+      await user.click(pill)
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(/no longer active/),
+      )
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8000)
+      })
+      expect(screen.getByRole('status')).toHaveTextContent('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports a failed archive too', async () => {
+    const user = userEvent.setup()
+    mocks.getTemplate.mockResolvedValue(template) // active
+    mocks.updateTemplate.mockRejectedValue(new Error('network'))
+    render(<TemplateEditorPage />)
+    await screen.findByDisplayValue('Morning routine')
+
+    await user.click(screen.getByRole('button', { name: 'Active plan' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Archive' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        "Couldn't archive this plan. Please try again.",
+      ),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Active plan' }),
+    ).toBeInTheDocument()
   })
 })

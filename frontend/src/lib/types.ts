@@ -273,6 +273,20 @@ export interface Template {
   sessions: TemplateSession[]
 }
 
+/**
+ * `PATCH /api/templates/{id}` response — a `Template` plus the name of the plan
+ * the write displaced.
+ *
+ * `deactivated_template_name` is non-null only when `is_active: true` actually
+ * deactivated the instrument's previous active plan (an instrument has one at a
+ * time). It's null when the plan was already active and when there was nothing
+ * active to displace, so it doubles as the "did this take a plan away?" flag —
+ * see #289.
+ */
+export interface TemplateUpdateResult extends Template {
+  deactivated_template_name: string | null
+}
+
 export interface TemplateListItem {
   id: number
   instrument_id: number
