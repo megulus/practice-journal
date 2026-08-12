@@ -24,6 +24,8 @@ const instrument: Instrument = {
   practice_frequency: 'daily',
   display_order: 0,
   active_template_count: 1,
+  // Every live template, archived included (#282); never below the active count.
+  template_count: 1,
   piece_count: 0,
   last_practiced_at: null,
 }
