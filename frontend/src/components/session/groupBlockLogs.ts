@@ -146,9 +146,20 @@ export function spotDisplayName(
  * The "{piece} — " prefix a group's spot logs were denormalized with: their
  * longest common prefix, cut back to a " — " boundary.
  *
- * Spot names differ, so what the logs agree on is the title — including a
- * title that contains the separator itself. A group of one has nothing to
- * agree with, and falls back to its own last boundary.
+ * Which boundary depends on how much evidence there is:
+ *
+ * - Several logs agree on a prefix only because it's the title, so take the
+ *   *last* boundary in it — that's what recovers a stale title containing the
+ *   separator ("Sonata — No. 2 — ") instead of stopping at "Sonata — ".
+ * - One log agrees only with itself: its whole name is "shared", and the last
+ *   boundary would swallow any separator in the *spot's* name too, turning
+ *   "Old title — Coda — slowly" into "slowly". With nothing to corroborate a
+ *   longer title, take the *first* boundary and keep the rest.
+ *
+ * Both directions can still be fooled — spots whose names share a leading
+ * segment ("Coda — slowly" / "Coda — fast") make that segment look like part
+ * of the title. That's the same ambiguity #274 is about, and why the piece
+ * name itself comes from the relationship rather than from this string.
  */
 function loggedPiecePrefix(spotLogs: BlockLog[]): string {
   if (spotLogs.length === 0) return ''
@@ -156,7 +167,8 @@ function loggedPiecePrefix(spotLogs: BlockLog[]): string {
     (acc, bl) => commonPrefix(acc, bl.block_name),
     spotLogs[0].block_name,
   )
-  const boundary = shared.lastIndexOf(' — ')
+  const boundary =
+    spotLogs.length === 1 ? shared.indexOf(' — ') : shared.lastIndexOf(' — ')
   return boundary === -1 ? '' : shared.slice(0, boundary + 3)
 }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { groupBlockLogs, spotDisplayName } from './groupBlockLogs'
+import type { BlockGroup } from './groupBlockLogs'
 import type { BlockLog } from '@/lib/types'
 
 function makeLog(overrides: Partial<BlockLog>): BlockLog {
@@ -17,6 +18,18 @@ function makeLog(overrides: Partial<BlockLog>): BlockLog {
     piece_name: null,
     ...overrides,
   }
+}
+
+/**
+ * Assert the group is repertoire and hand it back narrowed — a bare
+ * `if (group.type === 'repertoire')` would let the assertions inside it
+ * pass vacuously if grouping ever regressed.
+ */
+function repertoireGroup(groups: BlockGroup[], index = 0) {
+  const group = groups[index]
+  expect(group.type).toBe('repertoire')
+  if (group.type !== 'repertoire') throw new Error('not a repertoire group')
+  return group
 }
 
 describe('groupBlockLogs', () => {
@@ -132,15 +145,13 @@ describe('groupBlockLogs — piece name from the relationship (#274)', () => {
         piece_name: 'New title',
       }),
     ]
-    const groups = groupBlockLogs(logs, null)
-    expect(groups[0]).toMatchObject({ pieceName: 'New title' })
+    const { spotLogs, pieceName } = repertoireGroup(groupBlockLogs(logs, null))
+    expect(pieceName).toBe('New title')
     // …and the rows still drop the prefix they were written with, rather
     // than showing the stale title back to the user.
-    if (groups[0].type === 'repertoire') {
-      const { spotLogs, pieceName } = groups[0]
-      expect(spotLogs.map((bl) => spotDisplayName(bl, pieceName, spotLogs)))
-        .toEqual(['mm. 1–8', 'coda'])
-    }
+    expect(
+      spotLogs.map((bl) => spotDisplayName(bl, pieceName, spotLogs)),
+    ).toEqual(['mm. 1–8', 'coda'])
   })
 
   it('takes the piece name from whichever log in the group carries one', () => {
@@ -227,5 +238,15 @@ describe('spotDisplayName', () => {
       piece_name: 'New title',
     })
     expect(spotDisplayName(log, 'New title', [log])).toBe('mm. 1–8')
+  })
+
+  it('keeps a separator in the spot name when the group has one spot', () => {
+    // Nothing corroborates a longer title here, so only the first segment
+    // can be the stale piece name — the rest is the spot's own name.
+    const log = makeLog({
+      block_name: 'Old title — Coda — slowly',
+      piece_name: 'New title',
+    })
+    expect(spotDisplayName(log, 'New title', [log])).toBe('Coda — slowly')
   })
 })
