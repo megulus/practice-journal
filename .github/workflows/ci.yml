@@ -10,7 +10,7 @@ jobs:
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
-    # Stays at 10. The suite now runs in ~1.5 min of the job's ~3 min, and the
+    # Stays at 10. The suite now runs in ~1 min of the job's ~2 min, and the
     # pytest --session-timeout below fires at 7 min, so this ceiling should
     # never be what stops the job again — it is the backstop behind the
     # backstop. Raising it was the one fix #273 ruled out: the job was not
