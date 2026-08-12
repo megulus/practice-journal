@@ -6,10 +6,11 @@ active plan, and optionally a first repertoire piece. Doing that through the
 individual CRUD endpoints is ~15 round trips that can half-fail; this commits
 the lot in a single transaction instead.
 """
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.idempotency import IdempotentRequest, idempotency_key
 from app.api.ownership import get_owned_instrument
 from app.api.instruments_api import _enrich_instrument
 from app.api.templates_api import _build_template_read, _get_or_create_settings
@@ -22,12 +23,17 @@ from app.schemas.quickstart import QuickStartRequest, QuickStartResponse
 
 router = APIRouter(prefix="/quickstart", tags=["quickstart"])
 
+#: What an idempotency key is spent on here (see app/api/idempotency.py).
+ENDPOINT = "POST /api/quickstart"
+
 
 @router.post("", response_model=QuickStartResponse, status_code=status.HTTP_201_CREATED)
 async def quick_start(
     body: QuickStartRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    key: str | None = Depends(idempotency_key),
 ):
     """Create everything the quick-start wizard collected, in one transaction.
 
@@ -38,7 +44,23 @@ async def quick_start(
 
     The chosen time budget (the sum of the section durations) also becomes the
     user's `default_session_duration_minutes`, so later plans start there.
+
+    Send an `Idempotency-Key` header to make a retry safe: if the first attempt
+    committed but its response was lost in flight, the retry replays that
+    response instead of creating a second instrument, piece and plan (#290).
     """
+    # Claimed before any writes, so a duplicate that arrives while this one is
+    # still running waits on the key rather than racing it.
+    idem = await IdempotentRequest.open(
+        session,
+        user_id=current_user.id,
+        endpoint=ENDPOINT,
+        key=key,
+        body=body,
+    )
+    if idem.replay is not None:
+        return idem.respond(response)
+
     # --- instrument: reuse or create -------------------------------------
     if body.instrument_id is not None:
         instrument = await get_owned_instrument(
@@ -120,14 +142,17 @@ async def quick_start(
         s.estimated_duration_minutes for s in body.sections
     )
     session.add(settings)
+    await session.flush()
 
-    await session.commit()
-    await session.refresh(instrument)
-    await session.refresh(template)
-
-    return QuickStartResponse(
+    # Built before the commit so the stored copy an idempotent retry replays
+    # is the same object this caller gets, written in the same transaction.
+    payload = QuickStartResponse(
         instrument=await _enrich_instrument(session, instrument),
         template=await _build_template_read(session, template),
         template_session_id=template_session.id,
         piece=PieceRead.model_validate(piece) if piece else None,
     )
+    idem.store(payload, status_code=status.HTTP_201_CREATED)
+
+    await session.commit()
+    return payload

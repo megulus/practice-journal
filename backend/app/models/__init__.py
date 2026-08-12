@@ -12,6 +12,7 @@ from app.models.template import Template, TemplateSession, Section, Block
 from app.models.curated import CuratedBlock
 from app.models.practice import PracticeLog, SectionLog, BlockLog
 from app.models.suggestion import SuggestionDismissal, SuggestionInteraction
+from app.models.idempotency import IdempotencyRecord
 
 __all__ = [
     "User",
@@ -30,4 +31,5 @@ __all__ = [
     "BlockLog",
     "SuggestionDismissal",
     "SuggestionInteraction",
+    "IdempotencyRecord",
 ]
