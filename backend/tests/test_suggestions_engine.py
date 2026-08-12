@@ -367,7 +367,10 @@ class TestWeeklyConsistency:
         )
         assert result is not None
         assert result.rule_id == "weekly_consistency"
-        assert "1 of the last 7 days" in result.text
+        assert result.text == (
+            "You've practiced 1 of the last 7 days — "
+            "3 more and you'll match your goal."
+        )
 
     async def test_at_goal(
         self, db_session, test_user, test_instrument
@@ -382,7 +385,33 @@ class TestWeeklyConsistency:
             db_session, test_user.id, test_instrument.id, log.id
         )
         assert result is not None
-        assert "hit your goal" in result.text
+        assert result.text == (
+            "You've practiced 1 of the last 7 days — "
+            "you've hit your goal! Keep the momentum going."
+        )
+
+    async def test_never_calls_the_rolling_window_this_week(
+        self, db_session, test_user, test_instrument
+    ):
+        """The window is a rolling 7 days, so the copy must not say "this week"
+        — that phrase means the calendar week shown in Insights (#272).
+
+        Both branches are exercised: `few_times_a_week` (target 4) is under
+        goal on one session, `weekly` (target 1) is at goal.
+        """
+        for frequency in ("few_times_a_week", "weekly"):
+            test_instrument.practice_frequency = frequency
+            db_session.add(test_instrument)
+            log = await _make_log(
+                db_session, test_user, test_instrument,
+                practice_date=datetime.now(timezone.utc).date(),
+            )
+            result = await evaluate_post_session(
+                db_session, test_user.id, test_instrument.id, log.id
+            )
+            assert result is not None, frequency
+            assert result.rule_id == "weekly_consistency", frequency
+            assert "this week" not in result.text.lower(), frequency
 
 
 class TestSpotPlateau:

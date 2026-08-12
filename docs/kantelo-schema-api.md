@@ -994,7 +994,7 @@ This deletes the per-spot BlockLogs for that block in this session and creates a
     "ratings": { "step_forward": 2, "steady": 1, "step_back": 1, "skipped": 1 }
   },
   "coaching_suggestion": {
-    "text": "You've practiced 4 of the last 7 days — one more this week...",
+    "text": "You've practiced 4 of the last 7 days — one more and you'll...",
     "rule_id": "weekly_consistency"
   },
   "reflection_prompt": "What felt different today?"
@@ -1198,7 +1198,7 @@ The five core rules referenced in the product spec, plus four spot-level rules e
 | `section_coverage_drop` | pre_session | Fires when a section type (e.g. scales) hasn't appeared in the last N sessions but was common before. |
 | `previous_block_note` | in_the_moment | Surfaces the user's own note from the last time they practiced this specific block. |
 | `tempo_progression` | in_the_moment | Suggests increasing tempo when the last 2+ sessions on a block were rated "step forward." |
-| `weekly_consistency` | post_session | Compares days practiced this week to the user's effective goal (derived from frequency setting). Also surfaces block-level trends (step forward streaks, step back patterns). |
+| `weekly_consistency` | post_session | Compares days practiced in the last 7 days (a rolling window, not a calendar week) to the user's effective goal (derived from frequency setting). Also surfaces block-level trends (step forward streaks, step back patterns). |
 | `spot_step_forward_streak` | in_the_moment | Fires when a spot's last 3+ block_logs are all rated step_forward. Suggests advancing — next page, faster tempo, or new section. |
 | `spot_plateau` | post_session | Fires when a spot's last 5+ block_logs are predominantly steady with no step_forward in 2+ weeks. Suggests changing approach. |
 | `retired_spot_check` | pattern_level | Fires when a spot has been retired for 4+ weeks. Suggests a quick check-in to verify it's still solid. |

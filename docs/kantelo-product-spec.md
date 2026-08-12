@@ -206,7 +206,7 @@ Repertoire blocks display the piece name as a header followed by the practiced s
 
 **Post-session suggestion:**
 
-A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
+A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more and you'll match your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
 
 **Guided reflection prompt:**
 
@@ -485,7 +485,7 @@ Five rules analyze practice patterns and surface coaching nudges. Suggestions ar
 |------|----------|--------|----------|
 | Pre-session nudges | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
 | In-the-moment coaching | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
-| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
+| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more and you'll match your goal." / "Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
 | Pattern-level insights | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
 
 Spot-level suggestions are a new class of in-the-moment and post-session coaching enabled by the repertoire model. Examples: "Your Bruch first-page spot has been step-forward three sessions in a row — try the next page" / "The trouble-spots passage hasn't improved in two weeks — try slower and shorter" / "You retired 'trouble spots mm. 24–28' six weeks ago — want to spot-check it?" These follow the same dismissal and opt-out rules as other suggestions.
