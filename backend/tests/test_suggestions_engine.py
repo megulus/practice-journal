@@ -356,7 +356,8 @@ class TestWeeklyConsistency:
     async def test_under_goal(
         self, db_session, test_user, test_instrument
     ):
-        # 1 session this week against a few_times_a_week instrument (target=4)
+        # 1 session in the last 7 days against a few_times_a_week instrument
+        # (target=4)
         log = await _make_log(
             db_session, test_user, test_instrument,
             practice_date=datetime.now(timezone.utc).date(),

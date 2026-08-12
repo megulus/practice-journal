@@ -322,7 +322,9 @@ A reverse-chronological list of past sessions. Each session card shows:
 - Session-level notes (if any)
 - Reflection prompt response (if any)
 
-**Filtering:** A row of time-range pills (All sessions / This week / This month) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+**Filtering:** A row of time-range pills (All sessions / Last 7 days / Last 30 days) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+
+The two filtered pills are **rolling windows ending today** — the last 7 and 30 days inclusive — not calendar weeks or months, and they are not affected by the **Week starts on** preference. This is deliberate, and it is the one place in the product where a time range is *not* calendar-aligned: History answers "show me my recent sessions", a recency question, and a calendar week would make Monday morning show an almost-empty list. The calendar definition lives in Insights, where "this week vs. last" is only meaningful against fixed boundaries. Naming the pills after the windows they compute keeps "this week" meaning exactly one thing across the product.
 
 #### Insights sub-tab
 
@@ -383,7 +385,7 @@ Three radio button options with descriptions:
 
 Slim for v1:
 - **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
-- **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
+- **Week starts on** — sets the week boundary for the weekly comparisons and rating trend in Insights. Options: Monday / Sunday. It does *not* affect History's time-range filters, which are rolling windows by design (see §5.7). The practice calendar heatmap is currently Monday-first regardless of this setting — extending it is tracked as a separate change.
 - **Theme** — Match system / Light / Dark. Default: Match system. Theme preference syncs across devices via settings, with first-paint resolution from localStorage to avoid a flash of wrong theme.
 
 Additional preferences can slot in here as needed in later releases.
