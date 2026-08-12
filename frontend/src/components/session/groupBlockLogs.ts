@@ -67,11 +67,10 @@ export function groupBlockLogs(
       if (!emitted.has(bl.block_id)) {
         emitted.add(bl.block_id)
         const group = repGroups.get(bl.block_id)!
-        // Extract piece name from the first spot log or piece log
-        const firstLog = group.spotLogs[0] ?? group.pieceLog
-        const pieceName = firstLog
-          ? firstLog.block_name.split(' — ')[0]
-          : 'Unknown piece'
+        const pieceName = derivePieceName([
+          ...group.spotLogs,
+          ...(group.pieceLog ? [group.pieceLog] : []),
+        ])
         groups.push({
           type: 'repertoire',
           blockId: bl.block_id,
@@ -86,4 +85,40 @@ export function groupBlockLogs(
   }
 
   return groups
+}
+
+/**
+ * The display name for a repertoire group.
+ *
+ * `piece_name` comes from the block relationship (block_id → Block.piece_id →
+ * Piece.name) and is the only source that survives a title containing the
+ * " — " separator: `block_name` is denormalized as "{piece} — {spot}", so a
+ * piece called "Sonata — No. 2" produces "Sonata — No. 2 — mm. 1–8" and no
+ * parsing rule can tell where the title ends.
+ *
+ * The split survives only as a fallback for groups whose logs carry no
+ * `piece_name` — the heuristics above can group logs that aren't repertoire
+ * at all (several sharing one block_id), and a response cached from before
+ * the field existed carries none.
+ */
+function derivePieceName(logs: BlockLog[]): string {
+  const named = logs.find((bl) => bl.piece_name)
+  if (named?.piece_name) return named.piece_name
+  const first = logs[0]
+  return first ? first.block_name.split(' — ')[0] : 'Unknown piece'
+}
+
+/**
+ * Repertoire spot logs are named "{piece} — {spot}"; a spot row already sits
+ * under its piece, so drop the prefix.
+ *
+ * Strips the group's actual piece name rather than splitting on the first
+ * " — ", so a title containing the separator loses only the title, and a name
+ * that doesn't carry the expected prefix is left intact.
+ */
+export function spotDisplayName(blockLog: BlockLog, pieceName: string): string {
+  const prefix = `${pieceName} — `
+  return blockLog.block_name.startsWith(prefix)
+    ? blockLog.block_name.slice(prefix.length)
+    : blockLog.block_name
 }

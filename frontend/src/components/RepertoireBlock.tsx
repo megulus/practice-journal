@@ -13,6 +13,9 @@ import {
   useDictation,
   useSerializedSave,
 } from '@/components/ui'
+// Imported from the module, not the barrel: the barrel pulls in SectionCard,
+// which imports this file.
+import { spotDisplayName } from '@/components/session/groupBlockLogs'
 import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
 
 /**
@@ -179,6 +182,7 @@ export default function RepertoireBlock({
               key={bl.id}
               logId={logId}
               blockLog={bl}
+              pieceName={pieceName}
               suggestion={suggestions?.[String(bl.id)]}
               onUpdate={onUpdate}
               pendingFlushes={pendingFlushes}
@@ -252,12 +256,14 @@ export default function RepertoireBlock({
 function SpotRow({
   logId,
   blockLog,
+  pieceName,
   suggestion,
   onUpdate,
   pendingFlushes,
 }: {
   logId: number
   blockLog: BlockLog
+  pieceName: string
   suggestion?: InSessionSuggestion
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
@@ -266,9 +272,8 @@ function SpotRow({
   const [showNotes, setShowNotes] = useState(!!blockLog.notes)
   const [notes, setNotes] = useState(blockLog.notes ?? '')
 
-  // Extract spot name from "Piece — Spot" format
-  const parts = blockLog.block_name.split(' — ')
-  const spotName = parts.length > 1 ? parts.slice(1).join(' — ') : blockLog.block_name
+  // Extract spot name from the "{piece} — {spot}" denormalized name
+  const spotName = spotDisplayName(blockLog, pieceName)
 
   const handleToggle = async () => {
     await api.updateBlockLog(logId, blockLog.id, {

@@ -140,6 +140,63 @@ def _require_status(log: PracticeLog, expected: str, action: str) -> None:
         )
 
 
+async def _lookup_piece_names(
+    session: AsyncSession, block_ids: list[int]
+) -> dict[int, str]:
+    """Map block_id → piece name for the repertoire blocks among `block_ids`.
+
+    The relationship (BlockLog.block_id → Block.piece_id → Piece.name) is the
+    only reliable source for a piece's display name: `block_name` is
+    denormalized as "{piece} — {spot}", which can't be split back apart when
+    the title itself contains " — ".
+
+    Deliberately ignores `Piece.deleted_at` — a soft-deleted piece must still
+    render by name on historical logs, which is the same reason `block_name`
+    is denormalized in the first place. Standard blocks (piece_id null) and
+    blocks that were hard-deleted from their template (block_id null on the
+    log) simply have no entry; callers fall back to `block_name`.
+    """
+    if not block_ids:
+        return {}
+    result = await session.exec(
+        select(Block.id, Piece.name).where(
+            col(Block.id).in_(set(block_ids)),
+            Piece.id == Block.piece_id,
+        )
+    )
+    return {block_id: piece_name for block_id, piece_name in result.all()}
+
+
+def _block_log_read(
+    bl: BlockLog,
+    piece_name: str | None = None,
+    last_tempo_bpm: int | None = None,
+) -> BlockLogRead:
+    """Read schema for one block log, with its resolved piece name."""
+    return BlockLogRead(
+        id=bl.id,
+        block_id=bl.block_id,
+        spot_id=bl.spot_id,
+        block_name=bl.block_name,
+        rating=bl.rating,
+        notes=bl.notes,
+        completed=bl.completed,
+        display_order=bl.display_order,
+        tempo_bpm=bl.tempo_bpm,
+        last_tempo_bpm=last_tempo_bpm,
+        piece_name=piece_name,
+    )
+
+
+async def _read_block_log(
+    session: AsyncSession, bl: BlockLog
+) -> BlockLogRead:
+    """`_block_log_read` for a single log, resolving its piece name first."""
+    ids = [bl.block_id] if bl.block_id is not None else []
+    piece_names = await _lookup_piece_names(session, ids)
+    return _block_log_read(bl, piece_name=piece_names.get(bl.block_id))
+
+
 async def _build_log_read(
     session: AsyncSession,
     log: PracticeLog,
@@ -161,26 +218,29 @@ async def _build_log_read(
     loaded = result.one()
 
     sorted_sections = sorted(loaded.section_logs, key=lambda s: s.display_order)
+    # One lookup for the whole log rather than one per section.
+    piece_names = await _lookup_piece_names(
+        session,
+        [
+            bl.block_id
+            for sl in loaded.section_logs
+            for bl in sl.block_logs
+            if bl.block_id is not None
+        ],
+    )
     section_reads = []
     for sl in sorted_sections:
         sorted_blocks = sorted(sl.block_logs, key=lambda b: b.display_order)
-        block_reads = []
-        for bl in sorted_blocks:
-            tempo = None
-            if last_tempo_map and bl.block_id and bl.block_id in last_tempo_map:
-                tempo = last_tempo_map[bl.block_id]
-            block_reads.append(BlockLogRead(
-                id=bl.id,
-                block_id=bl.block_id,
-                spot_id=bl.spot_id,
-                block_name=bl.block_name,
-                rating=bl.rating,
-                notes=bl.notes,
-                completed=bl.completed,
-                display_order=bl.display_order,
-                tempo_bpm=bl.tempo_bpm,
-                last_tempo_bpm=tempo,
-            ))
+        block_reads = [
+            _block_log_read(
+                bl,
+                piece_name=piece_names.get(bl.block_id),
+                last_tempo_bpm=(
+                    last_tempo_map.get(bl.block_id) if last_tempo_map else None
+                ),
+            )
+            for bl in sorted_blocks
+        ]
         section_reads.append(SectionLogRead(
             id=sl.id,
             section_id=sl.section_id,
@@ -530,6 +590,9 @@ async def update_section_log(
     )
     loaded = result.one()
     sorted_blocks = sorted(loaded.block_logs, key=lambda b: b.display_order)
+    piece_names = await _lookup_piece_names(
+        session, [bl.block_id for bl in sorted_blocks if bl.block_id is not None]
+    )
     return SectionLogRead(
         id=loaded.id,
         section_id=loaded.section_id,
@@ -540,7 +603,10 @@ async def update_section_log(
         display_order=loaded.display_order,
         completed=loaded.completed,
         skipped=loaded.skipped,
-        block_logs=sorted_blocks,
+        block_logs=[
+            _block_log_read(bl, piece_name=piece_names.get(bl.block_id))
+            for bl in sorted_blocks
+        ],
     )
 
 
@@ -571,7 +637,7 @@ async def update_block_log(
     session.add(bl)
     await session.commit()
     await session.refresh(bl)
-    return bl
+    return await _read_block_log(session, bl)
 
 
 # ---------------------------------------------------------------------------
@@ -782,7 +848,7 @@ async def add_freeform_block(
     session.add(bl)
     await session.commit()
     await session.refresh(bl)
-    return bl
+    return _block_log_read(bl)
 
 
 # ---------------------------------------------------------------------------
@@ -892,7 +958,7 @@ async def add_spot_mid_session(
     session.add(new_bl)
     await session.commit()
     await session.refresh(new_bl)
-    return new_bl
+    return _block_log_read(new_bl, piece_name=piece_name)
 
 
 @router.put(
@@ -967,7 +1033,7 @@ async def collapse_to_piece(
     session.add(new_bl)
     await session.commit()
     await session.refresh(new_bl)
-    return new_bl
+    return _block_log_read(new_bl, piece_name=piece_name)
 
 
 @router.put(
@@ -1056,4 +1122,4 @@ async def expand_to_spots(
     for nl in new_logs:
         await session.refresh(nl)
 
-    return new_logs
+    return [_block_log_read(nl, piece_name=piece_name) for nl in new_logs]
