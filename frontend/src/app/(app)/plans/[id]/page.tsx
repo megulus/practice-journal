@@ -140,8 +140,12 @@ export default function TemplateEditorPage() {
     setTemplate({ ...template, name })
   }
 
+  // `busy` (shared with the other write actions) also keeps a second tap from
+  // firing a redundant activation: that one displaces nothing, so its null
+  // result would clear the notice naming the plan the *first* tap displaced.
   const setActive = async (isActive: boolean) => {
-    if (!template) return
+    if (!template || busy) return
+    setBusy(true)
     setNotice(null)
     try {
       const updated = await api.updateTemplate(template.id, {
@@ -163,6 +167,8 @@ export default function TemplateEditorPage() {
           ? "Couldn't set this plan as active. Please try again."
           : "Couldn't archive this plan. Please try again.",
       })
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -367,6 +373,7 @@ export default function TemplateEditorPage() {
           <Pill
             variant="instrument"
             active={template.is_active}
+            disabled={busy}
             onClick={() =>
               template.is_active ? setConfirmArchive(true) : setActive(true)
             }
@@ -421,16 +428,36 @@ export default function TemplateEditorPage() {
         */}
         <div role="status" aria-live="polite">
           {notice && (
-            <p
-              className={cx(
-                'mt-lg rounded-lg bg-card-bg-inset px-lg py-md text-sm',
-                notice.tone === 'error'
-                  ? 'text-danger-text'
-                  : 'text-text-secondary',
+            <div className="mt-lg flex items-start justify-between gap-md rounded-lg bg-card-bg-inset px-lg py-md">
+              {/*
+                `text-text-primary`, not `text-text-secondary`: secondary on
+                the inset surface is ~2.5:1 (light) / ~3.4:1 (dark), under the
+                4.5:1 AA needs at this size — and this text is the whole point
+                of the feature. `text-danger-text` clears it on its own.
+              */}
+              <p
+                className={cx(
+                  'text-sm',
+                  notice.tone === 'error'
+                    ? 'text-danger-text'
+                    : 'text-text-primary',
+                )}
+              >
+                {notice.text}
+              </p>
+              {/* The info notice times out; a failure needs a way out that
+                  isn't "attempt the toggle again". */}
+              {notice.tone === 'error' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setNotice(null)}
+                >
+                  Dismiss
+                </Button>
               )}
-            >
-              {notice.text}
-            </p>
+            </div>
           )}
         </div>
       </div>

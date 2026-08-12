@@ -510,4 +510,77 @@ describe('TemplateEditorPage — activation notice', () => {
       screen.getByRole('button', { name: 'Active plan' }),
     ).toBeInTheDocument()
   })
+
+  it('lets a failure be dismissed without re-attempting the toggle', async () => {
+    const user = userEvent.setup()
+    mocks.updateTemplate.mockRejectedValue(new Error('network'))
+    const pill = await renderInactiveEditor()
+
+    await user.click(pill)
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(/Couldn't set/),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // Dismissing is not a retry.
+    expect(mocks.updateTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  // The notice is nulled out before each write and re-set from its result, so
+  // a later activation has to leave the previous plan's name behind entirely.
+  it('replaces the previous notice on a second activation', async () => {
+    const user = userEvent.setup()
+    mocks.updateTemplate.mockResolvedValue(
+      updateResult({ is_active: true, deactivated_template_name: 'Daily warm-up' }),
+    )
+    const pill = await renderInactiveEditor()
+
+    await user.click(pill)
+    const live = screen.getByRole('status')
+    await waitFor(() => expect(live).toHaveTextContent(/“Daily warm-up”/))
+
+    // Archive it (confirmed), which displaces nothing and clears the notice…
+    mocks.updateTemplate.mockResolvedValue(updateResult({ is_active: false }))
+    await user.click(screen.getByRole('button', { name: 'Active plan' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Archive' }))
+    await waitFor(() => expect(live).toHaveTextContent(''))
+
+    // …then activate again, displacing a different plan.
+    mocks.updateTemplate.mockResolvedValue(
+      updateResult({ is_active: true, deactivated_template_name: 'Etudes' }),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Set as active' }))
+
+    await waitFor(() => expect(live).toHaveTextContent(/“Etudes”/))
+    expect(live).not.toHaveTextContent(/Daily warm-up/)
+  })
+
+  it('disables the pill while the activation is in flight', async () => {
+    const user = userEvent.setup()
+    let release: (value: TemplateUpdateResult) => void = () => {}
+    mocks.updateTemplate.mockReturnValue(
+      new Promise<TemplateUpdateResult>((resolve) => {
+        release = resolve
+      }),
+    )
+    const pill = await renderInactiveEditor()
+
+    await user.click(pill)
+    // A second tap would PATCH is_active:true again — displacing nothing, and
+    // wiping the notice the first tap is about to set.
+    await waitFor(() => expect(pill).toBeDisabled())
+    await user.click(pill)
+    expect(mocks.updateTemplate).toHaveBeenCalledTimes(1)
+
+    release(
+      updateResult({ is_active: true, deactivated_template_name: 'Daily warm-up' }),
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(/“Daily warm-up”/),
+    )
+    expect(screen.getByRole('button', { name: 'Active plan' })).toBeEnabled()
+  })
 })
