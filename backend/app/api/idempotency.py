@@ -240,9 +240,15 @@ class IdempotentRequest:
         would replay a status-0 non-response to every later retry and burn the
         key permanently. Failing here instead makes the mistake obvious in the
         adopting endpoint's first test run.
+
+        A raise rather than an assert, so `python -O` can't strip the one
+        thing standing between a bug and an unusable key.
         """
-        if self._reservation is not None:
-            assert self._reservation.response_status != self._UNSET_STATUS, (
+        if (
+            self._reservation is not None
+            and self._reservation.response_status == self._UNSET_STATUS
+        ):
+            raise RuntimeError(
                 "store() must be called before commit() — committing an "
                 "unfilled reservation would poison this idempotency key"
             )

@@ -54,7 +54,7 @@ class TestReservationGuards:
             body={"a": 1},
         )
 
-        with pytest.raises(AssertionError, match="store\\(\\) must be called"):
+        with pytest.raises(RuntimeError, match="store\\(\\) must be called"):
             await idem.commit()
 
         await db_session.rollback()

@@ -36,7 +36,7 @@ class IdempotencyRecord(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    # No index of its own: it leads the unique constraint below, which serves
+    # No index of its own: it leads the unique constraint above, which serves
     # every lookup this table has.
     user_id: int = Field(foreign_key="users.id")
     idempotency_key: str = Field(max_length=255)
