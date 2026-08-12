@@ -872,6 +872,60 @@ The Today tab's data needs — which instruments are due, what's the current ses
 
 ---
 
+### Quick start
+
+One call behind the quick-start wizard (product spec §5.6). The wizard renders
+a live plan preview before anything is persisted, so the *balancing* happens on
+the frontend and this endpoint takes the finished section list; its job is to
+commit instrument + piece + plan atomically instead of through ~15 CRUD calls
+that can half-fail.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/quickstart` | Create instrument (or reuse one), optional first piece, and an active single-session plan |
+
+**POST /api/quickstart request:**
+```json
+{
+  "instrument_name": "Violin",
+  "plan_name": "Bruch Violin Concerto",
+  "piece_name": "Bruch Violin Concerto",
+  "sections": [
+    {
+      "name": "Warm-up",
+      "section_type": "warmup",
+      "estimated_duration_minutes": 5,
+      "block": { "name": "Warm-up", "description": "Easy playing to loosen up" }
+    },
+    {
+      "name": "Repertoire",
+      "section_type": "repertoire",
+      "estimated_duration_minutes": 15,
+      "block": { "name": "Bruch Violin Concerto", "description": "Slow practice on what you are learning" }
+    }
+  ]
+}
+```
+
+- Send **exactly one** of `instrument_id` (reuse an existing instrument) or
+  `instrument_name` (create one; the category is derived from the name). Both,
+  or neither, is a 422; an id owned by another user is a 404.
+- `piece_name` is optional (blank counts as omitted). When present it becomes a
+  `Piece` in the instrument's library with no spots, and the `repertoire`
+  section's block becomes a repertoire block pointing at it (its `name` is
+  nulled — repertoire blocks take their display name from the piece). Without a
+  piece, that section keeps a plain named block.
+- Each section gets exactly one seed block, whose
+  `estimated_duration_minutes` mirrors the section's.
+- The plan is created **active**; the instrument's previously active plan is
+  deactivated in the same transaction (one active template per instrument).
+- The total of the section durations is written to
+  `user_settings.default_session_duration_minutes`.
+
+**Response `201`:** `{ "instrument": InstrumentRead, "template": TemplateRead, "template_session_id": int, "piece": PieceRead | null }`
+
+---
+
 ### Practice (session lifecycle)
 
 | Method | Path | Description |

@@ -7,6 +7,9 @@ export type { PillProps } from './Pill'
 export { PillRadioGroup } from './PillRadioGroup'
 export type { PillRadioGroupProps, PillRadioOption } from './PillRadioGroup'
 
+export { useRovingFocus } from './useRovingFocus'
+export type { UseRovingFocusOptions, RovingFocus } from './useRovingFocus'
+
 export { Checkbox } from './Checkbox'
 export type { CheckboxProps } from './Checkbox'
 
