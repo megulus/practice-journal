@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { Button, Card, Menu, TextInput } from '@/components/ui'
-import ConfirmDialog from '@/components/ConfirmDialog'
+import { Button, Card, ConfirmDialog, Menu, TextInput } from '@/components/ui'
+import { deleteConfirmCopy } from '@/lib/confirm-copy'
 import { formatRelativeDay } from '@/lib/dates'
 import type { Piece, Spot } from '@/lib/types'
 import { SpotEditForm, type SpotFormValues } from './SpotEditForm'
@@ -279,10 +279,13 @@ export function PieceCard({
 
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete ${piece.name}?`}
-          message={`This removes ${piece.name} and its spots from your repertoire. Past sessions keep their entries, but this piece's history won't be reachable.`}
+          {...deleteConfirmCopy('piece', piece.name, {
+            cascade: [
+              'Its spots go too, and past sessions keep their entries but stop ' +
+                'linking back to this piece.',
+            ],
+          })}
           confirmLabel="Delete"
-          confirmVariant="danger"
           onConfirm={deletePiece}
           onCancel={() => setConfirmingDelete(false)}
         />

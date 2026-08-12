@@ -76,7 +76,14 @@ export interface Instrument {
   instrument_category: string
   practice_frequency: PracticeFrequency
   display_order: number
+  /** Live templates with `is_active` — what's in rotation. */
   active_template_count: number
+  /**
+   * Every live template, archived ones included. This is what deleting the
+   * instrument cascades to, so delete-confirm copy must count this, not
+   * `active_template_count`.
+   */
+  template_count: number
   piece_count: number
   last_practiced_at: string | null
 }

@@ -14,6 +14,8 @@ export interface DialogProps {
   'aria-label'?: string
   /** ID of the visible element that titles the dialog (preferred when one exists). */
   'aria-labelledby'?: string
+  /** ID of the element describing the dialog (e.g. the body copy of a confirm). */
+  'aria-describedby'?: string
   /** Classes for the panel. Visual styling lives with the consumer, not the primitive. */
   className?: string
   /** Panel contents. */
@@ -141,6 +143,7 @@ export function Dialog({
         aria-modal="true"
         aria-label={aria['aria-label']}
         aria-labelledby={aria['aria-labelledby']}
+        aria-describedby={aria['aria-describedby']}
         tabIndex={-1}
         className={`outline-none ${className ?? ''}`}
       >
