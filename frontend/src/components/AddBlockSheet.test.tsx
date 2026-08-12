@@ -81,6 +81,27 @@ describe('AddBlockSheet', () => {
     expect(await screen.findByText(/No matches/)).toBeInTheDocument()
   })
 
+  it('offers only the tabs it was given', async () => {
+    // The active session scopes the sheet to standard blocks (#182): a
+    // repertoire pick has nowhere to go mid-session.
+    render(
+      <AddBlockSheet
+        sectionName="Scales"
+        instrumentCategory="violin"
+        instrumentId={7}
+        tabs={['curated', 'recent']}
+        onAdd={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Curated' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Your rep.' })).toBeNull()
+    await waitFor(() => expect(mockBrowseCurated).toHaveBeenCalled())
+    expect(mockListRepertoire).not.toHaveBeenCalled()
+  })
+
   describe('"Your repertoire" tab', () => {
     it('adds a repertoire block for an existing piece', async () => {
       const user = userEvent.setup()

@@ -156,6 +156,9 @@ class BlockLog(SQLModel, table=True):
     notes: Optional[str] = Field(default=None)
     completed: bool = Field(default=True)
     display_order: int = Field(default=0)
+    # Tempo actually practised, confirmed or adjusted by the user in the
+    # session. Feeds the next session's smart tempo default.
+    tempo_bpm: Optional[int] = Field(default=None)
     created_at: datetime = Field(default_factory=utcnow)
 
     # Relationships

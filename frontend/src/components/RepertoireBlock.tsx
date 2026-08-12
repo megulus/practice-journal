@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { Check, Minus, ChevronDown } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import {
+  Card,
   Checkbox,
   RatingChevrons,
   TextArea,
@@ -12,7 +13,7 @@ import {
   useDictation,
   useSerializedSave,
 } from '@/components/ui'
-import type { BlockLog, Rating } from '@/lib/types'
+import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
 
 /**
  * A repertoire block in the active session: piece header with a
@@ -30,6 +31,7 @@ export default function RepertoireBlock({
   pieceName,
   spotLogs,
   pieceLog,
+  suggestions,
   onUpdate,
   pendingFlushes,
 }: {
@@ -38,6 +40,8 @@ export default function RepertoireBlock({
   pieceName: string
   spotLogs: BlockLog[]
   pieceLog: BlockLog | null
+  /** In-the-moment suggestions keyed by block_log_id (spot logs included). */
+  suggestions?: Record<string, InSessionSuggestion>
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
@@ -161,6 +165,7 @@ export default function RepertoireBlock({
         <WholePieceRating
           logId={logId}
           blockLog={pieceLog}
+          suggestion={suggestions?.[String(pieceLog.id)]}
           onUpdate={onUpdate}
           pendingFlushes={pendingFlushes}
         />
@@ -174,6 +179,7 @@ export default function RepertoireBlock({
               key={bl.id}
               logId={logId}
               blockLog={bl}
+              suggestion={suggestions?.[String(bl.id)]}
               onUpdate={onUpdate}
               pendingFlushes={pendingFlushes}
             />
@@ -246,11 +252,13 @@ export default function RepertoireBlock({
 function SpotRow({
   logId,
   blockLog,
+  suggestion,
   onUpdate,
   pendingFlushes,
 }: {
   logId: number
   blockLog: BlockLog
+  suggestion?: InSessionSuggestion
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
@@ -359,6 +367,12 @@ function SpotRow({
           </div>
         )}
       </div>
+
+      {suggestion && (
+        <Card variant="hint" role="note" className="mt-2 ml-8">
+          {suggestion.text}
+        </Card>
+      )}
     </div>
   )
 }
@@ -370,11 +384,13 @@ function SpotRow({
 function WholePieceRating({
   logId,
   blockLog,
+  suggestion,
   onUpdate,
   pendingFlushes,
 }: {
   logId: number
   blockLog: BlockLog
+  suggestion?: InSessionSuggestion
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
@@ -456,6 +472,12 @@ function WholePieceRating({
           </div>
         )}
       </div>
+
+      {suggestion && (
+        <Card variant="hint" role="note" className="mt-2">
+          {suggestion.text}
+        </Card>
+      )}
     </div>
   )
 }

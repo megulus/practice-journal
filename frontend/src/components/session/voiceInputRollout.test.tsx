@@ -42,6 +42,7 @@ function makeLog(overrides: Partial<BlockLog> = {}): BlockLog {
     notes: null,
     completed: false,
     display_order: 0,
+    tempo_bpm: null,
     last_tempo_bpm: null,
     ...overrides,
   }
@@ -149,7 +150,15 @@ describe('voice input in the active session', () => {
   it('dictates a quick-add block name and submits it', async () => {
     const onAdd = vi.fn()
     const user = userEvent.setup()
-    render(<QuickAddBlock logId={1} sectionLogId={2} onAdd={onAdd} />)
+    render(
+      <QuickAddBlock
+        logId={1}
+        sectionLogId={2}
+        sectionName="Scales"
+        instrument={null}
+        onAdd={onAdd}
+      />,
+    )
 
     await speakInto(user, 'Dictate exercise name', 'long tones')
     expect(screen.getByPlaceholderText('Add an exercise…')).toHaveValue(
@@ -263,7 +272,13 @@ describe('voice input fallbacks', () => {
     render(
       <>
         <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />
-        <QuickAddBlock logId={1} sectionLogId={2} onAdd={vi.fn()} />
+        <QuickAddBlock
+          logId={1}
+          sectionLogId={2}
+          sectionName="Scales"
+          instrument={null}
+          onAdd={vi.fn()}
+        />
       </>,
     )
 
@@ -297,6 +312,8 @@ describe('voice input fallbacks', () => {
         logId={1}
         sectionLog={makeSection()}
         color={getSectionColor('scales', 0)}
+        instrument={null}
+        suggestions={{}}
         onUpdate={vi.fn()}
         pendingFlushes={makeFlushRef()}
         repertoireBlockIds={{ current: new Set<number>() }}
@@ -423,7 +440,13 @@ describe('mic arbitration across fields', () => {
     render(
       <>
         <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />
-        <QuickAddBlock logId={1} sectionLogId={2} onAdd={vi.fn()} />
+        <QuickAddBlock
+          logId={1}
+          sectionLogId={2}
+          sectionName="Scales"
+          instrument={null}
+          onAdd={vi.fn()}
+        />
       </>,
     )
 
@@ -450,7 +473,13 @@ describe('mic arbitration across fields', () => {
     render(
       <>
         <SessionNotes logId={3} initialNotes="" pendingFlushes={makeFlushRef()} />
-        <QuickAddBlock logId={1} sectionLogId={2} onAdd={vi.fn()} />
+        <QuickAddBlock
+          logId={1}
+          sectionLogId={2}
+          sectionName="Scales"
+          instrument={null}
+          onAdd={vi.fn()}
+        />
       </>,
     )
 
@@ -656,7 +685,13 @@ describe('unmount while recording', () => {
     unmount()
 
     // A later mic must still be able to claim the slot.
-    render(<QuickAddBlock logId={1} sectionLogId={2} onAdd={vi.fn()} />)
+    render(<QuickAddBlock
+          logId={1}
+          sectionLogId={2}
+          sectionName="Scales"
+          instrument={null}
+          onAdd={vi.fn()}
+        />)
     await user.click(screen.getByRole('button', { name: 'Dictate exercise name' }))
     act(() => dictate('long tones'))
 

@@ -21,6 +21,7 @@ function makeLog(overrides: Partial<BlockLog> = {}): BlockLog {
     notes: null,
     completed: false,
     display_order: 0,
+    tempo_bpm: null,
     last_tempo_bpm: null,
     ...overrides,
   }
@@ -89,5 +90,47 @@ describe('BlockRow', () => {
     await user.click(screen.getByRole('button', { name: '+ add note' }))
     await user.type(screen.getByPlaceholderText('Notes...'), 'tricky shift')
     expect(flushRef.current.size).toBe(1)
+  })
+})
+
+describe('BlockRow — in-the-moment suggestion (#180)', () => {
+  it('renders a hint card below the row when a suggestion is given', () => {
+    render(
+      <BlockRow
+        logId={1}
+        blockLog={makeLog()}
+        suggestion={{
+          rule_id: 'note_recall',
+          text: 'Last session you noted intonation was shaky up top.',
+        }}
+        onUpdate={vi.fn()}
+        pendingFlushes={makeFlushRef()}
+      />
+    )
+
+    const hint = screen.getByRole('note')
+    expect(hint).toHaveTextContent(
+      'Last session you noted intonation was shaky up top.'
+    )
+    // Hint card tokens — design-tokens §6 (Cards, Hint card variant)
+    expect(hint).toHaveClass(
+      'bg-input-bg-recessed',
+      'border-l-2',
+      'border-border-input',
+      'rounded-md',
+      'text-text-secondary'
+    )
+  })
+
+  it('renders no hint card when there is no suggestion for the block', () => {
+    render(
+      <BlockRow
+        logId={1}
+        blockLog={makeLog()}
+        onUpdate={vi.fn()}
+        pendingFlushes={makeFlushRef()}
+      />
+    )
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 })

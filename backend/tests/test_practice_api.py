@@ -297,6 +297,82 @@ class TestStartPractice:
         d_minor = [b for b in scales_section["block_logs"] if b["block_name"] == "D minor scale"][0]
         assert d_minor["last_tempo_bpm"] is None
 
+        # A reload of the same session pre-fills identically (#181) — the
+        # frontend refetches the log after every block update.
+        resp = await client.get(f"/api/practice/{data['id']}")
+        assert resp.status_code == 200
+        reloaded = resp.json()
+        scales_section = [
+            s for s in reloaded["section_logs"] if s["section_name"] == "Scales"
+        ][0]
+        g_major = [
+            b for b in scales_section["block_logs"]
+            if b["block_name"] == "G major scale"
+        ][0]
+        assert g_major["last_tempo_bpm"] == 72
+
+    async def test_smart_tempo_prefers_logged_tempo(
+        self, client: AsyncClient, db_session: AsyncSession,
+        template_with_blocks, test_user
+    ):
+        """A tempo logged in a previous session wins over the template's."""
+        template, ts, sections, (b1, b2, b3) = template_with_blocks
+
+        log = PracticeLog(
+            user_id=test_user.id,
+            instrument_id=template.instrument_id,
+            template_id=template.id,
+            template_session_id=ts.id,
+            practice_date=date_type(2026, 3, 29),
+            status=SessionStatus.completed.value,
+        )
+        db_session.add(log)
+        await db_session.commit()
+        await db_session.refresh(log)
+
+        sl = SectionLog(
+            practice_log_id=log.id,
+            section_type="scales",
+            section_name="Scales",
+            actual_duration_minutes=10,
+            display_order=0,
+        )
+        db_session.add(sl)
+        await db_session.commit()
+        await db_session.refresh(sl)
+
+        # b2's template tempo is 72; the user actually practised it at 84
+        db_session.add(BlockLog(
+            section_log_id=sl.id,
+            block_id=b2.id,
+            block_name="G major scale",
+            completed=True,
+            tempo_bpm=84,
+            display_order=0,
+        ))
+        await db_session.commit()
+
+        resp = await client.post(
+            "/api/practice/start",
+            json={
+                "instrument_id": template.instrument_id,
+                "template_id": template.id,
+                "template_session_id": ts.id,
+            },
+        )
+        assert resp.status_code == 201
+        scales_section = [
+            s for s in resp.json()["section_logs"]
+            if s["section_name"] == "Scales"
+        ][0]
+        g_major = [
+            b for b in scales_section["block_logs"]
+            if b["block_name"] == "G major scale"
+        ][0]
+        assert g_major["last_tempo_bpm"] == 84
+        # Today's own tempo starts empty
+        assert g_major["tempo_bpm"] is None
+
     async def test_cannot_start_with_other_users_template(
         self, client: AsyncClient, db_session: AsyncSession,
         test_instrument, other_user
@@ -683,6 +759,94 @@ class TestUpdateBlockLog:
         )
         assert resp.status_code == 200
         assert resp.json()["rating"] == -1
+
+    async def test_update_tempo(self, client: AsyncClient, started_session):
+        """Confirming/adjusting the tempo field persists tempo_bpm (#181)."""
+        data, _, _, _, _ = started_session
+        bl = data["section_logs"][0]["block_logs"][0]
+        assert bl["tempo_bpm"] is None
+
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 88},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["tempo_bpm"] == 88
+
+        # And it survives a reload of the session
+        resp = await client.get(f"/api/practice/{data['id']}")
+        assert resp.status_code == 200
+        reloaded = resp.json()["section_logs"][0]["block_logs"][0]
+        assert reloaded["tempo_bpm"] == 88
+
+    async def test_clear_tempo(self, client: AsyncClient, started_session):
+        """Sending null clears a previously logged tempo."""
+        data, _, _, _, _ = started_session
+        bl = data["section_logs"][0]["block_logs"][0]
+        await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 88},
+        )
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": None},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["tempo_bpm"] is None
+
+    async def test_tempo_validation(self, client: AsyncClient, started_session):
+        data, _, _, _, _ = started_session
+        bl = data["section_logs"][0]["block_logs"][0]
+
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 0},
+        )
+        assert resp.status_code == 422
+
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 401},
+        )
+        assert resp.status_code == 422
+
+    async def test_updating_notes_leaves_tempo_alone(
+        self, client: AsyncClient, started_session
+    ):
+        """exclude_unset: a notes-only update must not wipe tempo_bpm."""
+        data, _, _, _, _ = started_session
+        bl = data["section_logs"][0]["block_logs"][0]
+        await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 96},
+        )
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"notes": "steadier today"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["tempo_bpm"] == 96
+
+    async def test_updating_tempo_leaves_notes_alone(
+        self, client: AsyncClient, started_session
+    ):
+        """The other direction: the tempo field and the (dictation-driven)
+        notes field write the same row from different UI paths, so neither
+        update may clobber the other's column.
+        """
+        data, _, _, _, _ = started_session
+        bl = data["section_logs"][0]["block_logs"][0]
+        await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"notes": "dictated mid-session"},
+        )
+        resp = await client.put(
+            f"/api/practice/{data['id']}/blocks/{bl['id']}",
+            json={"tempo_bpm": 92},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["notes"] == "dictated mid-session"
+        assert resp.json()["tempo_bpm"] == 92
 
     async def test_rating_validation(
         self, client: AsyncClient, started_session

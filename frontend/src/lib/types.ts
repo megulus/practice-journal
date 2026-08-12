@@ -324,6 +324,9 @@ export interface BlockLog {
   notes: string | null
   completed: boolean
   display_order: number
+  /** Tempo logged in this session — null until confirmed or adjusted. */
+  tempo_bpm: number | null
+  /** Smart default carried over from the last session on this block. */
   last_tempo_bpm: number | null
 }
 
@@ -331,6 +334,7 @@ export interface BlockLogUpdate {
   rating?: Rating | null
   notes?: string
   completed?: boolean
+  tempo_bpm?: number | null
 }
 
 export interface BlockLogCreate {

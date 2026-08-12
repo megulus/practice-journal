@@ -12,7 +12,11 @@ import type {
   RecentBlock,
 } from '@/lib/types'
 
-type Tab = 'curated' | 'recent' | 'repertoire'
+export type BlockLibraryTab = 'curated' | 'recent' | 'repertoire'
+
+type Tab = BlockLibraryTab
+
+const ALL_TABS: Tab[] = ['curated', 'recent', 'repertoire']
 
 const norm = (s: string) => s.trim().toLowerCase()
 
@@ -29,6 +33,7 @@ export default function AddBlockSheet({
   sectionName,
   instrumentCategory,
   instrumentId,
+  tabs = ALL_TABS,
   onAdd,
   onClose,
 }: {
@@ -37,11 +42,15 @@ export default function AddBlockSheet({
    * curated library is keyed by category and users rename instruments. */
   instrumentCategory: string
   instrumentId: number
+  /** Which tabs to offer, in order. Defaults to all three. The active session
+   * passes the standard-block subset: mid-session repertoire is handled by
+   * `RepertoireBlock`'s "Add a spot" flow, not here (#182). */
+  tabs?: Tab[]
   onAdd: (data: BlockCreate) => Promise<void>
   onClose: () => void
 }) {
   const api = useApi()
-  const [tab, setTab] = useState<Tab>('curated')
+  const [tab, setTab] = useState<Tab>(tabs[0])
   const [query, setQuery] = useState('')
   const [curated, setCurated] = useState<CuratedBlock[]>([])
   const [recent, setRecent] = useState<RecentBlock[]>([])
@@ -145,7 +154,7 @@ export default function AddBlockSheet({
 
       {/* Tabs */}
       <div className="flex gap-2 px-4 pt-3">
-        {(['curated', 'recent', 'repertoire'] as Tab[]).map((t) => (
+        {tabs.map((t) => (
           <Pill
             key={t}
             variant="instrument"

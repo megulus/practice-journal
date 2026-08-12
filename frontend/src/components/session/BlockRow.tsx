@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useApi } from '@/lib/useApi'
 import {
+  Card,
   Checkbox,
   RatingChevrons,
   TextArea,
@@ -10,7 +11,8 @@ import {
   useDictation,
   useSerializedSave,
 } from '@/components/ui'
-import type { BlockLog, Rating } from '@/lib/types'
+import { TempoField } from './TempoField'
+import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Block row (exercise)
@@ -19,11 +21,14 @@ import type { BlockLog, Rating } from '@/lib/types'
 export function BlockRow({
   logId,
   blockLog,
+  suggestion,
   onUpdate,
   pendingFlushes,
 }: {
   logId: number
   blockLog: BlockLog
+  /** In-the-moment suggestion for this block log, if the engine returned one. */
+  suggestion?: InSessionSuggestion
   onUpdate: () => void
   pendingFlushes: React.RefObject<Set<() => Promise<void>>>
 }) {
@@ -95,11 +100,7 @@ export function BlockRow({
           <p className={`text-sm ${blockLog.completed ? 'text-text-tertiary' : 'text-text-primary'}`}>
             {blockLog.block_name}
           </p>
-          {blockLog.last_tempo_bpm && (
-            <p className="text-xs text-text-tertiary">
-              Last tempo: {blockLog.last_tempo_bpm} bpm
-            </p>
-          )}
+          <TempoField logId={logId} blockLog={blockLog} />
         </div>
 
         {/* Rating */}
@@ -141,6 +142,13 @@ export function BlockRow({
           </div>
         )}
       </div>
+
+      {/* In-the-moment suggestion for this block */}
+      {suggestion && (
+        <Card variant="hint" role="note" className="mt-2 ml-8">
+          {suggestion.text}
+        </Card>
+      )}
     </div>
   )
 }
