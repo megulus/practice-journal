@@ -25,6 +25,9 @@ function makeInstrument(o: Partial<Instrument> = {}): Instrument {
     practice_frequency: 'daily',
     display_order: 0,
     active_template_count: 0,
+    // Every live template, archived included — defaults to the active count so
+    // it can't sit below it when a caller overrides only that one.
+    template_count: o.active_template_count ?? 0,
     piece_count: 0,
     last_practiced_at: null,
     ...o,
