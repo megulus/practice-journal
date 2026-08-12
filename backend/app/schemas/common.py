@@ -18,6 +18,11 @@ def reject_explicit_null(value: Optional[T]) -> T:
     keeps meaning "clear this field". Pydantic doesn't run validators for
     fields left at their default, so this only fires when the client actually
     sent `null`.
+
+    Keep the field annotated `Optional[...]` — that's what preserves the
+    omitted-vs-null distinction this relies on. The tradeoff is that the
+    generated OpenAPI schema advertises `null` as acceptable for a field that
+    now 422s; an over-permissive published schema is the cheaper inaccuracy.
     """
     if value is None:
         raise ValueError("cannot be null; omit the field to leave it unchanged")
