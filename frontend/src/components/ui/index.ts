@@ -40,6 +40,9 @@ export type { StatCardProps } from './StatCard'
 export { Dialog, Sheet } from './Dialog'
 export type { DialogProps, DialogPlacement } from './Dialog'
 
+export { ConfirmDialog } from './ConfirmDialog'
+export type { ConfirmDialogProps, ConfirmVariant } from './ConfirmDialog'
+
 export { AutoSaveInput, AutoSaveTextarea } from './AutoSaveInput'
 export type { AutoSaveInputProps, AutoSaveTextareaProps } from './AutoSaveInput'
 

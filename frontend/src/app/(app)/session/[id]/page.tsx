@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
-import { Button, Dialog, ProgressBar } from '@/components/ui'
+import { Button, ConfirmDialog, ProgressBar } from '@/components/ui'
 import {
   SectionCard,
   AddSectionButton,
@@ -124,6 +124,9 @@ export default function ActiveSessionPage() {
     0
   )
 
+  const sessionName =
+    log.session_name ?? log.template_name ?? 'Practice session'
+
   // Section colors: pinned warm-up/cool-down plus the pool by display order.
   let nonPinnedIndex = 0
 
@@ -132,7 +135,7 @@ export default function ActiveSessionPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-border-default pb-3">
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">
-          {log.session_name ?? log.template_name ?? 'Practice session'}
+          {sessionName}
         </h1>
         <button
           onClick={() => setConfirmingEnd(true)}
@@ -197,34 +200,18 @@ export default function ActiveSessionPage() {
 
       {/* End-session confirmation */}
       {confirmingEnd && (
-        <Dialog
-          onClose={() => setConfirmingEnd(false)}
-          aria-labelledby="end-session-title"
-          className="w-full max-w-sm rounded-xl bg-card-bg p-6 shadow-2xl"
-        >
-          <h2
-            id="end-session-title"
-            className="mb-2 text-lg font-semibold text-text-primary"
-          >
-            End this session?
-          </h2>
-          <p className="mb-6 text-sm text-text-secondary">
-            Your progress won&apos;t be saved as a completed session. You can
-            start a new one anytime.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirmingEnd(false)}
-            >
-              Keep going
-            </Button>
-            <Button variant="danger" size="sm" onClick={handleEndSession}>
-              End session
-            </Button>
-          </div>
-        </Dialog>
+        <ConfirmDialog
+          title={`End “${sessionName}”?`}
+          message={
+            'This discards the session — what you logged so far won’t be saved ' +
+            'as a completed session. This can’t be undone. You can start a new ' +
+            'one anytime.'
+          }
+          confirmLabel="End session"
+          cancelLabel="Keep going"
+          onConfirm={handleEndSession}
+          onCancel={() => setConfirmingEnd(false)}
+        />
       )}
     </div>
   )

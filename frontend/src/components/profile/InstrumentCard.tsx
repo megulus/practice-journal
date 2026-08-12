@@ -4,8 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Trash2 } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { AutoSaveInput, Card, Menu, Pill } from '@/components/ui'
-import ConfirmDialog from '@/components/ConfirmDialog'
+import { AutoSaveInput, Card, ConfirmDialog, Menu, Pill } from '@/components/ui'
+import { alsoRemoves, deleteConfirmCopy } from '@/lib/confirm-copy'
 import { formatRelativeDay } from '@/lib/dates'
 import type { Instrument, PracticeFrequency } from '@/lib/types'
 import { PRACTICE_FREQUENCIES } from './frequencies'
@@ -61,10 +61,14 @@ export function InstrumentCard({
     }
   }
 
-  const planCount = instrument.active_template_count
+  // Two different questions: the summary line describes the rotation, the
+  // delete cascade describes what a delete takes. Archived plans are outside
+  // the first and inside the second.
+  const activePlanCount = instrument.active_template_count
+  const cascadingPlanCount = instrument.template_count
   const pieceCount = instrument.piece_count
   const summary = [
-    `${planCount} active plan${planCount !== 1 ? 's' : ''}`,
+    `${activePlanCount} active plan${activePlanCount !== 1 ? 's' : ''}`,
     `${pieceCount} piece${pieceCount !== 1 ? 's' : ''}`,
     instrument.last_practiced_at
       ? `last practiced ${formatRelativeDay(instrument.last_practiced_at)}`
@@ -119,14 +123,19 @@ export function InstrumentCard({
 
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete ${instrument.name}?`}
-          message={
-            planCount > 0
-              ? `This removes ${instrument.name} and its ${planCount} plan${planCount !== 1 ? 's' : ''}. This can't be undone.`
-              : `This removes ${instrument.name}. This can't be undone.`
-          }
+          {...deleteConfirmCopy('instrument', instrument.name, {
+            // Matches delete_instrument: it soft-deletes every live template
+            // for the instrument (archived included — it filters on
+            // deleted_at, not is_active) and marks in-progress logs abandoned.
+            // Completed logs are left alone, so history survives.
+            cascade: [
+              ...(cascadingPlanCount > 0
+                ? [alsoRemoves(cascadingPlanCount, 'plan')]
+                : []),
+              'Any practice session in progress on it ends, but your logged practice history is kept.',
+            ],
+          })}
           confirmLabel="Delete"
-          confirmVariant="danger"
           onConfirm={remove}
           onCancel={() => setConfirmingDelete(false)}
         />
