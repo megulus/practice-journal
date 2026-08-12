@@ -52,11 +52,16 @@ _session_failed = False
 # Test database lifecycle (session-scoped, sync wrapper)
 # ---------------------------------------------------------------------------
 
+# DROP DATABASE refuses (after a 5s wait) when anything else is still
+# connected — a leftover psql, or a dev server pointed at the test DB. WITH
+# (FORCE) terminates those backends instead, so the drop is deterministic
+# rather than dependent on who else happens to be connected. Requires PG13+;
+# CI runs postgres:15.
 async def _setup_test_db():
     """Create the test database."""
     engine = create_async_engine(_BASE_DB_URL, isolation_level="AUTOCOMMIT")
     async with engine.connect() as conn:
-        await conn.execute(text(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}"'))
+        await conn.execute(text(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}" WITH (FORCE)'))
         await conn.execute(text(f'CREATE DATABASE "{TEST_DB_NAME}"'))
     await engine.dispose()
 
@@ -65,7 +70,7 @@ async def _teardown_test_db():
     """Drop the test database."""
     engine = create_async_engine(_BASE_DB_URL, isolation_level="AUTOCOMMIT")
     async with engine.connect() as conn:
-        await conn.execute(text(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}"'))
+        await conn.execute(text(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}" WITH (FORCE)'))
     await engine.dispose()
 
 
@@ -125,17 +130,75 @@ def setup_test_database():
 # Per-test engine and session
 # ---------------------------------------------------------------------------
 
+_nonempty_probe_sql: str | None = None
+
+
+def _table_names():
+    """Tables in reverse dependency order (children before parents)."""
+    return [t.name for t in reversed(SQLModel.metadata.sorted_tables)]
+
+
+def _nonempty_probe():
+    """One statement that names every table currently holding rows.
+
+    Sixteen `EXISTS` probes against empty tables cost microseconds each;
+    sixteen `TRUNCATE`s do not (see `_reset_tables`).
+    """
+    global _nonempty_probe_sql
+    if _nonempty_probe_sql is None:
+        _nonempty_probe_sql = " UNION ALL ".join(
+            f"""SELECT '{name}' AS t WHERE EXISTS (SELECT 1 FROM "{name}")"""
+            for name in _table_names()
+        )
+    return _nonempty_probe_sql
+
+
+async def _reset_tables(engine):
+    """Empty every table, touching only the ones that actually have rows.
+
+    Truncating all 16 tables after every test was the suite's dominant cost —
+    ~200ms of a ~260ms test, i.e. roughly two thirds of total wall time. Each
+    TRUNCATE rewrites the table's relfilenode (plus its indexes and toast
+    relation), so a full run churned tens of thousands of new files through
+    the checkpointer; on a slow-I/O runner that fsync load is what stretched a
+    3-minute job past its 10-minute ceiling (#273).
+
+    A typical test dirties three or four tables. Probing first and truncating
+    only those cuts the teardown to ~25ms and removes most of the file churn.
+    TRUNCATE ... CASCADE still reaches any table referencing a dirty one, so
+    the post-conditions are unchanged: every table is empty afterwards.
+    """
+    async with engine.begin() as conn:
+        dirty = (await conn.execute(text(_nonempty_probe()))).scalars().all()
+        if dirty:
+            targets = ", ".join(f'"{name}"' for name in dirty)
+            await conn.execute(text(f"TRUNCATE TABLE {targets} CASCADE"))
+
+
 @pytest_asyncio.fixture
 async def test_engine():
-    """Per-test async engine."""
-    engine = create_async_engine(_TEST_DB_URL, echo=False, pool_size=5)
+    """Per-test async engine.
+
+    The timeouts are a backstop, not a tuning knob: no statement in this suite
+    comes close to them. They exist so a test that deadlocks on a lock or
+    stalls in the server fails with a traceback pointing at the statement,
+    instead of hanging until CI kills the job (#273).
+    """
+    engine = create_async_engine(
+        _TEST_DB_URL,
+        echo=False,
+        pool_size=5,
+        connect_args={
+            "server_settings": {"statement_timeout": "60000", "lock_timeout": "30000"}
+        },
+    )
     yield engine
     await engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def db_session(test_engine):
-    """Per-test async session. Truncates all tables after each test for isolation.
+    """Per-test async session. Empties all tables after each test for isolation.
 
     NOTE: Fixture data must be committed (not just flushed) to be visible
     to the HTTP client, which uses a separate session.
@@ -146,11 +209,8 @@ async def db_session(test_engine):
         yield session
     finally:
         await session.close()
-        # Truncate all tables after each test for clean isolation
-        async with test_engine.begin() as conn:
-            for table in reversed(SQLModel.metadata.sorted_tables):
-                await conn.execute(text(f'TRUNCATE TABLE "{table.name}" CASCADE'))
-            await conn.commit()
+        # Empty all tables after each test for clean isolation
+        await _reset_tables(test_engine)
 
 
 # ---------------------------------------------------------------------------

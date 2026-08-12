@@ -10,6 +10,11 @@ jobs:
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    # Stays at 10. The suite now runs in ~1.5 min of the job's ~3 min, and the
+    # pytest --session-timeout below fires at 7 min, so this ceiling should
+    # never be what stops the job again — it is the backstop behind the
+    # backstop. Raising it was the one fix #273 ruled out: the job was not
+    # short of time, it was doing several times more disk work than it needed.
     timeout-minutes: 10
 
     services:
@@ -21,11 +26,27 @@ jobs:
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
+        # The data directory lives on tmpfs. This database exists for the
+        # length of one job and is thrown away, so durability buys nothing —
+        # and the suite is fsync-bound: every test empties the tables it
+        # dirtied, which rewrites relfilenodes the checkpointer then has to
+        # sync. On a slow-disk runner that load is what stretched a 3-minute
+        # job past its 10-minute ceiling (#273); on tmpfs it costs nothing and
+        # the job stops depending on which runner it landed on.
+        #
+        # No size is set, so the mount defaults to half of the runner's RAM
+        # (~8GB) and only occupies what it actually uses — a few hundred MB.
+        #
+        # pg_isready defaults its database name to the user name, so without
+        # -d it logged `FATAL: database "practice_user" does not exist` every
+        # 10s. The check passed regardless (the server answered), but it
+        # buried the postgres log that diagnosing #273 depended on.
         options: >-
-          --health-cmd "pg_isready -U practice_user"
+          --health-cmd "pg_isready -U practice_user -d postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --tmpfs /var/lib/postgresql/data
 
     defaults:
       run:
@@ -48,7 +69,13 @@ jobs:
           DB_HOST: localhost
           TEST_BASE_DB_URL: postgresql+asyncpg://practice_user:practice_pass@localhost:5432/postgres
           TEST_DATABASE_URL: postgresql+asyncpg://practice_user:practice_pass@localhost:5432/practice_journal_test
-        run: python -m pytest tests/ -v
+        # --session-timeout is the job's real deadline, deliberately set below
+        # timeout-minutes so pytest — not the runner — is what reports a
+        # blown budget. The runner kills the job silently and GitHub calls
+        # that `cancelled`; pytest exits with a message, the test counts so
+        # far, and a nonzero status that reads as the failure it is. The
+        # per-test --timeout lives in pytest.ini so local runs get it too.
+        run: python -m pytest tests/ -v --session-timeout=420
 
   frontend:
     name: Frontend Tests
@@ -70,6 +97,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # `next build` type-checks app code but not test files, so a PR could
+      # widen a shared interface, leave every existing fixture ill-typed, and
+      # still go green — which happened three times in one batch (#293).
+      # Vitest doesn't catch it either: it transpiles without type-checking.
+      # `tsc --noEmit` covers everything tsconfig includes, tests included.
+      #
+      # First step after install because it's the cheapest gate here (~6s
+      # locally, against 40s for the tests and 36s for the build in CI) and
+      # because a type error reported on its own is easier to read than the
+      # same error buried in build output.
+      - name: Type check
+        run: npm run typecheck
 
       - name: Run tests
         run: npm test
