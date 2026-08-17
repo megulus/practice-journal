@@ -10,5 +10,5 @@ export {
 } from './sessionProgress'
 export { AddSectionButton } from './AddSectionButton'
 export { SessionNotes } from './SessionNotes'
-export { groupBlockLogs } from './groupBlockLogs'
+export { groupBlockLogs, spotDisplayName } from './groupBlockLogs'
 export type { BlockGroup } from './groupBlockLogs'

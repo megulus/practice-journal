@@ -534,6 +534,195 @@ class TestAllSpotsRetired:
 
 
 # ===================================================================
+# PIECE NAME ON BLOCK LOGS (#274)
+# ===================================================================
+
+class TestBlockLogPieceName:
+    """`piece_name` comes from block_id → Block.piece_id → Piece.name.
+
+    `block_name` is denormalized as "{piece} — {spot}", so it can't be split
+    back apart when the title itself contains the " — " separator — the
+    relationship is the only source that survives such a title.
+    """
+
+    @staticmethod
+    async def _start_with_piece_named(client, db_session, t, name):
+        """Rename the fixture's piece, then start a session on it."""
+        t["piece"].name = name
+        db_session.add(t["piece"])
+        await db_session.commit()
+
+        resp = await client.post("/api/practice/start", json={
+            "instrument_id": t["template"].instrument_id,
+            "template_id": t["template"].id,
+            "template_session_id": t["session"].id,
+        })
+        assert resp.status_code == 201
+        return resp.json()
+
+    async def test_piece_name_survives_separator_in_title(
+        self, client: AsyncClient, db_session, repertoire_template
+    ):
+        t = repertoire_template
+        data = await self._start_with_piece_named(
+            client, db_session, t, "Sonata — No. 2"
+        )
+
+        rep_bls = data["section_logs"][1]["block_logs"]
+        assert len(rep_bls) == 3
+        for bl in rep_bls:
+            assert bl["piece_name"] == "Sonata — No. 2"
+        # The denormalized name still carries both halves, ambiguously.
+        assert rep_bls[0]["block_name"] == "Sonata — No. 2 — first page"
+
+        # And on a re-read of the log
+        resp = await client.get(f"/api/practice/{data['id']}")
+        rep_bls = resp.json()["section_logs"][1]["block_logs"]
+        assert all(bl["piece_name"] == "Sonata — No. 2" for bl in rep_bls)
+
+    async def test_standard_block_has_no_piece_name(
+        self, client: AsyncClient, repertoire_template
+    ):
+        t = repertoire_template
+        resp = await client.post("/api/practice/start", json={
+            "instrument_id": t["template"].instrument_id,
+            "template_id": t["template"].id,
+            "template_session_id": t["session"].id,
+        })
+        warmup_bl = resp.json()["section_logs"][0]["block_logs"][0]
+        assert warmup_bl["block_name"] == "Open strings"
+        assert warmup_bl["piece_name"] is None
+
+    async def test_freeform_block_has_no_piece_name(
+        self, client: AsyncClient, repertoire_template
+    ):
+        t = repertoire_template
+        resp = await client.post("/api/practice/start", json={
+            "instrument_id": t["template"].instrument_id,
+            "template_id": t["template"].id,
+            "template_session_id": t["session"].id,
+        })
+        log_id = resp.json()["id"]
+        sl_id = resp.json()["section_logs"][0]["id"]
+
+        resp = await client.post(
+            f"/api/practice/{log_id}/sections/{sl_id}/blocks",
+            json={"block_name": "Improvising"},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["piece_name"] is None
+
+    async def test_piece_name_survives_deleted_spot_and_piece(
+        self, client: AsyncClient, db_session, repertoire_template
+    ):
+        """Historical logs stay readable after the spot and piece are gone.
+
+        Both deletes are soft, so the relationship still resolves — the
+        piece renders in full even though nothing links to it any more.
+        """
+        t = repertoire_template
+        data = await self._start_with_piece_named(
+            client, db_session, t, "Suite — BWV 1007"
+        )
+        log_id = data["id"]
+
+        # Complete the session so it shows up in Progress → History
+        for sl in data["section_logs"]:
+            for bl in sl["block_logs"]:
+                await client.put(
+                    f"/api/practice/{log_id}/blocks/{bl['id']}",
+                    json={"rating": 0, "completed": True},
+                )
+        resp = await client.post(f"/api/practice/{log_id}/finish")
+        assert resp.status_code == 200
+
+        # Delete a spot, then the whole piece
+        resp = await client.delete(f"/api/spots/{t['spots'][0].id}")
+        assert resp.status_code == 204
+        resp = await client.delete(f"/api/pieces/{t['piece'].id}")
+        assert resp.status_code == 204
+
+        resp = await client.get(f"/api/progress/history/{log_id}")
+        assert resp.status_code == 200
+        rep_bls = resp.json()["section_logs"][1]["block_logs"]
+        assert len(rep_bls) == 3
+        for bl in rep_bls:
+            assert bl["piece_name"] == "Suite — BWV 1007"
+            assert bl["block_name"].startswith("Suite — BWV 1007 — ")
+
+    async def test_piece_name_null_when_block_is_gone(
+        self, client: AsyncClient, db_session, repertoire_template
+    ):
+        """A template block hard-deleted out from under the log nulls
+        block_id (ON DELETE SET NULL), leaving block_name as the record."""
+        t = repertoire_template
+        data = await self._start_with_piece_named(
+            client, db_session, t, "Caprice — No. 24"
+        )
+        log_id = data["id"]
+
+        block = await db_session.get(Block, t["rep_block"].id)
+        await db_session.delete(block)
+        await db_session.commit()
+
+        resp = await client.get(f"/api/practice/{log_id}")
+        rep_bls = resp.json()["section_logs"][1]["block_logs"]
+        assert len(rep_bls) == 3
+        for bl in rep_bls:
+            assert bl["block_id"] is None
+            assert bl["piece_name"] is None
+            # Denormalized name is all that's left — still readable.
+            assert bl["block_name"].startswith("Caprice — No. 24 — ")
+
+    async def test_mutation_responses_carry_piece_name(
+        self, client: AsyncClient, db_session, repertoire_template
+    ):
+        """The in-session mutations return block logs the UI renders
+        directly, so they carry piece_name too."""
+        t = repertoire_template
+        data = await self._start_with_piece_named(
+            client, db_session, t, "Nocturne — Op. 9 No. 2"
+        )
+        log_id = data["id"]
+        bl_id = data["section_logs"][1]["block_logs"][0]["id"]
+        piece = "Nocturne — Op. 9 No. 2"
+
+        resp = await client.put(
+            f"/api/practice/{log_id}/blocks/{bl_id}",
+            json={"rating": 1, "completed": True},
+        )
+        assert resp.json()["piece_name"] == piece
+
+        resp = await client.post(
+            f"/api/practice/{log_id}/blocks/{bl_id}/spots",
+            json={"name": "coda"},
+        )
+        assert resp.json()["piece_name"] == piece
+
+        resp = await client.put(
+            f"/api/practice/{log_id}/blocks/{bl_id}/collapse-to-piece",
+            json={},
+        )
+        assert resp.json()["piece_name"] == piece
+        collapsed_id = resp.json()["id"]
+
+        resp = await client.put(
+            f"/api/practice/{log_id}/blocks/{collapsed_id}/expand-to-spots",
+        )
+        assert all(bl["piece_name"] == piece for bl in resp.json())
+
+        # mark_all_done returns the section with its block logs
+        sl_id = data["section_logs"][1]["id"]
+        resp = await client.put(
+            f"/api/practice/{log_id}/sections/{sl_id}",
+            json={"mark_all_done": True},
+        )
+        assert all(
+            bl["piece_name"] == piece for bl in resp.json()["block_logs"]
+        )
+
+
+# ===================================================================
 # CROSS-USER SECURITY
 # ===================================================================
 

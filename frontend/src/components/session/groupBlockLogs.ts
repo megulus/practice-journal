@@ -67,11 +67,10 @@ export function groupBlockLogs(
       if (!emitted.has(bl.block_id)) {
         emitted.add(bl.block_id)
         const group = repGroups.get(bl.block_id)!
-        // Extract piece name from the first spot log or piece log
-        const firstLog = group.spotLogs[0] ?? group.pieceLog
-        const pieceName = firstLog
-          ? firstLog.block_name.split(' — ')[0]
-          : 'Unknown piece'
+        const pieceName = derivePieceName([
+          ...group.spotLogs,
+          ...(group.pieceLog ? [group.pieceLog] : []),
+        ])
         groups.push({
           type: 'repertoire',
           blockId: bl.block_id,
@@ -86,4 +85,95 @@ export function groupBlockLogs(
   }
 
   return groups
+}
+
+/**
+ * The display name for a repertoire group.
+ *
+ * `piece_name` comes from the block relationship (block_id → Block.piece_id →
+ * Piece.name) and is the only source that survives a title containing the
+ * " — " separator: `block_name` is denormalized as "{piece} — {spot}", so a
+ * piece called "Sonata — No. 2" produces "Sonata — No. 2 — mm. 1–8" and no
+ * parsing rule can tell where the title ends.
+ *
+ * The split survives only as a fallback for groups whose logs carry no
+ * `piece_name` — the heuristics above can group logs that aren't repertoire
+ * at all (several sharing one block_id), and a response cached from before
+ * the field existed carries none.
+ */
+function derivePieceName(logs: BlockLog[]): string {
+  const named = logs.find((bl) => bl.piece_name)
+  if (named?.piece_name) return named.piece_name
+  const first = logs[0]
+  return first ? first.block_name.split(' — ')[0] : 'Unknown piece'
+}
+
+/**
+ * Repertoire spot logs are named "{piece} — {spot}"; a spot row already sits
+ * under its piece, so drop the prefix.
+ *
+ * Two prefixes can be in play, because `block_name` freezes the piece's title
+ * as of the moment it was logged:
+ *
+ * 1. `pieceName` — the piece's *current* name, from the relationship. Matches
+ *    unless the piece has been renamed since.
+ * 2. The name the group's logs were *written with*, recovered from the prefix
+ *    they all share (`groupSpotLogs`). After a rename this is the stale title,
+ *    and stripping it is what keeps a renamed piece's rows reading "mm. 1–8"
+ *    rather than "Old title — mm. 1–8".
+ *
+ * Anything else is left whole: a name that carries neither prefix isn't a
+ * "{piece} — {spot}" pair we can take apart, and chopping it at an arbitrary
+ * " — " would eat part of the spot's own name (#252).
+ */
+export function spotDisplayName(
+  blockLog: BlockLog,
+  pieceName: string,
+  groupSpotLogs: BlockLog[] = [],
+): string {
+  const current = `${pieceName} — `
+  if (blockLog.block_name.startsWith(current)) {
+    return blockLog.block_name.slice(current.length)
+  }
+  const logged = loggedPiecePrefix(groupSpotLogs)
+  if (logged && blockLog.block_name.startsWith(logged)) {
+    return blockLog.block_name.slice(logged.length)
+  }
+  return blockLog.block_name
+}
+
+/**
+ * The "{piece} — " prefix a group's spot logs were denormalized with: their
+ * longest common prefix, cut back to a " — " boundary.
+ *
+ * Which boundary depends on how much evidence there is:
+ *
+ * - Several logs agree on a prefix only because it's the title, so take the
+ *   *last* boundary in it — that's what recovers a stale title containing the
+ *   separator ("Sonata — No. 2 — ") instead of stopping at "Sonata — ".
+ * - One log agrees only with itself: its whole name is "shared", and the last
+ *   boundary would swallow any separator in the *spot's* name too, turning
+ *   "Old title — Coda — slowly" into "slowly". With nothing to corroborate a
+ *   longer title, take the *first* boundary and keep the rest.
+ *
+ * Both directions can still be fooled — spots whose names share a leading
+ * segment ("Coda — slowly" / "Coda — fast") make that segment look like part
+ * of the title. That's the same ambiguity #274 is about, and why the piece
+ * name itself comes from the relationship rather than from this string.
+ */
+function loggedPiecePrefix(spotLogs: BlockLog[]): string {
+  if (spotLogs.length === 0) return ''
+  const shared = spotLogs.reduce(
+    (acc, bl) => commonPrefix(acc, bl.block_name),
+    spotLogs[0].block_name,
+  )
+  const boundary =
+    spotLogs.length === 1 ? shared.indexOf(' — ') : shared.lastIndexOf(' — ')
+  return boundary === -1 ? '' : shared.slice(0, boundary + 3)
+}
+
+function commonPrefix(a: string, b: string): string {
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  return a.slice(0, i)
 }

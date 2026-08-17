@@ -328,6 +328,14 @@ export interface BlockLog {
   tempo_bpm: number | null
   /** Smart default carried over from the last session on this block. */
   last_tempo_bpm: number | null
+  /**
+   * For repertoire blocks: the piece's name, resolved server-side from the
+   * relationship (block_id → Block.piece_id → Piece.name). Null for standard
+   * and freeform blocks. Prefer this over parsing `block_name`, which is
+   * denormalized as "{piece} — {spot}" and can't be split back apart when the
+   * title itself contains " — ".
+   */
+  piece_name: string | null
 }
 
 export interface BlockLogUpdate {

@@ -47,6 +47,7 @@ function makeBlock(overrides: Partial<BlockLog> = {}): BlockLog {
     display_order: 0,
     tempo_bpm: null,
     last_tempo_bpm: null,
+    piece_name: null,
     ...overrides,
   }
 }
@@ -190,5 +191,41 @@ describe('SectionCard — in-session suggestions (#180)', () => {
       'Try 4 bpm faster today.'
     )
     expect(within(row('G major scale')).queryByRole('note')).toBeNull()
+  })
+})
+
+describe('SectionCard — repertoire piece names (#274)', () => {
+  it('renders a piece title containing " — " in full', () => {
+    render(
+      <SectionCard
+        logId={1}
+        sectionLog={makeSection({
+          block_logs: [
+            makeBlock({
+              id: 1,
+              block_id: 5,
+              spot_id: 50,
+              block_name: 'Sonata — No. 2 — mm. 1–8',
+              piece_name: 'Sonata — No. 2',
+            }),
+            makeBlock({
+              id: 2,
+              block_id: 5,
+              spot_id: 51,
+              block_name: 'Sonata — No. 2 — coda',
+              piece_name: 'Sonata — No. 2',
+            }),
+          ],
+        })}
+        color={color}
+        onUpdate={vi.fn()}
+        {...refs()}
+      />
+    )
+
+    expect(screen.getByText('Sonata — No. 2')).toBeInTheDocument()
+    // Spot rows sit under the piece header, so they drop the whole prefix.
+    expect(screen.getByText('mm. 1–8')).toBeInTheDocument()
+    expect(screen.getByText('coda')).toBeInTheDocument()
   })
 })

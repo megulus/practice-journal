@@ -390,6 +390,8 @@ Indexes:
 
 When a spot is hard-deleted, BlockLogs referencing it have their `spot_id` set to null (via `ON DELETE SET NULL`), and `block_name` is preserved as the historical record. Retiring a spot does not affect its BlockLogs.
 
+`block_name` is display text, not a parseable pair: a piece titled `"Sonata — No. 2"` produces `"Sonata — No. 2 — mm. 1–8"`, which no splitting rule can take back apart. Clients that need the piece on its own read the `piece_name` field on the block-log read schema (see "Piece name on block logs" under the practice endpoints), which resolves it from the relationship rather than from the string.
+
 ### suggestion_dismissals
 
 Tracks which suggestion rules a user has dismissed, so they don't reappear.
@@ -955,6 +957,13 @@ that can half-fail.
 For freeform: omit `template_id` and `template_session_id`.
 
 **Smart tempo defaults:** Both `start` and `GET /api/practice/{logId}` include a `last_tempo_bpm` field on each block log — the tempo to pre-fill the block row's tempo field with. It is sourced only from block logs in the user's **completed** sessions for that block_id: the most recent `BlockLog.tempo_bpm` they logged, or, if they never logged one there, that block's template-defined `tempo_bpm`. A block the user has never practised in a completed session returns null even when the template sets a tempo, and the field renders empty. `GET` computes it too so a mid-session reload pre-fills the same values `start` returned. What the user actually logs today is the separate `tempo_bpm` field on the block log (null until they confirm or adjust the pre-filled value).
+
+**Piece name on block logs.** Every block-log read carries `piece_name` — the repertoire piece's name, resolved from the relationship (`block_logs.block_id → blocks.piece_id → pieces.name`), not derived from `block_name`. It is the display name for the piece header that groups a repertoire block's spot rows, and the prefix a client strips to show a spot row on its own; `block_name` cannot serve either purpose when the title itself contains `" — "`. It is null for standard and freeform blocks. Two degradation cases:
+
+- The piece (or its spots) was soft-deleted — the lookup deliberately ignores `deleted_at`, so `piece_name` still resolves and the historical log renders in full.
+- The template block was hard-deleted, so `block_id` is null — there is nothing to resolve and `piece_name` is null. Clients fall back to `block_name`, which is exactly the record it's denormalized to be.
+
+The field is present on `start`, `GET /api/practice/{logId}`, `GET /api/progress/history/{logId}`, and on the mutation responses that return block logs (`PUT .../blocks/{blockLogId}`, add-freeform-block, add-spot, collapse-to-piece, expand-to-spots, and the section-level `PUT` that nests them).
 
 **Repertoire block scaffolding.** When the start endpoint scaffolds SectionLogs and BlockLogs from a template, repertoire blocks are expanded into one BlockLog per default spot. Each BlockLog has `spot_id` set, `block_name` denormalized to `"{piece_name} — {spot_name}"`, and starts with `completed = false` and `rating = null`.
 
