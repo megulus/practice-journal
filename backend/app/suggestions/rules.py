@@ -283,8 +283,8 @@ async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
     derived from the instrument's frequency setting.
 
     The window is rolling, not a calendar week — so the copy says "the last 7
-    days" rather than "this week", which in this product means the calendar week
-    shown in Insights (#272)."""
+    days" / "the last week" rather than "this week", which in this product means
+    the calendar week shown in Insights (#272)."""
     if ctx.instrument_id is None:
         return None
 
@@ -318,8 +318,14 @@ async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
     target = targets.get(freq, 4)
 
     if days_in_window >= target:
+        # Leads with the count, not a fraction: a weekly/occasional user (target
+        # 1) hitting their goal should not read "1 of the last 7 days", which
+        # foregrounds the six days they didn't practice in the sentence meant to
+        # celebrate. Pluralize — "1 days in the last week" is the bug this
+        # phrasing carried before #272.
+        day_word = "day" if days_in_window == 1 else "days"
         text = (
-            f"You've practiced {days_in_window} of the last 7 days — "
+            f"You've practiced {days_in_window} {day_word} in the last week — "
             f"you've hit your goal! Keep the momentum going."
         )
     else:

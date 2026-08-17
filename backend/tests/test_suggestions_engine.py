@@ -372,9 +372,17 @@ class TestWeeklyConsistency:
             "3 more and you'll match your goal."
         )
 
-    async def test_at_goal(
+    async def test_at_goal_is_singular_on_one_day(
         self, db_session, test_user, test_instrument
     ):
+        """The target-1 boundary: a `weekly` instrument hits its goal on a
+        single day, so the count must read "1 day", not "1 days".
+
+        This is the case that was broken before #272 — the over-goal branch
+        interpolated a bare "{n} days" and nobody exercises target-1 by
+        accident, since the default frequency (`few_times_a_week`) has target 4
+        and can never celebrate on one day.
+        """
         test_instrument.practice_frequency = "weekly"
         db_session.add(test_instrument)
         log = await _make_log(
@@ -386,9 +394,54 @@ class TestWeeklyConsistency:
         )
         assert result is not None
         assert result.text == (
-            "You've practiced 1 of the last 7 days — "
+            "You've practiced 1 day in the last week — "
             "you've hit your goal! Keep the momentum going."
         )
+
+    async def test_at_goal_is_plural_beyond_one_day(
+        self, db_session, test_user, test_instrument
+    ):
+        """The other side of the same boundary — 3 days over a target of 1."""
+        test_instrument.practice_frequency = "weekly"
+        db_session.add(test_instrument)
+        today = datetime.now(timezone.utc).date()
+        for offset in (2, 1):
+            await _make_log(
+                db_session, test_user, test_instrument,
+                practice_date=today - timedelta(days=offset),
+            )
+        log = await _make_log(
+            db_session, test_user, test_instrument, practice_date=today,
+        )
+        result = await evaluate_post_session(
+            db_session, test_user.id, test_instrument.id, log.id
+        )
+        assert result is not None
+        assert result.text == (
+            "You've practiced 3 days in the last week — "
+            "you've hit your goal! Keep the momentum going."
+        )
+
+    async def test_at_goal_never_says_a_bare_number_of_days_wrong(
+        self, db_session, test_user, test_instrument
+    ):
+        """Guards the plural across the whole over-goal range, so a future
+        rewrite of the sentence can't reintroduce "1 days" at any count."""
+        test_instrument.practice_frequency = "weekly"
+        db_session.add(test_instrument)
+        today = datetime.now(timezone.utc).date()
+        for offset in range(4):
+            log = await _make_log(
+                db_session, test_user, test_instrument,
+                practice_date=today - timedelta(days=offset),
+            )
+            result = await evaluate_post_session(
+                db_session, test_user.id, test_instrument.id, log.id
+            )
+            assert result is not None
+            assert "1 days" not in result.text
+            expected = "1 day " if offset == 0 else f"{offset + 1} days "
+            assert expected in result.text, result.text
 
     async def test_never_calls_the_rolling_window_this_week(
         self, db_session, test_user, test_instrument
