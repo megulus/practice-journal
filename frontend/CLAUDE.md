@@ -9,9 +9,18 @@ npm run dev        # Start dev server at http://localhost:3000
 npm run build      # Production build
 npm run start      # Run production build
 npm run lint       # ESLint with next/core-web-vitals rules
+npm run typecheck  # tsc --noEmit over everything, test files included
 npm test           # Run tests (Vitest)
 npm run test:watch # Run tests in watch mode
 ```
+
+**`npm run build` does not type-check test files; `npm run typecheck` does.**
+`next build` scopes its type check to app code, and Vitest transpiles without
+checking types, so before #293 a PR could widen a shared interface, leave every
+existing fixture ill-typed, and still go green — the errors then surfaced in
+someone else's editor, attributed to files that PR never touched. CI runs
+`typecheck` as its own step now; run it locally after changing a shared type in
+`src/lib/types.ts`.
 
 **Don't run `npm run build` against a tree with a dev server running on it.**
 Both write `frontend/.next`, so the build replaces the dev server's chunks
