@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from app.api.idempotency import REPLAY_HEADER
 from app.config import get_settings
 from app.database import engine
 
@@ -46,6 +47,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Response headers are hidden from cross-origin JS unless named here.
+    # Idempotent-Replay is part of the documented API contract, so a browser
+    # client has to be able to read it.
+    expose_headers=[REPLAY_HEADER],
 )
 
 # Kantelo API routers

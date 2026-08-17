@@ -1,15 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
 import { useHideAppChrome } from '@/components/layout/appChrome'
+import { createAttemptKey } from '@/lib/idempotency'
 import {
   DEFAULT_AREA_TYPES,
   DEFAULT_TIME_BUDGET,
   buildQuickStartPlan,
 } from '@/lib/quickstart'
-import type { Instrument, SectionType } from '@/lib/types'
+import type { Instrument, QuickStartRequest, SectionType } from '@/lib/types'
 import { StepAreas } from './StepAreas'
 import { StepGoal } from './StepGoal'
 import { StepInstrument } from './StepInstrument'
@@ -69,6 +70,12 @@ export function QuickStartWizard({
   const [pending, setPending] = useState<PendingAction | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // One idempotency key per attempt, so pressing "try again" after a failure
+  // can't create a second plan when the first request actually committed and
+  // only its response was lost (#290). Changing an answer starts a new
+  // attempt, and gets a new key.
+  const attemptKey = useRef(createAttemptKey()).current
+
   // Steps 1–4 are pre-app onboarding: no nav. It returns on step 5, where the
   // user is "in" the app (spec §5.6).
   useHideAppChrome(step < TOTAL_STEPS)
@@ -98,14 +105,15 @@ export function QuickStartWizard({
     if (!instrument) return
     setPending(action)
     setError(null)
+    const request: QuickStartRequest = {
+      instrument_id: instrument.id,
+      instrument_name: instrument.id ? undefined : instrument.name,
+      plan_name: plan.name,
+      piece_name: pieceName.trim() || undefined,
+      sections: plan.sections,
+    }
     try {
-      const result = await api.quickStart({
-        instrument_id: instrument.id,
-        instrument_name: instrument.id ? undefined : instrument.name,
-        plan_name: plan.name,
-        piece_name: pieceName.trim() || undefined,
-        sections: plan.sections,
-      })
+      const result = await api.quickStart(request, attemptKey(request))
 
       if (action === 'start') {
         // Reuse the guarded start route so a session is created exactly once.
