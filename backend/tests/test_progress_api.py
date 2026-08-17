@@ -138,27 +138,71 @@ class TestHistoryList:
         assert len(data["items"]) == 1
         assert data["items"][0]["instrument_name"] == "Violin"
 
-    async def test_period_week(
+    async def test_period_last_7_days(
         self, client: AsyncClient, db_session, test_user
     ):
         inst = await _make_instrument(db_session, test_user)
         await _make_completed_log(db_session, test_user, inst, days_ago=3)  # within
         await _make_completed_log(db_session, test_user, inst, days_ago=10)  # outside
 
-        resp = await client.get("/api/progress/history?period=week")
+        resp = await client.get("/api/progress/history?period=last_7_days")
         data = resp.json()
         assert len(data["items"]) == 1
 
-    async def test_period_month(
+    async def test_period_last_30_days(
         self, client: AsyncClient, db_session, test_user
     ):
         inst = await _make_instrument(db_session, test_user)
         await _make_completed_log(db_session, test_user, inst, days_ago=15)  # within
         await _make_completed_log(db_session, test_user, inst, days_ago=45)  # outside
 
-        resp = await client.get("/api/progress/history?period=month")
+        resp = await client.get("/api/progress/history?period=last_30_days")
         data = resp.json()
         assert len(data["items"]) == 1
+
+    # The windows are exactly 7 and 30 days *inclusive of today* (#272,
+    # decision 2). That only shows up on the edge day, so these pin it: the
+    # previous `>= today - 7` / `>= today - 30` bounds made the windows 8 and
+    # 31 days and would let the excluded logs below through.
+
+    async def test_period_last_7_days_boundary(
+        self, client: AsyncClient, db_session, test_user
+    ):
+        inst = await _make_instrument(db_session, test_user)
+        await _make_completed_log(db_session, test_user, inst, days_ago=6, duration=11)
+        await _make_completed_log(db_session, test_user, inst, days_ago=7, duration=22)
+
+        resp = await client.get("/api/progress/history?period=last_7_days")
+        items = resp.json()["items"]
+        assert [i["practice_date"] for i in items] == [_days_ago(6).isoformat()]
+
+    async def test_period_last_30_days_boundary(
+        self, client: AsyncClient, db_session, test_user
+    ):
+        inst = await _make_instrument(db_session, test_user)
+        await _make_completed_log(db_session, test_user, inst, days_ago=29, duration=11)
+        await _make_completed_log(db_session, test_user, inst, days_ago=30, duration=22)
+
+        resp = await client.get("/api/progress/history?period=last_30_days")
+        items = resp.json()["items"]
+        assert [i["practice_date"] for i in items] == [_days_ago(29).isoformat()]
+
+    async def test_period_today_is_included(
+        self, client: AsyncClient, db_session, test_user
+    ):
+        """The near edge: today's session belongs to both rolling windows."""
+        inst = await _make_instrument(db_session, test_user)
+        await _make_completed_log(db_session, test_user, inst, days_ago=0)
+
+        for period in ("last_7_days", "last_30_days"):
+            resp = await client.get(f"/api/progress/history?period={period}")
+            assert len(resp.json()["items"]) == 1, period
+
+    async def test_retired_period_values_rejected(self, client: AsyncClient):
+        """`week`/`month` were renamed in #272; they are no longer accepted."""
+        for period in ("week", "month"):
+            resp = await client.get(f"/api/progress/history?period={period}")
+            assert resp.status_code == 422, period
 
     async def test_pagination(
         self, client: AsyncClient, db_session, test_user

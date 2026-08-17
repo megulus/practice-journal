@@ -279,8 +279,12 @@ async def spot_step_forward_streak(ctx: RuleContext) -> Optional[Suggestion]:
 # ===================================================================
 
 async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
-    """Compares days practiced this week to the user's effective goal,
-    derived from the instrument's frequency setting."""
+    """Compares days practiced in the last 7 days to the user's effective goal,
+    derived from the instrument's frequency setting.
+
+    The window is rolling, not a calendar week — so the copy says "the last 7
+    days" / "the last week" rather than "this week", which in this product means
+    the calendar week shown in Insights (#272)."""
     if ctx.instrument_id is None:
         return None
 
@@ -297,7 +301,7 @@ async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
             PracticeLog.practice_date <= today,
         )
     )
-    days_this_week = days_result.one() or 0
+    days_in_window = days_result.one() or 0
 
     inst_result = await ctx.session.exec(
         select(Instrument.practice_frequency).where(
@@ -313,17 +317,23 @@ async def weekly_consistency(ctx: RuleContext) -> Optional[Suggestion]:
     }
     target = targets.get(freq, 4)
 
-    if days_this_week >= target:
+    if days_in_window >= target:
+        # Leads with the count, not a fraction: a weekly/occasional user (target
+        # 1) hitting their goal should not read "1 of the last 7 days", which
+        # foregrounds the six days they didn't practice in the sentence meant to
+        # celebrate. Pluralize — "1 days in the last week" is the bug this
+        # phrasing carried before #272.
+        day_word = "day" if days_in_window == 1 else "days"
         text = (
-            f"You've practiced {days_this_week} days this week — "
+            f"You've practiced {days_in_window} {day_word} in the last week — "
             f"you've hit your goal! Keep the momentum going."
         )
     else:
-        remaining = target - days_this_week
+        remaining = target - days_in_window
         word = "one more" if remaining == 1 else f"{remaining} more"
         text = (
-            f"You've practiced {days_this_week} of the last 7 days — "
-            f"{word} this week matches your goal."
+            f"You've practiced {days_in_window} of the last 7 days — "
+            f"{word} and you'll match your goal."
         )
 
     return Suggestion(
