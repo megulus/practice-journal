@@ -133,7 +133,7 @@ def _build_history_item(
 @router.get("/history", response_model=HistoryResponse)
 async def list_history(
     instrument_id: Optional[int] = Query(default=None),
-    period: Literal["all", "week", "month"] = Query(default="all"),
+    period: Literal["all", "last_7_days", "last_30_days"] = Query(default="all"),
     cursor: Optional[str] = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
@@ -161,10 +161,16 @@ async def list_history(
     if instrument_id is not None:
         query = query.where(PracticeLog.instrument_id == instrument_id)
 
-    if period == "week":
-        query = query.where(PracticeLog.practice_date >= today - timedelta(days=7))
-    elif period == "month":
-        query = query.where(PracticeLog.practice_date >= today - timedelta(days=30))
+    # Rolling windows ending today, deliberately *not* calendar-aligned and not
+    # affected by the user's `week_starts_on` (#272). History answers "show me
+    # recent sessions", which is a recency question — a calendar week would make
+    # Monday morning show an almost-empty list. The calendar definition lives in
+    # Insights, where "this week vs. last" needs fixed boundaries. The `-6`/`-29`
+    # offsets make the windows exactly 7 and 30 days *inclusive of today*.
+    if period == "last_7_days":
+        query = query.where(PracticeLog.practice_date >= today - timedelta(days=6))
+    elif period == "last_30_days":
+        query = query.where(PracticeLog.practice_date >= today - timedelta(days=29))
 
     if cursor:
         decoded = decode_cursor(cursor)

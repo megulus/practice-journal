@@ -206,7 +206,7 @@ Repertoire blocks display the piece name as a header followed by the practiced s
 
 **Post-session suggestion:**
 
-A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
+A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more and you'll match your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
 
 **Guided reflection prompt:**
 
@@ -322,7 +322,9 @@ A reverse-chronological list of past sessions. Each session card shows:
 - Session-level notes (if any)
 - Reflection prompt response (if any)
 
-**Filtering:** A row of time-range pills (All sessions / This week / This month) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+**Filtering:** A row of time-range pills (All sessions / Last 7 days / Last 30 days) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+
+The two filtered pills are **rolling windows ending today** — the last 7 and 30 days inclusive — not calendar weeks or months, and they are not affected by the **Week starts on** preference. This is deliberate, and it is the one place in the product where a time range is *not* calendar-aligned: History answers "show me my recent sessions", a recency question, and a calendar week would make Monday morning show an almost-empty list. The calendar definition lives in Insights, where "this week vs. last" is only meaningful against fixed boundaries. Naming the pills after the windows they compute keeps "this week" meaning exactly one thing across the product.
 
 #### Insights sub-tab
 
@@ -383,7 +385,7 @@ Three radio button options with descriptions:
 
 Slim for v1:
 - **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
-- **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
+- **Week starts on** — sets the week boundary for the weekly comparisons and rating trend in Insights. Options: Monday / Sunday. It does *not* affect History's time-range filters, which are rolling windows by design (see §5.7). The practice calendar heatmap is currently Monday-first regardless of this setting — extending it is tracked as a separate change.
 - **Theme** — Match system / Light / Dark. Default: Match system. Theme preference syncs across devices via settings, with first-paint resolution from localStorage to avoid a flash of wrong theme.
 
 Additional preferences can slot in here as needed in later releases.
@@ -483,7 +485,7 @@ Five rules analyze practice patterns and surface coaching nudges. Suggestions ar
 |------|----------|--------|----------|
 | Pre-session nudges | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
 | In-the-moment coaching | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
-| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
+| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more and you'll match your goal." / "Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
 | Pattern-level insights | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
 
 Spot-level suggestions are a new class of in-the-moment and post-session coaching enabled by the repertoire model. Examples: "Your Bruch first-page spot has been step-forward three sessions in a row — try the next page" / "The trouble-spots passage hasn't improved in two weeks — try slower and shorter" / "You retired 'trouble spots mm. 24–28' six weeks ago — want to spot-check it?" These follow the same dismissal and opt-out rules as other suggestions.

@@ -542,7 +542,12 @@ export interface QuickStartResponse {
 // Progress: History & Insights
 // ===================================================================
 
-export type HistoryPeriod = 'all' | 'week' | 'month'
+/**
+ * History's time-range filter. Rolling windows ending today — deliberately not
+ * calendar-aligned, and unaffected by `week_starts_on`, which scopes the
+ * calendar weeks in Insights (#272). The values name the window they compute.
+ */
+export type HistoryPeriod = 'all' | 'last_7_days' | 'last_30_days'
 
 export interface HistoryItem {
   id: number
