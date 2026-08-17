@@ -4,6 +4,7 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.enums import SectionType
+from app.schemas.common import reject_explicit_null
 
 
 # --- Block default spots ---
@@ -200,9 +201,15 @@ class TemplateCreate(BaseModel):
 
 
 class TemplateUpdate(BaseModel):
+    # Every field is `Optional[...]` so that omitting it means "leave
+    # unchanged", but `templates.name` and `templates.is_active` are NOT NULL.
+    # `description` is genuinely nullable, so it stays off the validator below
+    # and an explicit `null` there keeps meaning "clear this field" (#280).
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
     is_active: Optional[bool] = None
+
+    _no_null = field_validator("name", "is_active")(reject_explicit_null)
 
 
 # --- Duplication ---
