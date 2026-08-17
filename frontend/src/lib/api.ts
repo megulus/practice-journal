@@ -457,10 +457,16 @@ export function createAuthenticatedAPI(
     // Quick start (wizard)
     // -----------------------------------------------------------------
     /** Creates instrument (+ optional piece) + active plan in one transaction. */
-    quickStart: (data: QuickStartRequest) =>
+    // `idempotencyKey` makes a retry safe: if the first attempt committed but
+    // its response was lost in flight, the backend replays that response
+    // rather than creating a second instrument, piece and plan (#290).
+    quickStart: (data: QuickStartRequest, idempotencyKey?: string) =>
       f<QuickStartResponse>('/api/quickstart', {
         method: 'POST',
         body: JSON.stringify(data),
+        ...(idempotencyKey
+          ? { headers: { 'Idempotency-Key': idempotencyKey } }
+          : {}),
       }),
 
     // -----------------------------------------------------------------

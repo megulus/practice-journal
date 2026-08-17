@@ -1,10 +1,13 @@
 """Tests for the quick-start wizard endpoint (product spec §5.6)."""
+import asyncio
+
+import httpx
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import Instrument, Piece, Template, UserSettings
+from app.models import IdempotencyRecord, Instrument, Piece, Template, UserSettings
 
 
 def payload(**overrides):
@@ -54,6 +57,35 @@ def payload(**overrides):
     }
     body.update(overrides)
     return body
+
+
+class _DroppedResponseTransport(ASGITransport):
+    """Runs the app to completion, then loses the response on the way back.
+
+    `ASGITransport.handle_async_request` awaits the whole app call before it
+    returns, so raising afterwards reproduces the failure this endpoint's
+    idempotency exists for: the server committed, the client saw an error.
+    """
+
+    async def handle_async_request(self, request):
+        await super().handle_async_request(request)
+        raise httpx.ReadError("connection dropped after the server committed")
+
+
+async def post_losing_the_response(body: dict, key: str) -> None:
+    """POST /api/quickstart, committing server-side but never hearing back.
+
+    Relies on the `client` fixture's dependency overrides being installed, so
+    the test that calls this must request `client` too.
+    """
+    from app.main import app
+
+    transport = _DroppedResponseTransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        with pytest.raises(httpx.TransportError):
+            await ac.post(
+                "/api/quickstart", json=body, headers={"Idempotency-Key": key}
+            )
 
 
 class TestQuickStartCreation:
@@ -220,6 +252,174 @@ class TestQuickStartExistingInstrument:
             "/api/quickstart", json=payload(instrument_name=None, instrument_id=99999)
         )
         assert resp.status_code == 404
+
+
+class TestQuickStartIdempotency:
+    """#290 — a retry of an attempt whose response was lost must not duplicate."""
+
+    KEY = "wizard-attempt-0f9d3c2a"
+
+    async def test_retry_after_a_lost_response_creates_nothing_new(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        # The wizard's first attempt: it commits, then the connection drops
+        # before the response lands, so the user is shown "try again".
+        await post_losing_the_response(payload(), self.KEY)
+
+        result = await db_session.exec(select(Instrument))
+        assert len(result.all()) == 1, "the lost request should still have committed"
+
+        # The retry re-posts the same payload under the same attempt key.
+        retry = await client.post(
+            "/api/quickstart",
+            json=payload(),
+            headers={"Idempotency-Key": self.KEY},
+        )
+        assert retry.status_code == 201
+        assert retry.headers["Idempotent-Replay"] == "true"
+
+        result = await db_session.exec(select(Instrument))
+        instruments = result.all()
+        result = await db_session.exec(select(Piece))
+        pieces = result.all()
+        result = await db_session.exec(select(Template))
+        templates = result.all()
+
+        assert len(instruments) == 1
+        assert len(pieces) == 1
+        assert len(templates) == 1
+        # And what came back points at those rows, not at a second set.
+        data = retry.json()
+        assert data["instrument"]["id"] == instruments[0].id
+        assert data["piece"]["id"] == pieces[0].id
+        assert data["template"]["id"] == templates[0].id
+        # The one plan is still the active one — no silent deactivation.
+        assert templates[0].is_active is True
+
+    async def test_a_replay_returns_the_original_response_verbatim(
+        self, client: AsyncClient
+    ):
+        first = await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": self.KEY}
+        )
+        second = await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": self.KEY}
+        )
+
+        assert first.status_code == 201
+        assert "Idempotent-Replay" not in first.headers
+        # Not a 409: the client can't tell "already done" from "failed", which
+        # is the whole reason the retry happens.
+        assert second.status_code == 201
+        assert second.json() == first.json()
+
+    async def test_a_different_key_creates_a_new_plan(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": self.KEY}
+        )
+        second = await client.post(
+            "/api/quickstart",
+            json=payload(),
+            headers={"Idempotency-Key": "a-fresh-run-71b4"},
+        )
+        assert second.status_code == 201
+        assert "Idempotent-Replay" not in second.headers
+
+        result = await db_session.exec(select(Template))
+        assert len(result.all()) == 2
+
+    async def test_without_a_key_a_retry_still_creates_a_second_plan(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        # The header is opt-in; nothing changes for a client that omits it.
+        await client.post("/api/quickstart", json=payload())
+        await client.post("/api/quickstart", json=payload())
+
+        result = await db_session.exec(select(Template))
+        assert len(result.all()) == 2
+
+    async def test_the_same_key_with_a_different_payload_is_rejected(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": self.KEY}
+        )
+        conflicting = await client.post(
+            "/api/quickstart",
+            json=payload(plan_name="Something else entirely"),
+            headers={"Idempotency-Key": self.KEY},
+        )
+        assert conflicting.status_code == 409
+
+        result = await db_session.exec(select(Template))
+        assert len(result.all()) == 1
+
+    async def test_a_key_is_scoped_to_its_user(
+        self, client: AsyncClient, db_session: AsyncSession, other_user
+    ):
+        # Another user has already spent this exact key. It must not leak
+        # their result, or block this user from using the same string.
+        db_session.add(
+            IdempotencyRecord(
+                user_id=other_user.id,
+                idempotency_key=self.KEY,
+                endpoint="POST /api/quickstart",
+                request_fingerprint="0" * 64,
+                response_status=201,
+                response_body={"not": "yours"},
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": self.KEY}
+        )
+        assert resp.status_code == 201
+        assert "Idempotent-Replay" not in resp.headers
+        assert resp.json()["instrument"]["name"] == "Violin"
+
+        result = await db_session.exec(select(Template))
+        assert len(result.all()) == 1
+
+    async def test_two_identical_requests_in_flight_at_once_create_one_plan(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        # An impatient retry can overlap the original. The loser blocks on the
+        # unique key, rolls back, and replays the winner's response.
+        first, second = await asyncio.gather(
+            client.post(
+                "/api/quickstart",
+                json=payload(),
+                headers={"Idempotency-Key": self.KEY},
+            ),
+            client.post(
+                "/api/quickstart",
+                json=payload(),
+                headers={"Idempotency-Key": self.KEY},
+            ),
+        )
+
+        assert (first.status_code, second.status_code) == (201, 201)
+        assert first.json() == second.json()
+
+        result = await db_session.exec(select(Instrument))
+        assert len(result.all()) == 1
+        result = await db_session.exec(select(Template))
+        assert len(result.all()) == 1
+
+    async def test_a_blank_key_is_a_bad_request(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": "   "}
+        )
+        assert resp.status_code == 400
+
+    async def test_an_over_long_key_is_a_bad_request(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/quickstart", json=payload(), headers={"Idempotency-Key": "k" * 256}
+        )
+        assert resp.status_code == 400
 
 
 class TestQuickStartValidation:

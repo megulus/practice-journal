@@ -101,6 +101,10 @@ function lastRequest(): QuickStartRequest {
   return mockApi.quickStart.mock.calls.at(-1)![0]
 }
 
+function sentKeys(): (string | undefined)[] {
+  return mockApi.quickStart.mock.calls.map((call) => call[1])
+}
+
 beforeEach(() => {
   mockApi.quickStart.mockReset()
   mockApi.quickStart.mockResolvedValue(CREATED)
@@ -563,6 +567,59 @@ describe('QuickStartWizard — submission', () => {
 
     await user.click(screen.getByRole('button', { name: 'Start practicing' }))
     await waitFor(() => expect(mockApi.quickStart).toHaveBeenCalledTimes(2))
+  })
+
+  it('retries under the same idempotency key (#290)', async () => {
+    // The first request may have committed and lost its response, so the
+    // retry has to be recognisable as the same attempt — otherwise it creates
+    // a second instrument, piece and plan.
+    const user = userEvent.setup()
+    mockApi.quickStart.mockRejectedValueOnce(new Error('API error 500'))
+    renderWizard()
+    await fillToPreview(user)
+
+    await user.click(screen.getByRole('button', { name: 'Start practicing' }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: 'Start practicing' }))
+
+    await waitFor(() => expect(mockApi.quickStart).toHaveBeenCalledTimes(2))
+    const [first, second] = sentKeys()
+    expect(first).toBeTruthy()
+    expect(second).toBe(first)
+  })
+
+  it('keeps the key when the retry takes a different exit', async () => {
+    // Still the same plan being created — only where the user lands after.
+    const user = userEvent.setup()
+    mockApi.quickStart.mockRejectedValueOnce(new Error('API error 500'))
+    renderWizard()
+    await fillToPreview(user)
+
+    await user.click(screen.getByRole('button', { name: 'Start practicing' }))
+    await screen.findByRole('alert')
+    await user.click(
+      screen.getByRole('button', { name: 'Save plan and practice later' }),
+    )
+
+    await waitFor(() => expect(mockApi.quickStart).toHaveBeenCalledTimes(2))
+    const [first, second] = sentKeys()
+    expect(second).toBe(first)
+  })
+
+  it('starts a new attempt when an answer changes', async () => {
+    const user = userEvent.setup()
+    mockApi.quickStart.mockRejectedValueOnce(new Error('API error 500'))
+    renderWizard()
+    await fillToPreview(user)
+
+    await user.click(screen.getByRole('button', { name: 'Start practicing' }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('radio', { name: '60 min' }))
+    await user.click(screen.getByRole('button', { name: 'Start practicing' }))
+
+    await waitFor(() => expect(mockApi.quickStart).toHaveBeenCalledTimes(2))
+    const [first, second] = sentKeys()
+    expect(second).not.toBe(first)
   })
 
   it('does not submit twice while a request is in flight', async () => {
