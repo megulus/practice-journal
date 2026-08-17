@@ -10,6 +10,11 @@ jobs:
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    # Stays at 10. The suite now runs in ~1 min of the job's ~2 min, and the
+    # pytest --session-timeout below fires at 7 min, so this ceiling should
+    # never be what stops the job again — it is the backstop behind the
+    # backstop. Raising it was the one fix #273 ruled out: the job was not
+    # short of time, it was doing several times more disk work than it needed.
     timeout-minutes: 10
 
     services:
@@ -21,11 +26,27 @@ jobs:
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
+        # The data directory lives on tmpfs. This database exists for the
+        # length of one job and is thrown away, so durability buys nothing —
+        # and the suite is fsync-bound: every test empties the tables it
+        # dirtied, which rewrites relfilenodes the checkpointer then has to
+        # sync. On a slow-disk runner that load is what stretched a 3-minute
+        # job past its 10-minute ceiling (#273); on tmpfs it costs nothing and
+        # the job stops depending on which runner it landed on.
+        #
+        # No size is set, so the mount defaults to half of the runner's RAM
+        # (~8GB) and only occupies what it actually uses — a few hundred MB.
+        #
+        # pg_isready defaults its database name to the user name, so without
+        # -d it logged `FATAL: database "practice_user" does not exist` every
+        # 10s. The check passed regardless (the server answered), but it
+        # buried the postgres log that diagnosing #273 depended on.
         options: >-
-          --health-cmd "pg_isready -U practice_user"
+          --health-cmd "pg_isready -U practice_user -d postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --tmpfs /var/lib/postgresql/data
 
     defaults:
       run:
@@ -48,7 +69,13 @@ jobs:
           DB_HOST: localhost
           TEST_BASE_DB_URL: postgresql+asyncpg://practice_user:practice_pass@localhost:5432/postgres
           TEST_DATABASE_URL: postgresql+asyncpg://practice_user:practice_pass@localhost:5432/practice_journal_test
-        run: python -m pytest tests/ -v
+        # --session-timeout is the job's real deadline, deliberately set below
+        # timeout-minutes so pytest — not the runner — is what reports a
+        # blown budget. The runner kills the job silently and GitHub calls
+        # that `cancelled`; pytest exits with a message, the test counts so
+        # far, and a nonzero status that reads as the failure it is. The
+        # per-test --timeout lives in pytest.ini so local runs get it too.
+        run: python -m pytest tests/ -v --session-timeout=420
 
   frontend:
     name: Frontend Tests
@@ -106,3 +133,28 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8000
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
         run: npm run build
+
+      # `next build` type-checks app code but not test files, so a PR could
+      # widen a shared interface, leave every existing fixture ill-typed, and
+      # still go green — which happened three times in one batch (#293).
+      # Vitest doesn't catch it either: it transpiles without type-checking.
+      # `tsc --noEmit` covers everything tsconfig includes, tests included.
+      #
+      # It has to run *after* the build, not before, or it type-checks a
+      # program no developer ever has. tsconfig includes `next-env.d.ts` and
+      # `.next/types/**/*.ts`; both are generated and both are gitignored, so
+      # in a fresh checkout neither exists. Checked in that state, a perfectly
+      # valid static-asset import fails CI and nowhere else —
+      #
+      #   src/probe-asset.ts(1,18): error TS2307: Cannot find module
+      #     './probe.svg' or its corresponding type declarations.
+      #
+      # — while a break against a generated route type fails locally and not
+      # in CI. Either way the gate disagrees with the developer it exists to
+      # help. Committing `next-env.d.ts` would fix only the first half; the
+      # route types under `.next/types` still need a build. Running after the
+      # build costs the fail-fast ordering, but little in practice: `next
+      # build` type-checks app code itself, so app-code type errors still stop
+      # the job at the build step, and only the test-file coverage waits.
+      - name: Type check
+        run: npm run typecheck

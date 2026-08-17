@@ -236,6 +236,26 @@ docker compose exec backend python -m pytest tests/ -v
 docker compose exec backend python -m pytest tests/test_practice_api.py -v   # one file
 ```
 
+**A container built before #299 fails these commands immediately** with:
+
+```
+python -m pytest: error: unrecognized arguments: --timeout=60
+  inifile: /root/practice-journal/backend/pytest.ini
+```
+
+`pytest.ini` passes `--timeout=60` (a hung test should fail as one named test,
+not eat the CI job — #273), which needs `pytest-timeout` from
+`requirements.txt`. Any image or venv predating that line lacks it. Rebuild:
+
+```bash
+docker compose build backend && docker compose up -d backend
+```
+
+The same applies to a local venv — reinstall from `requirements.txt`. This is
+the general rule for a dependency change, but this one is worth calling out
+because it fails at argument parsing, before any test runs, so the error names
+a flag rather than the missing package.
+
 `tests/conftest.py` reads `DB_HOST` (defaults to `db` inside Docker,
 `localhost` otherwise) and provides the test client, async session, and data
 factories. Leftover test DBs can be removed with `scripts/clean-test-dbs.sh`.
