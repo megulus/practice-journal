@@ -7,10 +7,15 @@ import { Button, Card, PillRadioGroup } from '@/components/ui'
 import { SessionHistoryCard } from './SessionHistoryCard'
 import type { HistoryItem, HistoryPeriod } from '@/lib/types'
 
+// Rolling windows, and the labels say so. "This week" used to sit here while
+// the query ran a rolling window, so on a Monday History showed all of *last*
+// week's sessions next to an Insights panel reporting an empty week (#272).
+// "This week" now means exactly one thing in the product: the calendar week in
+// Insights, anchored to the user's `week_starts_on`.
 const PERIODS: { value: HistoryPeriod; label: string }[] = [
   { value: 'all', label: 'All sessions' },
-  { value: 'week', label: 'This week' },
-  { value: 'month', label: 'This month' },
+  { value: 'last_7_days', label: 'Last 7 days' },
+  { value: 'last_30_days', label: 'Last 30 days' },
 ]
 
 /**

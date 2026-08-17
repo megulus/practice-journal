@@ -105,14 +105,14 @@ describe('HistoryList', () => {
     render(<HistoryList instrumentId={1} />)
     await screen.findByText('Technique focus')
 
-    await user.click(screen.getByRole('radio', { name: 'This week' }))
+    await user.click(screen.getByRole('radio', { name: 'Last 7 days' }))
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
-        period: 'week',
+        period: 'last_7_days',
       }),
     )
-    expect(screen.getByRole('radio', { name: 'This week' })).toHaveAttribute(
+    expect(screen.getByRole('radio', { name: 'Last 7 days' })).toHaveAttribute(
       'aria-checked',
       'true',
     )
@@ -121,11 +121,11 @@ describe('HistoryList', () => {
       'false',
     )
 
-    await user.click(screen.getByRole('radio', { name: 'This month' }))
+    await user.click(screen.getByRole('radio', { name: 'Last 30 days' }))
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
-        period: 'month',
+        period: 'last_30_days',
       }),
     )
   })
@@ -147,7 +147,7 @@ describe('HistoryList', () => {
     await screen.findByText('Technique focus')
 
     mockGetHistory.mockResolvedValue(page([]))
-    await user.click(screen.getByRole('radio', { name: 'This week' }))
+    await user.click(screen.getByRole('radio', { name: 'Last 7 days' }))
 
     expect(
       await screen.findByText('No sessions in this time range.'),
@@ -310,11 +310,11 @@ describe('HistoryList', () => {
     screen.getByRole('radio', { name: 'All sessions' }).focus()
     await user.keyboard('{ArrowRight}')
 
-    expect(screen.getByRole('radio', { name: 'This week' })).toHaveFocus()
+    expect(screen.getByRole('radio', { name: 'Last 7 days' })).toHaveFocus()
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
-        period: 'week',
+        period: 'last_7_days',
       }),
     )
   })
@@ -325,11 +325,11 @@ describe('HistoryList', () => {
     const { rerender } = render(<HistoryList instrumentId={1} />)
     await screen.findByText('Technique focus')
 
-    await user.click(screen.getByRole('radio', { name: 'This month' }))
+    await user.click(screen.getByRole('radio', { name: 'Last 30 days' }))
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 1,
-        period: 'month',
+        period: 'last_30_days',
       }),
     )
 
@@ -337,10 +337,10 @@ describe('HistoryList', () => {
     await waitFor(() =>
       expect(mockGetHistory).toHaveBeenLastCalledWith({
         instrumentId: 2,
-        period: 'month',
+        period: 'last_30_days',
       }),
     )
-    expect(screen.getByRole('radio', { name: 'This month' })).toHaveAttribute(
+    expect(screen.getByRole('radio', { name: 'Last 30 days' })).toHaveAttribute(
       'aria-checked',
       'true',
     )

@@ -994,7 +994,7 @@ This deletes the per-spot BlockLogs for that block in this session and creates a
     "ratings": { "step_forward": 2, "steady": 1, "step_back": 1, "skipped": 1 }
   },
   "coaching_suggestion": {
-    "text": "You've practiced 4 of the last 7 days — one more this week...",
+    "text": "You've practiced 4 of the last 7 days — one more and you'll...",
     "rule_id": "weekly_consistency"
   },
   "reflection_prompt": "What felt different today?"
@@ -1030,7 +1030,7 @@ Separated from `finish` because the user writes it after viewing the summary.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/progress/history` | Paginated session history. Query params: `instrument_id` (optional), `period` (all/week/month), `cursor`, `limit` (default 20) |
+| GET | `/api/progress/history` | Paginated session history. Query params: `instrument_id` (optional), `period` (`all`/`last_7_days`/`last_30_days`), `cursor`, `limit` (default 20) |
 | GET | `/api/progress/history/{logId}` | Full session detail (same as GET /api/practice/{logId}) |
 
 **Response (list):**
@@ -1054,6 +1054,8 @@ Separated from `finish` because the user writes it after viewing the summary.
 ```
 
 History items are the collapsed card view. Expanding a card fetches the full detail via the detail endpoint.
+
+**`period` semantics:** `last_7_days` and `last_30_days` are **rolling windows ending today**, inclusive of today — `practice_date >= today - 6 days` and `>= today - 29 days`. They are *not* calendar-aligned and are *not* affected by the user's `week_starts_on` setting. `all` applies no date filter. The value names the window it computes; there is deliberately no `week`/`month` value, because those names would imply calendar boundaries this endpoint does not use (see the window table below).
 
 ---
 
@@ -1120,6 +1122,25 @@ Week boundaries use the user's `week_starts_on` setting.
 
 ---
 
+### Progress — time windows
+
+Progress endpoints do not share one definition of a time range, and the difference is deliberate. Each row states the window that endpoint computes and whether the user's `week_starts_on` setting moves its boundaries. Add a row here when a Progress endpoint gains or changes a window.
+
+| Endpoint | Window | Anchored to `week_starts_on` |
+|---|---|---|
+| `/history` (`period=all`) | no date filter | n/a |
+| `/history` (`period=last_7_days`) | rolling: `practice_date >= today - 6 days` | no |
+| `/history` (`period=last_30_days`) | rolling: `practice_date >= today - 29 days` | no |
+| `/insights/heatmap` | calendar year (`year` param, default current) | no — rows are Monday-first regardless |
+| `/insights/comparison` | the calendar week containing today, and the one before it | **yes** |
+| `/insights/ratings` | the last `weeks` calendar weeks, most recent first | **yes** |
+
+History's rolling windows answer "show me recent sessions"; Insights' calendar weeks answer "this week vs. last", which needs fixed boundaries. Because both surfaces sit in the same tab, the History filter pills are labelled "Last 7 days" / "Last 30 days" so that "this week" refers to exactly one window in the product — the calendar week in Insights.
+
+The heatmap's Monday-first rows are a known divergence from the **Week starts on** preference, tracked separately.
+
+---
+
 ### Suggestions
 
 | Method | Path | Description |
@@ -1177,7 +1198,7 @@ The five core rules referenced in the product spec, plus four spot-level rules e
 | `section_coverage_drop` | pre_session | Fires when a section type (e.g. scales) hasn't appeared in the last N sessions but was common before. |
 | `previous_block_note` | in_the_moment | Surfaces the user's own note from the last time they practiced this specific block. |
 | `tempo_progression` | in_the_moment | Suggests increasing tempo when the last 2+ sessions on a block were rated "step forward." |
-| `weekly_consistency` | post_session | Compares days practiced this week to the user's effective goal (derived from frequency setting). Also surfaces block-level trends (step forward streaks, step back patterns). |
+| `weekly_consistency` | post_session | Compares days practiced in the last 7 days (a rolling window, not a calendar week) to the user's effective goal (derived from frequency setting). Also surfaces block-level trends (step forward streaks, step back patterns). |
 | `spot_step_forward_streak` | in_the_moment | Fires when a spot's last 3+ block_logs are all rated step_forward. Suggests advancing — next page, faster tempo, or new section. |
 | `spot_plateau` | post_session | Fires when a spot's last 5+ block_logs are predominantly steady with no step_forward in 2+ weeks. Suggests changing approach. |
 | `retired_spot_check` | pattern_level | Fires when a spot has been retired for 4+ weeks. Suggests a quick check-in to verify it's still solid. |
