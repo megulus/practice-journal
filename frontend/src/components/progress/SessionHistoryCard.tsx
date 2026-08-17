@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useApi } from '@/lib/useApi'
 import { Card } from '@/components/ui'
-import { groupBlockLogs } from '@/components/session'
+import { groupBlockLogs, spotDisplayName } from '@/components/session'
 import { formatHistoryDate } from '@/lib/dates'
 import { cx } from '@/lib/cx'
 import { ratingDisplay } from './ratingDisplay'
@@ -142,7 +142,11 @@ function SessionDetail({ log }: { log: PracticeLog }) {
                       <li key={`s-${spot.id}`}>
                         <ExerciseRow
                           blockLog={spot}
-                          name={spotName(spot, group.pieceName)}
+                          name={spotDisplayName(
+                            spot,
+                            group.pieceName,
+                            group.spotLogs,
+                          )}
                           muted
                         />
                       </li>
@@ -213,20 +217,3 @@ function DetailNote({ label, text }: { label: string; text: string }) {
   )
 }
 
-/**
- * Repertoire spot logs are named "Piece — Spot"; the row already sits under
- * its piece, so drop the prefix.
- *
- * Strips the group's actual piece name rather than splitting on the first
- * " — ", so a name that doesn't carry the expected prefix is left intact
- * instead of being chopped at an arbitrary separator. (A piece *title*
- * containing " — " still truncates, but that happens upstream in
- * `groupBlockLogs`, which derives the piece name the same way for the active
- * session — worth fixing there, not here.)
- */
-function spotName(blockLog: BlockLog, pieceName: string): string {
-  const prefix = `${pieceName} — `
-  return blockLog.block_name.startsWith(prefix)
-    ? blockLog.block_name.slice(prefix.length)
-    : blockLog.block_name
-}
