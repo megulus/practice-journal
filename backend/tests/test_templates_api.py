@@ -469,6 +469,72 @@ class TestUpdateTemplate:
         )
         assert resp.status_code == 422
 
+    @pytest.mark.parametrize("field", ["name", "is_active"])
+    async def test_explicit_null_returns_422(
+        self, client: AsyncClient, test_template, field: str
+    ):
+        """An explicit null survives exclude_unset and would hit a NOT NULL
+        column — it must be rejected at the schema layer (#280)."""
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={field: None},
+        )
+        assert resp.status_code == 422
+
+        # ...and nothing was written
+        data = (await client.get(f"/api/templates/{test_template.id}")).json()
+        assert data["name"] == "Test Practice Plan"
+        assert data["is_active"] is test_template.is_active
+
+    async def test_explicit_null_alongside_valid_field_returns_422(
+        self, client: AsyncClient, test_template
+    ):
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={"description": "Kept out of the DB", "name": None},
+        )
+        assert resp.status_code == 422
+
+        data = (await client.get(f"/api/templates/{test_template.id}")).json()
+        assert data["name"] == "Test Practice Plan"
+        assert data["description"] is None
+
+    async def test_explicit_null_description_clears_it(
+        self, client: AsyncClient, test_template
+    ):
+        """`description` is nullable, so an explicit null means "clear it" —
+        the per-field split a blanket null rejection would break (#280)."""
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={"description": "Warm-ups and scales"},
+        )
+        assert resp.json()["description"] == "Warm-ups and scales"
+
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={"description": None},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["description"] is None
+
+    async def test_omitted_fields_left_unchanged(
+        self, client: AsyncClient, test_template
+    ):
+        await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={"description": "Warm-ups and scales", "is_active": True},
+        )
+
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}",
+            json={"name": "Renamed"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Renamed"
+        assert data["description"] == "Warm-ups and scales"
+        assert data["is_active"] is True
+
     async def test_not_found(self, client: AsyncClient):
         resp = await client.patch(
             "/api/templates/99999",
