@@ -25,6 +25,12 @@ class BlockLogRead(BaseModel):
     #: Smart default — tempo carried over from the user's last session on
     #: this block. Advisory only; `tempo_bpm` is what was logged today.
     last_tempo_bpm: Optional[int] = None
+    #: For repertoire blocks: the piece's name, resolved from the
+    #: relationship (block_id → Block.piece_id → Piece.name). Null for
+    #: standard and freeform blocks. Authoritative for display —
+    #: `block_name` is denormalized as "{piece} — {spot}" and cannot be
+    #: split back apart when the title itself contains " — ".
+    piece_name: Optional[str] = None
 
 
 class BlockLogUpdate(BaseModel):

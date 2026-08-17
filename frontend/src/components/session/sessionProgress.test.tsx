@@ -20,6 +20,7 @@ function makeBlock(overrides: Partial<BlockLog> = {}): BlockLog {
     display_order: 0,
     tempo_bpm: null,
     last_tempo_bpm: null,
+    piece_name: null,
     ...overrides,
   }
 }
