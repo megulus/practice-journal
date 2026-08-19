@@ -879,12 +879,12 @@ The Today tab's data needs — which instruments are due, what's the current ses
 **GET /api/today response:**
 ```json
 {
+  "active_session": null,
   "instruments_due": [
     {
       "instrument": { "id": 1, "name": "Violin", "practice_frequency": "daily" },
       "last_practiced_at": "2026-03-22",
       "days_since_last": 1,
-      "repeat_available": true,
       "current_session": {
         "template_id": 1,
         "template_name": "Learn the Bruch concerto",
@@ -894,7 +894,12 @@ The Today tab's data needs — which instruments are due, what's the current ses
         "rotation_position": "session 3 of 7",
         "estimated_duration_minutes": 25,
         "section_types": ["warmup", "scales", "repertoire", "cooldown"]
-      }
+      },
+      "repeat_session": { "session_id": 3, "session_name": "Technique focus" },
+      "all_sessions": [
+        { "session_id": 3, "session_name": "Technique focus", "display_order": 0 },
+        { "session_id": 4, "session_name": "Repertoire deep dive", "display_order": 1 }
+      ]
     }
   ],
   "instruments_not_due": [
@@ -908,7 +913,11 @@ The Today tab's data needs — which instruments are due, what's the current ses
 }
 ```
 
-`repeat_available` is true when the user's most recent session on this instrument used the same template_session_id that's currently queued. When true, the frontend shows a "Repeat last session" shortcut.
+**`active_session`** (top level) is populated when the user has an in-progress (unfinished) session, so the Today tab can offer to resume it. Shape: `{ practice_log_id, instrument_id, instrument_name, session_name, started_at }`. It is `null` when there is nothing to resume.
+
+**`repeat_session`** is non-null when the user's most recent session on this instrument used the same `session_id` that's currently queued; it carries `{ session_id, session_name }`, and the frontend shows a "Repeat last session" shortcut. It is `null` otherwise.
+
+**`all_sessions`** lists every session in the current template's rotation (`{ session_id, session_name, display_order }`), so the user can pick a session other than the queued one.
 
 "Due" logic: compare `last_practiced_at` against `practice_frequency`. Daily = due every day. Few times a week = due if ≥ 2 days since last. Weekly = due if ≥ 5 days since last. Occasionally = never auto-surfaced, only shown in pill toggle.
 
