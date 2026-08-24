@@ -16,6 +16,7 @@ import SectionCard from '@/components/SectionCard'
 import AddBlockSheet from '@/components/AddBlockSheet'
 import { SpotManagementDrawer } from '@/components/repertoire'
 import { AutoSaveInput, Button, ConfirmDialog, Pill } from '@/components/ui'
+import { cx } from '@/lib/cx'
 import { getSectionColor } from '@/lib/section-colors'
 import {
   alsoRemoves,
@@ -26,6 +27,22 @@ import {
 // TODO(#168): replace hardcoded section_type with a real picker (template
 // editor + freeform session). All new sections in this PR are 'other'.
 const DEFAULT_SECTION_TYPE: SectionType = 'other'
+
+/** How long the displacement notice stays up before dismissing itself. */
+const NOTICE_DISMISS_MS = 8000
+
+/**
+ * "Set as active" archives the instrument's previous active plan — an
+ * instrument has one active plan at a time (#289). That's a change to a plan
+ * the user isn't looking at, so name it. Reversible enough not to warrant a
+ * confirm (it only flips `is_active`), so we report it after the fact instead;
+ * `ConfirmDialog` stays reserved for the destructive actions of #266.
+ */
+function displacedNotice(name: string) {
+  return `“${name}” is no longer active — an instrument has one active plan at a time.`
+}
+
+type Notice = { tone: 'info' | 'error'; text: string }
 
 export default function TemplateEditorPage() {
   const api = useApi()
@@ -51,8 +68,11 @@ export default function TemplateEditorPage() {
     cascade?: string[]
   } | null>(null)
   // Archiving is the `is_active` toggle. Only turning it *off* confirms —
-  // re-activating a plan takes nothing away.
+  // activating reports what it displaced afterwards instead (see `notice`).
   const [confirmArchive, setConfirmArchive] = useState(false)
+  // Feedback for the activate/archive toggle: which plan the activation
+  // displaced, or why the write failed.
+  const [notice, setNotice] = useState<Notice | null>(null)
 
   // ---------------------------------------------------------------------
   // Initial load
@@ -120,11 +140,45 @@ export default function TemplateEditorPage() {
     setTemplate({ ...template, name })
   }
 
+  // `busy` (shared with the other write actions) also keeps a second tap from
+  // firing a redundant activation: that one displaces nothing, so its null
+  // result would clear the notice naming the plan the *first* tap displaced.
   const setActive = async (isActive: boolean) => {
-    if (!template) return
-    await api.updateTemplate(template.id, { is_active: isActive })
-    setTemplate({ ...template, is_active: isActive })
+    if (!template || busy) return
+    setBusy(true)
+    setNotice(null)
+    try {
+      const updated = await api.updateTemplate(template.id, {
+        is_active: isActive,
+      })
+      setTemplate({ ...template, is_active: isActive })
+      // Only report a displacement when the server says one happened — the
+      // field is null when this plan was already active or nothing else was.
+      if (updated.deactivated_template_name) {
+        setNotice({
+          tone: 'info',
+          text: displacedNotice(updated.deactivated_template_name),
+        })
+      }
+    } catch {
+      setNotice({
+        tone: 'error',
+        text: isActive
+          ? "Couldn't set this plan as active. Please try again."
+          : "Couldn't archive this plan. Please try again.",
+      })
+    } finally {
+      setBusy(false)
+    }
   }
+
+  // The displacement notice dismisses itself; a failure stays up until the
+  // next attempt, since it's the only trace that the toggle didn't take.
+  useEffect(() => {
+    if (notice?.tone !== 'info') return
+    const timer = setTimeout(() => setNotice(null), NOTICE_DISMISS_MS)
+    return () => clearTimeout(timer)
+  }, [notice])
 
   const addSession = async () => {
     if (!template || busy) return
@@ -319,6 +373,7 @@ export default function TemplateEditorPage() {
           <Pill
             variant="instrument"
             active={template.is_active}
+            disabled={busy}
             onClick={() =>
               template.is_active ? setConfirmArchive(true) : setActive(true)
             }
@@ -363,6 +418,47 @@ export default function TemplateEditorPage() {
           >
             Delete
           </Button>
+        </div>
+
+        {/*
+          Activating a plan archives the instrument's previous active one, so
+          say which (#289). The live region is mounted unconditionally and only
+          its contents change: a status region that arrives in the DOM already
+          holding its text is announced unreliably across screen readers.
+        */}
+        <div role="status" aria-live="polite">
+          {notice && (
+            <div className="mt-lg flex items-start justify-between gap-md rounded-lg bg-card-bg-inset px-lg py-md">
+              {/*
+                `text-text-primary`, not `text-text-secondary`: secondary on
+                the inset surface is ~2.5:1 (light) / ~3.4:1 (dark), under the
+                4.5:1 AA needs at this size — and this text is the whole point
+                of the feature. `text-danger-text` clears it on its own.
+              */}
+              <p
+                className={cx(
+                  'text-sm',
+                  notice.tone === 'error'
+                    ? 'text-danger-text'
+                    : 'text-text-primary',
+                )}
+              >
+                {notice.text}
+              </p>
+              {/* The info notice times out; a failure needs a way out that
+                  isn't "attempt the toggle again". */}
+              {notice.tone === 'error' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setNotice(null)}
+                >
+                  Dismiss
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
