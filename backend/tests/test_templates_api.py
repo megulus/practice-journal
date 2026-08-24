@@ -439,10 +439,76 @@ class TestUpdateTemplate:
         )
         assert resp.status_code == 200
         assert resp.json()["is_active"] is True
+        # The client never named t1, so the response has to (#289).
+        assert resp.json()["deactivated_template_name"] == "Active"
 
         # t1 should be deactivated
         resp = await client.get(f"/api/templates/{t1.id}")
         assert resp.json()["is_active"] is False
+
+    async def test_activate_with_no_current_active_names_nothing(
+        self, client: AsyncClient, db_session: AsyncSession, test_user, test_instrument
+    ):
+        """Nothing was displaced, so nothing is named — the editor keys its
+        "no longer active" notice off this field."""
+        t = Template(
+            user_id=test_user.id,
+            instrument_id=test_instrument.id,
+            name="Only plan",
+            is_active=False,
+        )
+        db_session.add(t)
+        await db_session.commit()
+        await db_session.refresh(t)
+
+        resp = await client.patch(f"/api/templates/{t.id}", json={"is_active": True})
+        assert resp.status_code == 200
+        assert resp.json()["is_active"] is True
+        assert resp.json()["deactivated_template_name"] is None
+
+    async def test_activate_ignores_another_instruments_active_template(
+        self, client: AsyncClient, db_session: AsyncSession, test_user, test_instrument
+    ):
+        """One active plan *per instrument* — a viola plan going active must
+        not claim it displaced the violin's."""
+        other_instrument = Instrument(user_id=test_user.id, name="Viola")
+        db_session.add(other_instrument)
+        await db_session.flush()
+        active_elsewhere = Template(
+            user_id=test_user.id,
+            instrument_id=test_instrument.id,
+            name="Violin plan",
+            is_active=True,
+        )
+        target = Template(
+            user_id=test_user.id,
+            instrument_id=other_instrument.id,
+            name="Viola plan",
+            is_active=False,
+        )
+        db_session.add_all([active_elsewhere, target])
+        await db_session.commit()
+        await db_session.refresh(target)
+        await db_session.refresh(active_elsewhere)
+
+        resp = await client.patch(
+            f"/api/templates/{target.id}", json={"is_active": True}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["deactivated_template_name"] is None
+
+        # And the violin's plan is untouched.
+        resp = await client.get(f"/api/templates/{active_elsewhere.id}")
+        assert resp.json()["is_active"] is True
+
+    async def test_metadata_only_patch_names_nothing(
+        self, client: AsyncClient, test_template
+    ):
+        resp = await client.patch(
+            f"/api/templates/{test_template.id}", json={"name": "Renamed"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["deactivated_template_name"] is None
 
     async def test_deactivate_template(self, client: AsyncClient, test_template):
         resp = await client.patch(
@@ -461,6 +527,8 @@ class TestUpdateTemplate:
         )
         assert resp.status_code == 200
         assert resp.json()["is_active"] is True
+        # A no-op deactivated nothing — don't let the editor claim it did.
+        assert resp.json()["deactivated_template_name"] is None
 
     async def test_empty_name_returns_422(self, client: AsyncClient, test_template):
         resp = await client.patch(

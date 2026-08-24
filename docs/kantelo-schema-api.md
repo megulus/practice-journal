@@ -229,7 +229,7 @@ Practice plan belonging to an instrument. **At most one template per instrument 
 
 Unique partial index: `CREATE UNIQUE INDEX uq_one_active_template_per_instrument ON templates (instrument_id) WHERE is_active = true AND deleted_at IS NULL;`
 
-Activation logic (handled by `PATCH /api/templates/{id}` when `is_active` is set to `true`): the API auto-deactivates the currently active template for the same instrument before activating the new one. This ensures the constraint is never violated and the user doesn't have to manually deactivate the old plan.
+Activation logic (handled by `PATCH /api/templates/{id}` when `is_active` is set to `true`): the API auto-deactivates the currently active template for the same instrument before activating the new one. This ensures the constraint is never violated and the user doesn't have to manually deactivate the old plan. Because that deactivates a template the client never named, the PATCH response reports it in `deactivated_template_name` (see the Templates section below) so the UI can tell the user which plan it archived on their behalf.
 
 When a user deactivates their only template (or has no templates), the Today tab falls back to "Practice off-plan" for that instrument. Inactive templates remain visible and browsable in the Plans tab and can be reactivated at any time.
 
@@ -666,7 +666,7 @@ is what `DELETE /api/instruments/{id}` cascades to — that cascade filters on
 | GET | `/api/instruments/{instrumentId}/templates` | List templates for an instrument |
 | POST | `/api/instruments/{instrumentId}/templates` | Create template (auto-creates one session + default sections based on user settings) |
 | GET | `/api/templates/{id}` | Full template with sessions → sections → blocks |
-| PATCH | `/api/templates/{id}` | Update template metadata (name, description, is_active) |
+| PATCH | `/api/templates/{id}` | Update template metadata (name, description, is_active). Response adds `deactivated_template_name` |
 | DELETE | `/api/templates/{id}` | Soft-delete template |
 | POST | `/api/templates/{id}/duplicate` | Duplicate template. Body: `{ "copy_default_spots": true }` (defaults to true) |
 
@@ -714,6 +714,19 @@ is what `DELETE /api/instruments/{id}` cascades to — that cascade filters on
 ```
 
 `estimated_duration_minutes` on sessions is computed (sum of section durations). For repertoire blocks, the response also includes `piece_name` and a `default_spots` array (see "Blocks" section below).
+
+**PATCH /api/templates/{id} response** is the same shape plus one field:
+
+```json
+{
+  "id": 2,
+  "is_active": true,
+  "deactivated_template_name": "Daily warm-up",
+  "…": "…"
+}
+```
+
+`deactivated_template_name` names the template this write displaced — the instrument's previously active plan, which activation deactivates (see "templates" above). It is `null` whenever nothing was displaced: when `is_active` wasn't set to `true`, when the template was already active, and when the instrument had no active template. Clients can therefore treat a non-null value as "this request archived that plan" and report it; the plan editor shows "*Daily warm-up* is no longer active" after a successful activation rather than confirming beforehand, since the change only flips `is_active` (#289).
 
 **Template duplication.** When `copy_default_spots` is true, the new template's repertoire blocks reference the same Pieces and the same Spot entities — the spots themselves are not duplicated. Both templates contribute to the same spot histories. When false, repertoire blocks are created with an empty default spot list; the user populates them in the editor.
 

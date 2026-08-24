@@ -28,6 +28,7 @@ import type {
   TemplateListItem,
   TemplateCreate,
   TemplateUpdate,
+  TemplateUpdateResult,
   TemplateSession,
   TemplateSessionCreate,
   TemplateSessionUpdate,
@@ -311,7 +312,7 @@ export function createAuthenticatedAPI(
     getTemplate: (id: number) => f<Template>(`/api/templates/${id}`),
 
     updateTemplate: (id: number, data: TemplateUpdate) =>
-      f<Template>(`/api/templates/${id}`, {
+      f<TemplateUpdateResult>(`/api/templates/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
