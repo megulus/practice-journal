@@ -4,11 +4,27 @@
 
 This document captures the product decisions, information architecture, user flows, and UX design for Kantelo. It is intended as a reference for developers (human or AI) building or iterating on the application.
 
-> **This is design intent, not build status.** Some flows described here (e.g. the quick-start wizard, the full Progress tab, repertoire management in the template editor) are designed but not yet built. For what's actually shipped vs. planned, see the GitHub Project board and open issues — not this document.
-
-**Last updated:** April 2026
+**Last updated:** August 2026
 **Domain:** kantelo.app
 **Origin:** The name comes from the Finnish *kantele*, the mythic stringed instrument from the Kalevala epic. When Väinämöinen played the kantele, every creature in nature fell silent to listen. That's what great practice leads to.
+
+---
+
+## 0. How to read this document
+
+This spec describes the full product vision. **Not all of it ships in v1.** Features carry inline status tags, and **§12 is the authoritative v1 scope boundary** — a single table of every feature and its status. When §12 and a body section disagree, §12 wins.
+
+| Tag | Meaning |
+|-----|---------|
+| **[v1]** | Ships in v1. Free forever. |
+| **[undecided]** | Designed and specced, but the v1 decision is pending. Do not build without confirming. |
+| **[post-v1]** | Not in v1. Free when it ships. |
+| **[post-v1 — Pro]** | Not in v1. A paid capability when it ships. Must not appear in v1 in any form. |
+| **[v1 — launch prerequisite]** | Must be live on launch day, but is not a user-facing product feature — observability, analytics, mobile packaging, data deletion. These have no screen spec; see §12.7. |
+
+**The core pricing invariant:** *everything in v1 is free forever; not everything free forever is in v1.* Kantelo's paid tier is strictly additive — nothing shipped in v1 is ever moved behind a paywall. The practical consequence for implementation is that **anything added to v1 is permanently free**, so scope decisions and pricing decisions are the same decision. See `kantelo-gtm-positioning-pricing.md` for the reasoning.
+
+v1 contains **no billing, payments, subscription, or entitlement logic of any kind.**
 
 ---
 
@@ -111,14 +127,14 @@ The default landing screen. Answers: "What should I practice right now?"
 **Layout (user with active plan):**
 
 1. **Instrument toggle** (top) — pill-style selector showing all instruments. Tapping switches the view. Only visible for multi-instrument users.
-2. **Pre-session suggestion** (optional) — a warm, contextual coaching nudge. Max one per session. Example: "Your scales coverage has dropped off — consider adding a scales block today." Styled as a subtle card with an amber accent, dismissible. See section 7 for suggestion tier details.
+2. **Pre-session suggestion** **[v1]** (optional) — a warm, contextual coaching nudge. Max one per session. Example: "Your scales coverage has dropped off — consider adding a scales block today." Styled as a subtle card with an amber accent, dismissible. See section 7 for suggestion tier details.
 3. **"Today's practice" header** with rotation progress indicator (filled dots showing position in the rotation cycle).
 4. **Plan card** containing:
    - **Day focus** (large, primary text) — the user-written description of this session's focus. Example: "Slow practice on movement II". This is the headline.
    - **Plan source** (smaller, secondary text) — the plan name, session number, and estimated duration. Example: "Learn the Bruch concerto — session 3 of 7 · ~25 min"
    - **Section pills** — compact tags showing what the session includes (Warm-up, Scales, Repertoire, Cool-down).
 5. **"Start session" button** — primary action, full-width, prominent.
-6. **"Repeat last session" shortcut** — shown below the start button when the user's most recent session on this instrument used the same template session that's currently queued. Tapping starts a new log pre-populated from the same template session, skipping the Today tab entirely. This is a fast path for users in a daily routine. If the rotation has advanced to a different session, this shortcut does not appear. Repertoire blocks are repeated with their full spot list from the previous session — the user can deselect any spot in the active session before rating.
+6. **"Repeat last session" shortcut** **[v1]** — shown below the start button when the user's most recent session on this instrument used the same template session that's currently queued. Tapping starts a new log pre-populated from the same template session, skipping the Today tab entirely. This is a fast path for users in a daily routine. If the rotation has advanced to a different session, this shortcut does not appear. Repertoire blocks are repeated with their full spot list from the previous session — the user can deselect any spot in the active session before rating.
 7. **"Practice off-plan" link** — secondary, below the button. Opens an empty active session for freeform logging.
 
 **Layout (user with no plan — first-run / quick-start wizard):**
@@ -146,9 +162,9 @@ Each section (warm-up, scales, repertoire, etc.) contains:
 - **Section-level actions** in the header: "Mark all done" (checks all exercise checkboxes but does not set ratings — the user still rates individually if they choose) and "Skip section" (marks the entire section as skipped, sets completed=false on the section log and all its block logs). These save 3–5 taps per section in the common cases. Styled as small text links in `text-secondary`, not prominent buttons.
 - **Exercise rows** within the section, each containing:
   - Checkbox (tap to mark done)
-  - Exercise name and metadata (tempo, key, etc.). **Smart tempo defaults:** if the user practiced this specific block in a previous session, the tempo field pre-fills from their last logged tempo. The suggestions engine can also recommend bumping tempo (see section 7). Pre-filled tempos are shown as muted text and become primary-colored once confirmed or adjusted.
+  - Exercise name and metadata (tempo, key, etc.). **Smart tempo defaults** **[v1]**: if the user practiced this specific block in a previous session, the tempo field pre-fills from their last logged tempo. The suggestions engine can also recommend bumping tempo (see section 7). Pre-filled tempos are shown as muted text and become primary-colored once confirmed or adjusted.
   - Rating indicator (see below)
-- **Repertoire blocks** are a special variant of exercise row. Instead of a single checkbox and rating, a repertoire block displays the piece name as a header and a list of **spot rows** beneath it. Each spot row has its own checkbox, name, optional location, and rating chevrons. The block's default spot list (from the template) is pre-populated and pre-checked. The user can:
+- **Repertoire blocks** **[v1]** are a special variant of exercise row. Instead of a single checkbox and rating, a repertoire block displays the piece name as a header and a list of **spot rows** beneath it. Each spot row has its own checkbox, name, optional location, and rating chevrons. The block's default spot list (from the template) is pre-populated and pre-checked. The user can:
   - Deselect any spot for today only (uncheck before rating)
   - Tap "+ Add spot" at the bottom of the block to create a new spot inline (single-line input, voice-enabled, with an "Add to rotation" toggle defaulted to on)
   - Tap the piece header to log against the whole piece without spots, on a pressed day
@@ -170,9 +186,11 @@ Directional shape encodes meaning independently of color (accessible to colorbli
 
 Each exercise row (and each spot row within a repertoire block) includes a small "add note" link that expands an inline text field below the exercise. Notes are scoped to a specific block log (or spot log), not the whole session. This is where users write observations like "intonation still shaky in the top octave of mm. 24–28." The suggestions engine can surface these back in future sessions ("Last session you noted..."). The note field is optional and collapsed by default — zero friction for users who just want to tap ratings and move on.
 
-**Voice input:** Every text field in the active session — per-exercise notes, session notes, the post-session reflection prompt, and spot creation/editing fields — has a microphone button as the primary input affordance, more prominent than the text field itself. Tapping the mic activates the browser's speech recognition (Web Speech API) and transcribes directly into the field. This is critical for reducing friction: musicians have their hands full. Voice is the primary input path for notes; typing is the fallback. The mic button should use the `Mic` Lucide icon at 20px in `text-link` color, positioned to the right of the text field or as a floating button within it.
+**Voice input** **[v1]****:** Every text field in the active session — per-exercise notes, session notes, the post-session reflection prompt, and spot creation/editing fields — has a microphone button as the primary input affordance, more prominent than the text field itself. Tapping the mic activates the browser's speech recognition (Web Speech API) and transcribes directly into the field. This is critical for reducing friction: musicians have their hands full. Voice is the primary input path for notes; typing is the fallback.
 
-**In-the-moment suggestions:**
+**Platform warning — do not use feature detection.** The Web Speech API is *exposed but non-functional* inside WKWebView ([WebKit #239816](https://bugs.webkit.org/show_bug.cgi?id=239816)); Apple has not enabled it outside Safari. `'webkitSpeechRecognition' in window` therefore returns `true` where the API does nothing, so the "hide the mic when unavailable" fallback specified in the design tokens doc silently fails. This affects **every iOS in-app browser today** (Instagram, Slack, Gmail link previews) and will affect the Capacitor build. `VoiceInput` requires a **provider abstraction**: one interface, a Web Speech implementation and a native-plugin implementation, selected by platform check rather than feature check. See `kantelo-capacitor-spike.md`. The mic button should use the `Mic` Lucide icon at 20px in `text-link` color, positioned to the right of the text field or as a floating button within it.
+
+**In-the-moment suggestions** **[v1]****:**
 
 Small, expandable hint cards that appear inline below specific exercises. Drawn from the user's own history. Example: "Last session you noted intonation was shaky in the top octave." Styled as a subtle card in the secondary background color.
 
@@ -206,7 +224,7 @@ Repertoire blocks display the piece name as a header followed by the practiced s
 
 **Post-session suggestion:**
 
-A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more and you'll match your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
+A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
 
 **Guided reflection prompt:**
 
@@ -301,9 +319,11 @@ The bottom nav appears on step 5 (user is now "in" the app). Steps 1–4 do not 
 
 The Progress tab uses two sub-tabs: **History** (default) and **Insights**. Both sub-tabs share the instrument pill toggle at the top (same behavior as the Today tab — switches all content to the selected instrument).
 
-**Pattern-level suggestion cards** appear at the top of both sub-tabs, styled with an info-blue accent to distinguish them from the amber pre-session suggestions on the Today tab. The suggestion content can differ between sub-tabs: History might surface session-specific patterns ("You tend to skip cool-down sections"), while Insights might surface frequency patterns ("Your average session is 15 min shorter on weekends"). Suggestions are dismissible and follow the same server-side tracking as other suggestion tiers.
+**Pattern-level suggestion cards** **[post-v1 — Pro]** appear at the top of both sub-tabs, styled with an info-blue accent to distinguish them from the amber pre-session suggestions on the Today tab. The suggestion content can differ between sub-tabs: History might surface session-specific patterns ("You tend to skip cool-down sections"), while Insights might surface frequency patterns ("Your average session is 15 min shorter on weekends"). Suggestions are dismissible and follow the same server-side tracking as other suggestion tiers.
 
-#### History sub-tab (default)
+#### History sub-tab (default) **[v1]**
+
+Session history is free, unlimited, and permanent — there is no session cap, no age cutoff, and no paywall on a user's own practice record, ever. See §0.
 
 A reverse-chronological list of past sessions. Each session card shows:
 
@@ -322,21 +342,25 @@ A reverse-chronological list of past sessions. Each session card shows:
 - Session-level notes (if any)
 - Reflection prompt response (if any)
 
-**Filtering:** A row of time-range pills (All sessions / Last 7 days / Last 30 days) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
-
-The two filtered pills are **rolling windows ending today** — the last 7 and 30 days inclusive — not calendar weeks or months, and they are not affected by the **Week starts on** preference. This is deliberate, and it is the one place in the product where a time range is *not* calendar-aligned: History answers "show me my recent sessions", a recency question, and a calendar week would make Monday morning show an almost-empty list. The calendar definition lives in Insights, where "this week vs. last" is only meaningful against fixed boundaries. Naming the pills after the windows they compute keeps "this week" meaning exactly one thing across the product.
+**Filtering:** A row of time-range pills (All sessions / This week / This month) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
 
 #### Insights sub-tab
 
-Four components, each answering a distinct question about the user's practice:
+Four components, each answering a distinct question about the user's practice.
 
-**1. Practice calendar heatmap**
+**Insights is pricing-critical — read this before scoping.** The rating trend (component 3) is the capability the entire free/Pro boundary rests on: the free tier shows a short window, and Pro extends it. If the rating trend does not ship in v1, the free tier is structured plans plus logging, which is indistinguishable from a passive practice tracker, and there is no conversion path at all. **Components 1, 2, and 3 are all [v1] and none of them are droppable.**
+
+Every Insights time window below is deliberately chosen. **Do not extend any of them in v1** — the longer horizons are the Pro tier, and per the invariant in §0, anything shipped in v1 becomes permanently free.
+
+**1. Practice calendar heatmap** **[v1]**
 
 A GitHub-style contribution grid showing practice activity over the year. Rows are days of the week (Mon–Sun), columns are months. Cell intensity maps to practice duration (not just binary practiced/didn't-practice), using the teal ramp: empty (no practice), light, medium, dark, full. A legend ("Less → More") sits below the grid.
 
 This is the primary consistency motivator — the user can see the pattern of their week/month at a glance. It answers: "Am I showing up?"
 
-**2. Time comparisons ("This week vs. last")**
+**Scope note — years.** v1 shows the full current year, and a user with prior data may browse a past year (their own history is always free; see §0). What is **[post-v1 — Pro]** is *year-over-year comparison*: overlay views, deltas, and summary stats like "you practiced 40 more days than last year." The `GET /api/progress/insights/heatmap` endpoint already accepts a `year` param, so a comparison UI is a small change — which is exactly why it must be explicitly excluded from v1 rather than left to implementer discretion.
+
+**2. Time comparisons ("This week vs. last")** **[v1]**
 
 Two side-by-side stat cards showing:
 - Days practiced (with delta, e.g., "+1 day vs. last week")
@@ -346,15 +370,19 @@ Below the stat cards, a paired bar chart shows daily breakdown for the current a
 
 Answers: "Am I practicing consistently?"
 
-**3. Rating trend ("How it's going")**
+**3. Rating trend ("How it's going")** **[v1 — 4 weeks only]**
 
 Stacked horizontal bars showing the step back / steady / step forward distribution for each of the last 4 weeks. Uses the same amber / gray / teal color scheme as the rating chevrons. A plain-language summary sits below the chart (e.g., "Trending up — more exercises moving forward each week").
 
 This is the key differentiator from other practice trackers — it directly answers: "Am I getting better?" No other app in the competitive landscape visualizes improvement trajectory this way.
 
-**4. Pattern-level suggestion card** (described above, shared with History sub-tab)
+**Scope note — window.** v1 is capped at 4 weeks. The `GET /api/progress/insights/ratings` endpoint takes a `weeks` param defaulting to 4; v1 must not expose a control that raises it. **[post-v1 — Pro]:** longer horizons (months, quarters), and per-piece / per-spot rating trends.
 
-**Deferred to a later release:** Section-type distribution (where time goes), per-exercise drill-down views, and exercise-level progress timelines. These are valuable but not emotionally compelling enough for v1 — they're "hmm, neat" rather than "yes, I'm getting better."
+Four weeks of rating data is deliberately not enough to answer the question conclusively — that is the design. The free tier poses the question Kantelo exists to answer; Pro answers it.
+
+**4. Pattern-level suggestion card** **[post-v1 — Pro]** (described above, shared with History sub-tab)
+
+**Deferred to a later release** **[post-v1]****:** Section-type distribution (where time goes), per-exercise drill-down views, and exercise-level progress timelines. These are valuable but not emotionally compelling enough for v1 — they're "hmm, neat" rather than "yes, I'm getting better."
 
 ### 5.8 Profile tab
 
@@ -369,28 +397,29 @@ Compact row showing avatar (initials circle), display name, email, and a "Manage
 Each instrument is a card showing:
 - Instrument name with an "edit" link (opens detail view for removing the instrument, viewing its plans, etc.)
 - Practice frequency setting as inline pills: Daily / Few times a week / Weekly / Occasionally. Adjustable directly on the card — no drill-down needed. This setting calibrates the suggestions engine and Today tab instrument rotation (see section 6).
-- A **"Repertoire" link** that opens the instrument's repertoire library: a list of all pieces (active and any with retired-only spots), each expandable to show its spots, with affordances for renaming pieces, retiring/un-retiring spots, deleting, and viewing per-spot history. This is the canonical place for managing repertoire outside of the active session and template editor.
+- A **"Repertoire" link** **[v1]** that opens the instrument's repertoire library: a list of all pieces (active and any with retired-only spots), each expandable to show its spots, with affordances for renaming pieces, retiring/un-retiring spots, deleting, and viewing per-spot history. This is the canonical place for managing repertoire outside of the active session and template editor.
 - Summary line: number of active plans, number of pieces in the repertoire library, and last practice date (e.g., "1 active plan · 3 pieces · last practiced today")
 
 "+ Add instrument" button below the instrument cards (dashed border style, matching the template editor's "+ Add section" pattern).
 
-**Coaching suggestions:**
+**Coaching suggestions:** **[v1]**
 
 Three radio button options with descriptions:
-- **All suggestions** — "Before, during, and after practice." Pre-session nudges, in-the-moment coaching, post-session reflection, and pattern-level insights are all active.
-- **Fewer suggestions** — "Only in session summaries and Insights." Disables pre-session nudges and in-the-moment coaching. Post-session coaching cards and Progress tab pattern insights remain.
+- **All suggestions** — "Before, during, and after practice." Pre-session nudges, in-the-moment coaching, and post-session reflection are all active.
+- **Fewer suggestions** — "Only in session summaries." Disables pre-session nudges and in-the-moment coaching. Post-session coaching cards remain.
 - **Off** — "No coaching suggestions anywhere." All suggestion tiers disabled.
+
+An earlier revision of this spec called for a two-state toggle in v1, on the assumption that post-session was the only live tier. **That is superseded** — pre-session and in-the-moment both ship in v1 (§7), so the three options are behaviorally distinct and the radio is correct.
+
+Note the "Fewer" description omits the Insights tab: pattern-level suggestions are **[post-v1 — Pro]**, so there is nothing on Progress for this setting to govern in v1. Restore the fuller wording when that tier ships.
 
 **Preferences:**
 
 Slim for v1:
 - **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
-- **Week starts on** — sets the week boundary for the weekly comparisons and rating trend in Insights. Options: Monday / Sunday. It does *not* affect History's time-range filters, which are rolling windows by design (see §5.7). The practice calendar heatmap is currently Monday-first regardless of this setting — extending it is tracked as a separate change.
-- **Theme** — Match system / Light / Dark. Default: Match system. Theme preference syncs across devices via settings, with first-paint resolution from localStorage to avoid a flash of wrong theme.
+- **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
 
 Additional preferences can slot in here as needed in later releases.
-
-The theme toggle deliberately lives here in Preferences rather than as a persistent control in the side nav or top bar. A persistent toggle adds visual noise to a UI that's deliberately quiet — Kantelo's brand voice favors a "tool that takes your craft seriously" over a customizable cockpit.
 
 **Sign out** button at the bottom (danger-colored text, no fill).
 
@@ -477,18 +506,42 @@ When the user adds a spot mid-session via the active session UI, a small "Add to
 
 ## 7. Suggestions engine
 
-Five rules analyze practice patterns and surface coaching nudges. Suggestions are distributed across the app at contextually appropriate moments rather than collected in a single panel.
+Rules-based coaching nudges surfaced at contextually appropriate moments rather than collected in a single panel.
+
+**v1 ships three tiers: pre-session, in-the-moment, and post-session.** Pattern-level is post-v1 and is a Pro capability. This section describes the full engine; status tags mark what ships.
 
 ### Suggestion tiers
 
-| Tier | Location | Timing | Examples |
-|------|----------|--------|----------|
-| Pre-session nudges | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
-| In-the-moment coaching | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
-| Post-session reflection | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more and you'll match your goal." / "Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, sometimes a step back means you're ready to go deeper." |
-| Pattern-level insights | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
+| Tier | Status | Location | Timing | Examples |
+|------|--------|----------|--------|----------|
+| Post-session reflection | **[v1]** | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your Bruch first page is trending forward for the second session in a row." |
+| Pre-session nudges | **[v1]** | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
+| In-the-moment coaching | **[v1]** | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
+| Pattern-level insights | **[post-v1 — Pro]** | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
 
-Spot-level suggestions are a new class of in-the-moment and post-session coaching enabled by the repertoire model. Examples: "Your Bruch first-page spot has been step-forward three sessions in a row — try the next page" / "The trouble-spots passage hasn't improved in two weeks — try slower and shorter" / "You retired 'trouble spots mm. 24–28' six weeks ago — want to spot-check it?" These follow the same dismissal and opt-out rules as other suggestions.
+**Implementation status.** Pre-session is shipped and rendering on the Today tab. **In-the-moment is half-built and is the one open build item in this section:** the API client (`getInSessionSuggestions`), the `hint` Card variant, and a `/preview` mock all exist, but nothing renders them in the live session. Completing it means rendering `HintCard` beneath the relevant `ExerciseRow`, keyed by `block_log_id` from the existing endpoint response — plus implementing the two backing rules if they are not yet live server-side. This work is tracked in **#315** (created 2026-08-19, after the audit).
+
+**On pattern-level.** Firmly out of v1, and a **Pro capability** when it ships. It must not appear in v1 in any form, including a stub or an empty state. Shipping it in v1 would make it permanently free and remove a Pro column entry.
+
+Spot-level suggestions are a class of in-the-moment and post-session coaching enabled by the repertoire model. Examples: "Your Bruch first-page spot has been step-forward three sessions in a row — try the next page" / "The trouble-spots passage hasn't improved in two weeks — try slower and shorter" / "You retired 'trouble spots mm. 24–28' six weeks ago — want to spot-check it?" Their status follows their tier and the repertoire decision (§12).
+
+### Rules
+
+Nine rules are defined in `kantelo-schema-api.md` §5. v1 implements the post-session tier only:
+
+| Rule | Tier | Status |
+|------|------|--------|
+| `weekly_consistency` | post_session | **[v1]** |
+| `spot_plateau` | post_session | **[v1]** |
+| `consistency_nudge` | pre_session | **[v1]** |
+| `section_coverage_drop` | pre_session | **[v1]** |
+| `previous_block_note` | in_the_moment | **[v1]** |
+| `tempo_progression` | in_the_moment | **[v1]** |
+| `spot_step_forward_streak` | in_the_moment | **[v1]** |
+| `retired_spot_check` | pattern_level | **[post-v1 — Pro]** |
+| `whole_piece_overuse` | pattern_level | **[post-v1 — Pro]** |
+
+Seven of the nine rules ship in v1. `previous_block_note` is worth singling out: surfacing the user's own note from the last time they played this exact passage is the closest the product comes to "a coach in the room," and it is the strongest argument for finishing the in-the-moment tier.
 
 ### Design principles for suggestions
 
@@ -498,10 +551,11 @@ Spot-level suggestions are a new class of in-the-moment and post-session coachin
 - Suggestions should never appear as badge counts or notification dots (creates anxiety).
 - Suggestions should never appear on the Plans tab (building/editing context) or Profile tab (admin context).
 
-### User controls
+### User controls **[v1]**
 
 - Global opt-out in Settings.
-- "Fewer suggestions" option limits suggestions to the session summary screen and the Insights sub-tab only.
+- Three-option radio: All / Fewer / Off. All three are behaviorally distinct in v1 — see §5.8.
+- "Fewer suggestions" limits suggestions to the session summary screen. (It will also cover the Insights sub-tab once pattern-level ships.)
 - Individual suggestions are dismissible (tracked server-side so dismissed suggestions don't reappear).
 
 ---
@@ -526,7 +580,9 @@ Key entities and their relationships (for developer reference, not a full schema
 - **Instrument** — belongs to User, has many Templates, has many Pieces, has practice frequency setting
 - **Piece** — belongs to Instrument, has name, optional composer/source, has many Spots. Created lazily.
 - **Spot** — belongs to Piece, has name, optional location (free text), active/retired state. Has many BlockLogs (via reference).
-- **Template** — belongs to Instrument, has many TemplateSessions, has name, description, active/archived status. **At most one template per instrument can be active at a time.** Activating a new template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
+- **Template** — belongs to Instrument, has many TemplateSessions, has name, description, active/archived status. **At most one template per instrument can be active at a time in v1.** Activating a new template auto-archives the previous one. Archived templates remain in the Plans tab and can be reactivated.
+
+  **[post-v1] Multiple active plans per instrument** is a planned relaxation of this invariant (ticket #225), deferred out of v1 because it reshapes the Today tab rather than just the schema. The single plan card exists so that Today answers "what should I practice right now" without making the user choose — the decision fatigue the product is built to eliminate. Supporting N active plans requires deciding what Today shows instead (multiple cards? a picker? a rule for choosing?), and how "Repeat last session" behaves when rotation position is ambiguous across plans. Design work first, then the schema change: drop `uq_one_active_template_per_instrument`, drop the auto-deactivate logic in `PATCH /api/templates/{id}`, and change `GET /api/today` to return a list rather than a single `current_session`.
 - **TemplateSession** — belongs to Template, has name (user-provided), focus description, order in rotation, has many Sections
 - **Section** — belongs to TemplateSession, has type (warm-up, scales, repertoire, etc.), has many Blocks, has estimated duration
 - **Block** — belongs to Section. Two flavors: a **standard block** (name, description, tempo, key, etc., optionally referencing a CuratedBlock) or a **repertoire block** (references a Piece, carries a default spot list via a join table). Repertoire blocks do not have their own name/tempo/key — those come from the piece and spots.
@@ -590,4 +646,161 @@ Wireframes were developed in conversation and should be saved as screenshots in 
 - Wireframes are mobile-first (375px width) but the app is a responsive web app, not a native mobile app.
 - Colors in wireframes are placeholder — final visual design and brand identity are not yet determined.
 - Wireframes show structure and interaction patterns, not final copy or content.
-- **Rating labels in wireframes are illustrative and several predate the trajectory framing.** `progress-history.png`, for instance, labels ratings "Nailed it / Okay / Struggled". The canonical wording is **Step back / Steady / Step forward** (plus "Skipped"), and §5.2 "Rating indicator (chevrons)" explains why the outcome framing was rejected — it isn't a copy preference to be overridden by a wireframe. Where a wireframe and §5.2 disagree on rating wording, §5.2 wins.
+
+---
+
+## 12. v1 scope boundary
+
+**This section is authoritative.** Where it disagrees with a body section, this section wins. See §0 for tag definitions and the pricing invariant.
+
+**Ticket audit instructions.** Every open ticket should map to exactly one row below. A ticket implementing a **[v1]** or **[v1 — launch prerequisite]** row is in scope. A ticket implementing an **[undecided]** row must be labeled blocked pending the scope decision, not silently built. A ticket implementing a **[post-v1]** or **[post-v1 — Pro]** row is out of scope and should be relabeled, not closed — those tickets are the roadmap. Any **[v1]** row with no covering ticket is a gap.
+
+**Revision note (August 2026).** This table was reconciled against the 2026-08-18 scope audit of shipped code and open tickets. Most rows previously marked `[undecided]` were found already built and have been promoted to `[v1]`. Two of my earlier taggings were wrong and have been corrected — per-spot history (§12.5) and the coaching preference control (§5.8).
+
+### 12.1 Today tab
+
+| Feature | Status | Notes |
+|---|---|---|
+| Instrument pill toggle | **[v1]** | |
+| Plan card, rotation indicator, section pills | **[v1]** | |
+| "Start session" | **[v1]** | |
+| "Practice off-plan" | **[v1]** | |
+| No-plan state → quick-start wizard | **[v1]** | |
+| Pre-session suggestion card | **[v1]** | Shipped |
+| "Repeat last session" shortcut | **[v1]** | Shipped |
+
+### 12.2 Active session
+
+| Feature | Status | Notes |
+|---|---|---|
+| Section cards, time steppers, checkboxes | **[v1]** | |
+| Rating chevrons (step back / steady / step forward) | **[v1]** | |
+| Per-exercise notes | **[v1]** | |
+| Section-level actions (mark all done, skip section) | **[v1]** | |
+| Quick-add block | **[v1]** | |
+| "+ Add a section" mid-session | **[v1]** | |
+| Session notes | **[v1]** | |
+| Repertoire blocks (piece header, spot rows, whole-piece logging, inline spot add) | **[v1]** | Shipped |
+| Voice input (mic on all text fields) | **[v1]** | Shipped — but see the platform warning in §5.2 |
+| Smart tempo defaults | **[v1]** | Shipped |
+| Session auto-save / resume | **[v1]** | Shipped. May become load-bearing — see §12.7 |
+| In-the-moment suggestion hint cards | **[v1]** | **Half-built; ticketed as #315.** See §7 |
+
+### 12.3 Session summary
+
+| Feature | Status | Notes |
+|---|---|---|
+| Stat cards (minutes, exercises, streak) | **[v1]** | |
+| "What you practiced" list with ratings and notes | **[v1]** | |
+| Post-session coaching card | **[v1]** | Never gated. The reward moment of every session. |
+| Guided reflection prompt (11-prompt rotation) | **[v1]** | |
+| "Edit this session" | **[v1]** | |
+
+### 12.4 Plans tab
+
+| Feature | Status | Notes |
+|---|---|---|
+| Template list | **[v1]** | |
+| Template editor (sessions, sections, blocks) | **[v1]** | |
+| Section-type picker | **[v1]** | **Gap** — currently hardcoded `custom` (#168) |
+| Drag-and-drop reordering | **[v1]** | **Gap** (#46) |
+| Block library — curated, recently used, custom creation | **[v1]** | |
+| Block library "Your repertoire" tab | **[v1]** | Shipped |
+| Template duplication | **[v1]** | Shipped |
+| Multiple active plans per instrument | **[post-v1]** | #225. Reshapes Today — see §9 |
+
+### 12.5 Progress tab
+
+| Feature | Status | Notes |
+|---|---|---|
+| History sub-tab, expandable session cards | **[v1]** | Unlimited and permanent. Never capped. |
+| Time filter pills (all / week / month) | **[v1]** | |
+| Insights — rating trend, **4 weeks** | **[v1]** | **Pricing-critical. Not droppable.** |
+| Insights — practice heatmap, full year | **[v1]** | Browsing a past year is free |
+| Insights — this week vs. last, with paired bar chart | **[v1]** | |
+| **Per-spot history** (log list: dates, ratings, notes) | **[v1]** | **Corrected.** This is history, and history is free — §0 and the pricing doc §2.7. Shipped as `SpotHistorySheet.tsx`. |
+| Per-spot **rating trend** (aggregation, trend chart) | **[post-v1 — Pro]** | The analysis layer on top of history — the same free/paid line as the top-level trend. `SpotHistorySheet` currently renders `rating_trend`; **#317** removes it so v1 shows the log list only. |
+| Rating trend beyond 4 weeks (months, quarters) | **[post-v1 — Pro]** | Do not expose a window control in v1 |
+| Per-piece rating trends | **[post-v1 — Pro]** | |
+| Heatmap year-over-year comparison (overlay, deltas) | **[post-v1 — Pro]** | Endpoint already takes `year`; exclude deliberately |
+| Pattern-level suggestion cards | **[post-v1 — Pro]** | #253. Not even as a stub |
+| Section-type distribution, per-exercise drill-down, progress timelines | **[post-v1]** | |
+
+### 12.6 Profile tab, wizard, cross-cutting
+
+| Feature | Status | Notes |
+|---|---|---|
+| Account header, Clerk "Manage account" | **[v1]** | |
+| Instruments list with inline frequency pills | **[v1]** | |
+| Add instrument | **[v1]** | |
+| Coaching suggestions — **three-option radio** | **[v1]** | **Corrected** — All/Fewer/Off are distinct now that pre-session and in-the-moment ship. §5.8 |
+| Preferences (default duration, week starts on) | **[v1]** | |
+| Sign out | **[v1]** | |
+| Repertoire library (per-instrument piece/spot management) | **[v1]** | Shipped. Body text in §5.8 and the repertoire doc still calls this "not yet designed" — stale. |
+| Quick-start wizard, all five steps | **[v1]** | Including step 4 → creates a Piece |
+| Light and dark mode | **[v1]** | Both first-class |
+| Desktop layout design pass | **[v1]** | **#316.** Without the secondary panel, desktop is a 520px column with a side nav and an empty right third. Needs a layout treatment that reads as deliberate rather than unfinished. See note below. |
+| Desktop secondary panel | **[post-v1]** | #218. Desktop is fully usable without it — by its own spec it duplicates content available elsewhere. |
+| Billing, payments, subscriptions, entitlement checks | **not in v1** | #39. No paywall code of any kind |
+
+### 12.7 Launch prerequisites
+
+Must be live on launch day. Not user-facing product features, which is why they have no screen spec — and why the 2026-08-18 audit missed them: it treated §12 as the complete definition of v1 when §12 only covered features.
+
+| Item | Status | Notes |
+|---|---|---|
+| Error tracking (Sentry or equivalent) | **[v1 — launch prerequisite]** | **#306** (carved from #89; the epic stays post-v1). Know it broke before a beta user reports it. |
+| Uptime monitoring | **[v1 — launch prerequisite]** | **#307.** Free tier of anything |
+| **Product analytics** | **[v1 — launch prerequisite]** | **#308. Hard requirement — see below** |
+| Mobile packaging (Capacitor) | **[v1 — launch prerequisite]** | #54. Pending the viability spike — `kantelo-capacitor-spike.md` |
+| In-app account deletion | **[v1 — launch prerequisite]** | **#312.** Apple requires it for any app with account creation; it also satisfies the data-deletion obligation. One surface, two obligations. |
+| Node runtime pinned (22 LTS across `.nvmrc`, CI, Dockerfile) | **[v1 — launch prerequisite]** | #260. Node 20 is EOL |
+| Pre-prod schema hygiene | **[v1 — launch prerequisite]** | #270. Non-integer PKs, table naming. **Now-or-never** — trivial before real user data, painful after. Sequence with any other pre-prod migration. |
+| Empty states that teach | **[v1 — launch prerequisite]** | **#310** (umbrella); #287 is the Insights instance. The one in-app onboarding piece. |
+| Concept education ("how Kantelo works") | **[v1 — launch prerequisite]** | **#309.** Lives on kantelo.app, not in-app — GTM thread #3. Covers directional ratings, spots, what the trend means. |
+| Operational user lookup | **[v1 — launch prerequisite]** | **#311.** Direct DB queries at beta scale (no UI). #40 (full admin site) stays post-v1. |
+| Full observability stack | **[post-v1]** | #89 |
+| Admin site | **[post-v1]** | #40 |
+| In-app tutorials / video onboarding | **[post-v1]** | #26, #27 |
+
+#### Why analytics is a hard requirement
+
+The beta pricing posture (`kantelo-gtm-positioning-pricing.md` §2.3) ends the free beta on a **retention trigger**: N users who have logged sessions in three consecutive weeks. That is a cohort measurement, and **it cannot be computed retroactively over a period that was not instrumented.** Analytics must be live from day one of the beta or the pricing trigger has no data to fire on.
+
+Minimum event set, derived backward from the questions that need answering:
+
+| Event | Answers |
+|---|---|
+| `user_signed_up` | Cohort entry point |
+| `wizard_step_completed` / `wizard_abandoned` | Where new users fall out |
+| `session_started` (instrument, template vs. freeform) | Activation |
+| `session_finished` (duration, blocks rated) | **The retention event — the beta trigger runs on this** |
+| `insights_viewed` | Whether the differentiator is actually seen |
+
+Five events. Resist adding more: a bloated event set is harder to reason about and expands the privacy policy surface (GTM thread #4).
+
+#### Desktop layout without the secondary panel
+
+Cutting #218 leaves the three-column structure in `kantelo-design-tokens.md` §11 with an empty third column. The fix is a layout decision, not a feature:
+
+- **Centering** — with the panel gone, is the main column centered in the remaining space, or does it stay left-anchored beside the nav? Centering generally reads better; it also means the content shifts position if the panel ever returns.
+- **Max-width** — 520px is correct for line length and should not grow. The question is what surrounds it.
+- **Background treatment** — the warm stone `page-bg` across a wide empty area is the main thing that can read as unfinished.
+- **Reversibility** — whatever is chosen should not make re-adding the panel post-v1 a rewrite.
+
+Not a large piece of work, but it should be decided deliberately rather than defaulted into, since desktop is the first impression for anyone opening a link on a laptop.
+
+### 12.8 Remaining open decisions
+
+1. **In-the-moment coaching** — recorded here as `[v1]` per current direction and ticketed as **#315**. Settled 2026-08-19 (finish it); noted here as the one feature that had been a lean rather than an original settled decision.
+
+Everything else previously listed here is resolved.
+
+### 12.9 Known stale text elsewhere in the docs
+
+Flagged rather than fixed, since these live in other files:
+
+- `kantelo-frontend-repertoire.md` describes the Profile repertoire library as "not yet designed." It is shipped.
+- `kantelo-frontend-plan.md` lists voice input, smart tempo defaults, repeat-last-session, template duplication, and session auto-save as flat Phase 1/4 requirements with no status. Now consistent with `[v1]`, but the plan has no scope tags and should be reconciled against this table.
+- `kantelo-design-tokens.md` §6 (Voice input) specifies a feature-detection fallback that does not work in WKWebView. See §5.2.
+- `kantelo-design-tokens.md` §11 describes the desktop layout as three-column with the secondary panel. With #218 deferred, that section needs updating to describe the two-column v1 layout and the treatment of the remaining space.
