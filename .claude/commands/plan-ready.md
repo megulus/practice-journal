@@ -25,8 +25,16 @@ plan the whole Ready column.)
 1. **Load the Ready column.** Use the paged board query from `CLAUDE.md`
    ("Orienting: sources of truth"), filtered to `Status == Ready`. Paging is
    mandatory — the board is well past 100 items and a single page truncates
-   silently. If `GH_PROJECT_TOKEN` is unset you cannot read the board: **stop and
-   say so** (fall back to nothing — do not guess which column things are in).
+   silently.
+   - **Auth:** run the query with **plain `gh api graphql`**. On a local Mac the
+     default `gh` keyring token carries `project` + `read:org`, which is all the
+     board needs. The `GH_TOKEN=$GH_PROJECT_TOKEN` prefix in `CLAUDE.md` is a
+     *Niteshift-sandbox* workaround for a weaker default token — you don't need it
+     here, and `GH_PROJECT_TOKEN` won't be in the environment anyway. Only fall
+     back to that prefix if a plain query returns a `projectV2` permission error.
+   - If neither works (no `gh` auth with `project` scope, and no
+     `GH_PROJECT_TOKEN`), you cannot read the board: **stop and say so** — do not
+     guess which column things are in.
 
 2. **Drop what isn't yours.** Skip any item labeled **`human-only`** (per
    `CLAUDE.md` — those need a person, not an agent). Honor the run constraint
