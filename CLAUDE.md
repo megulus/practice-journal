@@ -194,6 +194,111 @@ Posting is outward-facing, so:
 - **Don't duplicate on re-review.** Reply in the existing thread, or post only
   what changed since the last pass.
 
+## Shepherding a batch of agents
+
+> **Implementing a ticket, or reviewing one PR? Skip this whole section.** It is
+> written for the *manager* role — an agent that dispatches other agents across
+> several tickets and shepherds their PRs to mergeable. If you were handed a
+> ticket, a PR, or a review, none of this applies to you and following it will
+> only pull you out of your lane.
+
+Mostly Niteshift-specific: the dispatch mechanics assume `create_task` /
+`send_followup` (cloud tasks with their own branches and PRs), and the
+re-sync-after-each-merge dance assumes `main` requires branches be up to date.
+The review discipline and the triage rules below hold anywhere.
+
+Written from a run of twelve tickets across six PRs, then seven more across six.
+Everything here is something that actually bit.
+
+**Group tickets by file overlap, not by theme.** Two tickets that read as
+unrelated but edit the same component belong in one task; two that sound like a
+pair but touch different directories should be separate PRs. Before dispatching,
+map what each branch will touch — and once PRs exist, map it for real:
+
+```bash
+for n in "${!BRANCHES[@]}"; do
+  git diff --name-only origin/main...origin/${BRANCHES[$n]} | sed "s|^|$n |"
+done | sort -k2 | awk '{print $2}' | uniq -d     # files touched by >1 PR
+```
+
+That map is also your merge order: **smallest blast radius first, and whichever
+PR overlaps the most others goes last**, so each merge shrinks its rebase instead
+of growing someone else's. Land infrastructure that protects the rest of the
+batch (a CI gate, a shared primitive) before the PRs it protects.
+
+**Write dispatch prompts that make the call.** For anything with options, state
+the decision and the reasoning, then ask the agent to sanity-check it against the
+code rather than follow it blindly, and to say so if the code disagrees. Hand
+over the hazards you already know (the deleted-entity path, the boundary case,
+the conflicting PR landing in parallel) — an agent that is told what to worry
+about tests it; one that isn't, won't.
+
+**Interim reviews report to you. Only a consolidated comment lands on the PR.**
+Spawn reviewers as read-only agents with an explicit instruction not to
+`checkout`/`stash`/commit — several agents in one working tree will collide, and
+`git show origin/<branch>:<path>` is enough to review from. Have them return a
+compact severity-ranked list, not prose. You triage, dispatch the fixes, and post
+**one** comment per PR at the end covering what was reviewed, what was found and
+fixed, and what got ticketed. That satisfies the posting convention above without
+turning the PR into a thread nobody reads.
+
+**Always re-review the fixes.** This is the highest-value thing in this section.
+Across twelve PRs, *half* had a defect introduced by the fix to the first review
+— an interim-transcript rework that stranded unsaved text, a duplicate-create
+guard that discarded its resume state before two unguarded refetches, a
+`lastIndexOf` fallback that ate part of the string it was meant to preserve. A
+fix is new code written under time pressure against a narrower brief; treat it
+that way.
+
+**Triage: does it belong in this PR, or in a ticket?**
+
+- **Fix here** if the PR introduced it, if it's a stated acceptance criterion, or
+  if it's cheap and lives in files already open.
+- **Ticket** if it needs a product or design call, if it's pre-existing and
+  merely adjacent, or if fixing it would balloon the diff.
+- **Write tickets as decisions, not bug reports.** State what's true today with a
+  concrete example, lay out the options with their consequences, give a
+  recommendation, and say what someone must choose. That is what makes them
+  groomable instead of another investigation.
+- **Put every new ticket on the board** (`Backlog`) — see "Grooming" for the
+  mutations. A ticket that isn't on the board is invisible to the next
+  prioritization pass. Note the board is well past 100 items, so item-id lookups
+  need the paged query, not a single `first: 100`.
+
+**"CI is green" is not "this will merge clean."** The failures that survive a
+green run:
+
+- A clean *textual* merge can produce code that doesn't compile — one PR widening
+  a shared type while another adds a consumer conflicts in no file at all. Run
+  `npx tsc --noEmit` on every merged tree, and the affected suites when two PRs
+  touched the same components.
+- Poll for the **SHA to change**, not for the status to be green. A status check
+  reports on the tip it ran against; a poller that only reads status will happily
+  report "ready" on a stale commit, before the fix you asked for even landed.
+- Two PRs can each add migration `0006` without conflicting, then fail
+  `alembic upgrade head` in production. Check the head is still singular.
+- `docs/kantelo-schema-api.md` collects edits from most PRs in a batch. Auto-merge
+  drops sections silently and no test notices. Grep the merged file for each PR's
+  contribution.
+
+**You do the mechanical merges; hand back the semantic ones.** Merging `main`
+into five branches and pushing is yours. A conflict in a file another PR
+substantially rewrote goes back to the task that owns it — and tell it to
+re-run its own audit over the merged code, because the thing it checked has
+changed underneath it.
+
+**Surface human calls, then actually hold them open.** When an agent flags
+something as a product or copy decision, put the concrete before/after in front
+of the human and *wait*. A reviewer judging the change "justified" is not the
+same as the human deciding it, and it's easy to let a flagged item quietly ride
+on a reviewer's verdict. Track them until they're answered.
+
+**Verify what agents report.** They are usually right and occasionally confident
+about something stale — a branch that moved, a check that passed on an earlier
+tip, a command that doesn't exist in this sandbox (`docker compose` is not always
+what's running; agents should verify before assuming the documented dev loop).
+Spot-check the claims that would be expensive to get wrong.
+
 ## Layout
 
 ```
