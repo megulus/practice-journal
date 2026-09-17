@@ -173,6 +173,43 @@ describe('ProgressPage', () => {
     expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
   })
 
+  it("hands Insights the selected instrument's last-practiced date", async () => {
+    // #287: with every chart window empty, whether this is a first-run user or
+    // a returning one is only answerable from `last_practiced_at`, which lives
+    // in this page's instruments array. Pins that it actually reaches down.
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ last_practiced_at: '2025-12-18' }),
+    ])
+    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Practice calendar' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Last session on this instrument: Dec 18, 2025/),
+    ).toBeInTheDocument()
+  })
+
+  it('still first-runs an instrument that has never been practiced', async () => {
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ last_practiced_at: null }),
+    ])
+    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    expect(
+      await screen.findByText('Your first session starts the picture.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Practice calendar' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('leaves the tab stop to the panel content, which both tabs have', async () => {
     const user = userEvent.setup()
     mockListInstruments.mockResolvedValue([makeInstrument()])

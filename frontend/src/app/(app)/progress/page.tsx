@@ -88,6 +88,13 @@ export default function ProgressPage() {
     )
   }
 
+  // Insights needs the selected instrument's un-windowed "have they ever
+  // practised" signal to tell a first-run user from a returning one (#287).
+  // It's already in this array, so it rides down as a prop rather than
+  // becoming a second fetch inside the panel.
+  const selectedInstrument =
+    instruments.find((inst) => inst.id === selectedInstrumentId) ?? null
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold text-text-primary">Progress</h1>
@@ -122,7 +129,10 @@ export default function ProgressPage() {
         {tab === 'history' ? (
           <HistoryList instrumentId={selectedInstrumentId} />
         ) : (
-          <InsightsPanel instrumentId={selectedInstrumentId} />
+          <InsightsPanel
+            instrumentId={selectedInstrumentId}
+            lastPracticedAt={selectedInstrument?.last_practiced_at ?? null}
+          />
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
+import { formatSessionDate } from '@/lib/dates'
 import { Button, Card } from '@/components/ui'
 import { PracticeHeatmap } from './PracticeHeatmap'
 import { localYear } from './heatmapGrid'
@@ -38,8 +39,19 @@ interface InsightsData {
  * Not here yet: the pattern-level suggestion card spec §5.7 puts above both
  * sub-tabs. The rules engine computes that tier but no endpoint exposes it —
  * tracked as #253.
+ *
+ * `lastPracticedAt` is the selected instrument's `last_practiced_at`, passed
+ * down from the Progress page (which already holds the instruments array)
+ * rather than fetched here. It is the one signal on this screen that isn't
+ * window-scoped — see the render gate below.
  */
-export function InsightsPanel({ instrumentId }: { instrumentId: number | null }) {
+export function InsightsPanel({
+  instrumentId,
+  lastPracticedAt,
+}: {
+  instrumentId: number | null
+  lastPracticedAt: string | null
+}) {
   const api = useApi()
   const [data, setData] = useState<InsightsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,10 +116,29 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
 
   if (!data) return null
 
-  if (!hasAnyPractice(data)) return <EmptyState />
+  // Two different emptinesses, and the old gate conflated them (#287).
+  // `hasWindowData` asks whether these three charts have anything to draw;
+  // every signal it reads is recency-scoped (the calendar year, this week and
+  // last, the last four weeks), so all three go quiet together for anyone
+  // returning from a break — and ORing them told a user with months of
+  // history that they had none. `lastPracticedAt` is the un-windowed
+  // counterpart: the max `practice_date` over the instrument's completed
+  // sessions, with no date filter at all.
+  //
+  // So only a user with neither gets a first-run state. A returning user gets
+  // the charts, gap and all — an empty January under a dense December is a
+  // truer picture than a placeholder that denies the December happened — with
+  // a line above them that names the gap instead of the user.
+  const charted = hasWindowData(data)
+
+  if (!charted && lastPracticedAt === null) return <FirstRunState />
 
   return (
     <div className="space-y-4">
+      {!charted && lastPracticedAt !== null && (
+        <LapsedNote lastPracticedAt={lastPracticedAt} />
+      )}
+
       <InsightCard title="Practice calendar">
         <PracticeHeatmap
           year={data.heatmap.year}
@@ -127,7 +158,12 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
   )
 }
 
-function hasAnyPractice({ heatmap, comparison, ratings }: InsightsData): boolean {
+/**
+ * Whether any of the three charts has data *in the window it covers* —
+ * deliberately not "has this user ever practised", which is what the name
+ * `hasAnyPractice` used to imply and the reason #287 happened.
+ */
+function hasWindowData({ heatmap, comparison, ratings }: InsightsData): boolean {
   return (
     heatmap.days.some((d) => d.duration_minutes > 0) ||
     comparison.this_week.total_minutes > 0 ||
@@ -151,13 +187,21 @@ function InsightCard({
   )
 }
 
-function EmptyState() {
+/**
+ * No sessions on this instrument, ever. Per #310's pattern an empty state
+ * should name what will appear and why it's worth having, then point at the
+ * single action that fills it — rather than only reporting an absence.
+ */
+function FirstRunState() {
   return (
     <Card className="text-center">
-      <p className="mb-1 text-sm text-text-secondary">Nothing to chart yet.</p>
+      <p className="mb-1 text-sm text-text-secondary">
+        Your first session starts the picture.
+      </p>
       <p className="mb-4 text-xs text-text-tertiary">
-        Your practice calendar, weekly comparison and rating trend fill in once
-        you finish a session on this instrument.
+        The practice calendar fills a square for every day you play, and the
+        rating trend follows which way your work is heading. One session is
+        enough to begin.
       </p>
       <Link
         href="/today"
@@ -165,6 +209,27 @@ function EmptyState() {
       >
         Start practicing
       </Link>
+    </Card>
+  )
+}
+
+/**
+ * History exists but falls outside every chart's window. Sits above the
+ * charts rather than replacing them, and says why they read empty — spec
+ * §5.2's framing applies here too: an observation about the window, not a
+ * verdict on the user.
+ */
+function LapsedNote({ lastPracticedAt }: { lastPracticedAt: string }) {
+  return (
+    <Card>
+      <p className="mb-1 text-sm text-text-secondary">
+        Nothing in the last few weeks — the practice before that is still here.
+      </p>
+      <p className="text-xs text-text-tertiary">
+        Last session on this instrument: {formatSessionDate(lastPracticedAt)}.
+        These charts cover this year and the last few weeks, so they&rsquo;ll
+        start filling in again with your next session.
+      </p>
     </Card>
   )
 }
