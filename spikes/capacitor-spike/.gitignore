@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Capacitor native output that is regenerated / installed locally
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/public/
+ios/DerivedData/
+
+# Local keys (Clerk publishable key, API base) — see README
+.env.local
+.env*.local
