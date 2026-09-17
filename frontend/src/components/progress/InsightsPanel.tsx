@@ -12,6 +12,7 @@ import type {
   ComparisonResponse,
   HeatmapResponse,
   RatingsResponse,
+  UserSettings,
 } from '@/lib/types'
 
 const RATING_WEEKS = 4
@@ -20,15 +21,19 @@ interface InsightsData {
   heatmap: HeatmapResponse
   comparison: ComparisonResponse
   ratings: RatingsResponse
+  settings: UserSettings
 }
 
 /**
  * Progress → Insights (spec §5.7): the practice calendar, this-week-vs-last
  * comparison, and rating trend for the selected instrument.
  *
- * The three endpoints are independent, so they load together and the panel
- * shows one loading/error state rather than three — partial charts would read
- * as missing data rather than a slow network.
+ * The endpoints are independent, so they load together and the panel shows one
+ * loading/error state rather than three — partial charts would read as missing
+ * data rather than a slow network. Settings rides along in the same
+ * `Promise.all`: the heatmap's week boundary comes from `week_starts_on`
+ * (#300), and fetching it separately would either flash a Monday-first grid
+ * that then re-lays-out, or add a second spinner to the same card.
  *
  * Not here yet: the pattern-level suggestion card spec §5.7 puts above both
  * sub-tabs. The rules engine computes that tier but no endpoint exposes it —
@@ -58,15 +63,16 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
     setLoading(true)
     setError(null)
     try {
-      const [heatmap, comparison, ratings] = await Promise.all([
+      const [heatmap, comparison, ratings, settings] = await Promise.all([
         // Ask for the browser's year rather than letting the endpoint default
         // to the server's UTC one — see localYear.
         api.getHeatmap(instrumentId, localYear()),
         api.getComparison(instrumentId),
         api.getRatings(instrumentId, RATING_WEEKS),
+        api.getSettings(),
       ])
       if (generation !== generationRef.current) return
-      setData({ heatmap, comparison, ratings })
+      setData({ heatmap, comparison, ratings, settings })
     } catch (err) {
       if (generation !== generationRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load insights')
@@ -103,7 +109,11 @@ export function InsightsPanel({ instrumentId }: { instrumentId: number | null })
   return (
     <div className="space-y-4">
       <InsightCard title="Practice calendar">
-        <PracticeHeatmap year={data.heatmap.year} days={data.heatmap.days} />
+        <PracticeHeatmap
+          year={data.heatmap.year}
+          days={data.heatmap.days}
+          weekStartsOn={data.settings.week_starts_on}
+        />
       </InsightCard>
 
       <InsightCard title="This week vs. last">

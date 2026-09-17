@@ -1203,13 +1203,13 @@ Progress endpoints do not share one definition of a time range, and the differen
 | `/history` (`period=all`) | no date filter | n/a |
 | `/history` (`period=last_7_days`) | rolling: `practice_date >= today - 6 days` | no |
 | `/history` (`period=last_30_days`) | rolling: `practice_date >= today - 29 days` | no |
-| `/insights/heatmap` | calendar year (`year` param, default current) | no — rows are Monday-first regardless |
+| `/insights/heatmap` | calendar year (`year` param, default current) | not server-side — the client rows the days by the setting |
 | `/insights/comparison` | the calendar week containing today, and the one before it | **yes** |
 | `/insights/ratings` | the last `weeks` calendar weeks, most recent first | **yes** |
 
 History's rolling windows answer "show me recent sessions"; Insights' calendar weeks answer "this week vs. last", which needs fixed boundaries. Because both surfaces sit in the same tab, the History filter pills are labelled "Last 7 days" / "Last 30 days" so that "this week" refers to exactly one window in the product — the calendar week in Insights.
 
-The heatmap's Monday-first rows are a known divergence from the **Week starts on** preference, tracked separately.
+The heatmap is the one endpoint whose window the setting does not move: it returns a flat list of `(date, minutes)` for the year with no week grouping, so the week boundary is a client-side layout decision. The client makes it from `week_starts_on` all the same (#300), which is why the grid's rows and the two charts below it agree about where a week begins.
 
 ---
 

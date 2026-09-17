@@ -6,26 +6,36 @@ import type {
   ComparisonResponse,
   DailyMinutes,
   RatingsResponse,
+  UserSettings,
+  WeekStart,
 } from '@/lib/types'
 
-const { mockGetHeatmap, mockGetComparison, mockGetRatings, mockApi } =
-  vi.hoisted(() => {
-    const mockGetHeatmap = vi.fn()
-    const mockGetComparison = vi.fn()
-    const mockGetRatings = vi.fn()
-    // Stable identity, like the real memoized useApi — a fresh object per
-    // render would retrigger the load effect forever.
-    return {
-      mockGetHeatmap,
-      mockGetComparison,
-      mockGetRatings,
-      mockApi: {
-        getHeatmap: mockGetHeatmap,
-        getComparison: mockGetComparison,
-        getRatings: mockGetRatings,
-      },
-    }
-  })
+const {
+  mockGetHeatmap,
+  mockGetComparison,
+  mockGetRatings,
+  mockGetSettings,
+  mockApi,
+} = vi.hoisted(() => {
+  const mockGetHeatmap = vi.fn()
+  const mockGetComparison = vi.fn()
+  const mockGetRatings = vi.fn()
+  const mockGetSettings = vi.fn()
+  // Stable identity, like the real memoized useApi — a fresh object per
+  // render would retrigger the load effect forever.
+  return {
+    mockGetHeatmap,
+    mockGetComparison,
+    mockGetRatings,
+    mockGetSettings,
+    mockApi: {
+      getHeatmap: mockGetHeatmap,
+      getComparison: mockGetComparison,
+      getRatings: mockGetRatings,
+      getSettings: mockGetSettings,
+    },
+  }
+})
 
 vi.mock('@/lib/useApi', () => ({ useApi: () => mockApi }))
 
@@ -58,6 +68,14 @@ function comparison(thisMinutes = 0, lastMinutes = 0): ComparisonResponse {
   }
 }
 
+function settings(weekStartsOn: WeekStart = 'monday'): UserSettings {
+  return {
+    suggestions_preference: 'all',
+    default_session_duration_minutes: 30,
+    week_starts_on: weekStartsOn,
+  }
+}
+
 const NO_RATINGS: RatingsResponse = {
   weeks: [
     { week_start: '2026-07-20', step_forward: 0, steady: 0, step_back: 0, total: 0 },
@@ -75,6 +93,13 @@ function resolveAll() {
       { week_start: '2026-07-20', step_forward: 3, steady: 1, step_back: 1, total: 5 },
     ],
   })
+  mockGetSettings.mockResolvedValue(settings())
+}
+
+function dayLabelRow(): string[] {
+  return Array.from(screen.getByTestId('heatmap-day-labels').children).map(
+    (el) => el.textContent ?? '',
+  )
 }
 
 describe('InsightsPanel', () => {
@@ -82,6 +107,7 @@ describe('InsightsPanel', () => {
     mockGetHeatmap.mockReset()
     mockGetComparison.mockReset()
     mockGetRatings.mockReset()
+    mockGetSettings.mockReset().mockResolvedValue(settings())
   })
 
   it('renders all three insights for the instrument', async () => {
@@ -104,6 +130,27 @@ describe('InsightsPanel', () => {
     expect(mockGetHeatmap).toHaveBeenCalledWith(7, localYear())
     expect(mockGetComparison).toHaveBeenCalledWith(7)
     expect(mockGetRatings).toHaveBeenCalledWith(7, 4)
+  })
+
+  it('anchors the heatmap grid to the week_starts_on preference', async () => {
+    // The whole point of #300: the grid's week boundary has to come from the
+    // same setting the comparison and rating-trend charts below it use, which
+    // means settings is part of this panel's load, not a Monday-first constant.
+    resolveAll()
+    mockGetSettings.mockResolvedValue(settings('sunday'))
+    render(<InsightsPanel instrumentId={7} />)
+
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(mockGetSettings).toHaveBeenCalled()
+    expect(dayLabelRow()).toEqual(['', 'Mon', '', 'Wed', '', 'Fri', ''])
+  })
+
+  it('leaves the grid Monday-first on the default preference', async () => {
+    resolveAll()
+    render(<InsightsPanel instrumentId={7} />)
+
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(dayLabelRow()).toEqual(['Mon', '', 'Wed', '', 'Fri', '', ''])
   })
 
   it('refetches when the instrument changes', async () => {

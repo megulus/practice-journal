@@ -10,6 +10,7 @@ const {
   mockGetHeatmap,
   mockGetComparison,
   mockGetRatings,
+  mockGetSettings,
   mockApi,
 } = vi.hoisted(() => {
   const mockListInstruments = vi.fn()
@@ -17,6 +18,7 @@ const {
   const mockGetHeatmap = vi.fn()
   const mockGetComparison = vi.fn()
   const mockGetRatings = vi.fn()
+  const mockGetSettings = vi.fn()
   // Stable identity, like the real memoized useApi — a fresh object per render
   // would retrigger the load effects forever.
   return {
@@ -25,6 +27,7 @@ const {
     mockGetHeatmap,
     mockGetComparison,
     mockGetRatings,
+    mockGetSettings,
     mockApi: {
       listInstruments: mockListInstruments,
       getHistory: mockGetHistory,
@@ -32,6 +35,7 @@ const {
       getHeatmap: mockGetHeatmap,
       getComparison: mockGetComparison,
       getRatings: mockGetRatings,
+      getSettings: mockGetSettings,
     },
   }
 })
@@ -86,6 +90,12 @@ describe('ProgressPage', () => {
     })
     mockGetRatings.mockReset()
     mockGetRatings.mockResolvedValue({ weeks: [] })
+    mockGetSettings.mockReset()
+    mockGetSettings.mockResolvedValue({
+      suggestions_preference: 'all',
+      default_session_duration_minutes: 30,
+      week_starts_on: 'monday',
+    })
   })
 
   it('opens on History for the first instrument', async () => {

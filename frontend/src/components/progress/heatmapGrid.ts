@@ -1,4 +1,4 @@
-import type { HeatmapDay } from '@/lib/types'
+import type { HeatmapDay, WeekStart } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Layout maths for the practice calendar (spec §5.7, "Practice calendar
@@ -18,7 +18,10 @@ export interface HeatmapCell {
 }
 
 export interface HeatmapWeek {
-  /** Seven slots, Monday first. `null` where the week runs outside the year. */
+  /**
+   * Seven slots in the user's week order (see `weekStartOf`). `null` where the
+   * week runs outside the year.
+   */
   days: (HeatmapCell | null)[]
   /** Short month name when this column contains the 1st of a month. */
   monthLabel: string | null
@@ -53,25 +56,56 @@ function toKey(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-/** Monday of the week containing `d` (local time, no mutation of `d`). */
-function mondayOf(d: Date): Date {
+/**
+ * Start of the week containing `d` under the user's **Week starts on**
+ * preference (local time, no mutation of `d`).
+ *
+ * Deliberately the same arithmetic as the backend's `_week_start_date`
+ * (`app/api/progress_api.py`), which anchors the comparison and rating-trend
+ * windows: Python's `weekday()` is 0 = Monday, JS `getDay()` is 0 = Sunday, so
+ * the Monday offset is `(getDay() + 6) % 7` and the Sunday offset is `getDay()`.
+ * Given the same `YYYY-MM-DD` both land on the same week start — which is the
+ * point, since the grid sits directly above charts bucketed server-side.
+ */
+export function weekStartOf(d: Date, weekStartsOn: WeekStart): Date {
   const out = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  // getDay(): 0 = Sunday. Monday-first means Sunday is 6 days into the week.
-  out.setDate(out.getDate() - ((out.getDay() + 6) % 7))
+  const offset =
+    weekStartsOn === 'sunday' ? out.getDay() : (out.getDay() + 6) % 7
+  out.setDate(out.getDate() - offset)
   return out
 }
 
 /**
- * Bucket a year's practice days into Monday-first week columns.
+ * Weekday labels for the grid's row gutter, in the user's week order.
+ *
+ * Every other row is labelled (the GitHub convention — seven stacked 10px
+ * labels don't fit), and it is the same three weekdays either way: a
+ * Sunday-first grid shifts Mon/Wed/Fri down one row rather than relabelling
+ * to Sun/Tue/Thu, so the reference points don't move when the preference does.
+ */
+export function dayLabels(weekStartsOn: WeekStart): string[] {
+  return weekStartsOn === 'sunday'
+    ? ['', 'Mon', '', 'Wed', '', 'Fri', '']
+    : ['Mon', '', 'Wed', '', 'Fri', '', '']
+}
+
+/**
+ * Bucket a year's practice days into week columns, anchored to the user's
+ * **Week starts on** preference (spec §5.8).
  *
  * Rows are days of the week and each column is a week, with month names above
  * the column that holds the 1st — the GitHub contribution grid the spec asks
  * for. A whole year of days can't fit in twelve literal columns, so "columns
  * are months" from spec §5.7 lands as the month label row.
+ *
+ * `weekStartsOn` defaults to `'monday'`, matching the column default on
+ * `user_settings` — so a caller that can't resolve the setting renders what
+ * the backend would compute for it rather than something arbitrary.
  */
 export function buildHeatmapWeeks(
   year: number,
   days: HeatmapDay[],
+  weekStartsOn: WeekStart = 'monday',
   today: Date = new Date(),
 ): HeatmapWeek[] {
   const minutesByDate = new Map<string, number>()
@@ -84,7 +118,7 @@ export function buildHeatmapWeeks(
   const todayKey = toKey(today)
 
   const weeks: HeatmapWeek[] = []
-  const cursor = mondayOf(yearStart)
+  const cursor = weekStartOf(yearStart, weekStartsOn)
 
   while (cursor <= yearEnd) {
     const week: HeatmapWeek = { days: [], monthLabel: null }

@@ -417,7 +417,7 @@ Note the "Fewer" description omits the Insights tab: pattern-level suggestions a
 
 Slim for v1:
 - **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
-- **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
+- **Week starts on** — sets the week boundary for everything calendar-aligned in Insights: the practice calendar heatmap's rows, the weekly comparison, and the rating trend. Options: Monday / Sunday. It does *not* affect History's time-range filters, which are rolling windows by design (see §5.7).
 
 Additional preferences can slot in here as needed in later releases.
 
