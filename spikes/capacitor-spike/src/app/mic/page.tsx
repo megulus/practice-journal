@@ -49,7 +49,7 @@ export default function MicPage() {
           setText((cur) => (cur ? `${cur} ${t}` : t))
           setInterim('')
         },
-        onInterim: (t) => {
+        onInterimTranscript: (t) => {
           push(`interim: ${JSON.stringify(t)}`)
           setInterim(t)
         },

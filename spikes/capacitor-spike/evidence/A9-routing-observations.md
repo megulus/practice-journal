@@ -23,3 +23,13 @@ body: "capacitor-spike | /thing/1 (prerendered) | /thing/2 (NOT prerend"
 ## 5. the /_next/image URL an unfixed build emits
 status 200, content-type text/html, 4940 bytes
 first bytes: <!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/>
+
+## 6. direct document load of /sign-in (a STATIC route, no params)
+url:  http://localhost:3200/sign-in
+body: "capacitor-spike | /thing/1 (prerendered) | /thing/2 (NOT prerend"
+
+Added on re-review: this row was in the findings table but had no line in
+this transcript. It is the same rule as rows 3-4 — extensionless path, so
+index.html — but it is worth its own line because /sign-in is a *static*
+route with no dynamic params, i.e. nothing about generateStaticParams
+saves it.

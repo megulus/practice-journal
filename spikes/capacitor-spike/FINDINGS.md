@@ -159,7 +159,10 @@ runs fine on Linux and is committed here ready to open.
 
 ## Phase B — Clerk in a static SPA
 
-**The kill question is answered: Clerk works with no server and no middleware.**
+**Half the kill question is answered: Clerk works with no server and no
+middleware — in a browser.** The other half (does the session survive in
+WKWebView, where it has to live in cookies on a custom-scheme origin) is
+`needs device` and is the single most important thing left in this spike.
 `observed`, in headless Chromium against the exported `out/` served by the
 router sim, Clerk **development** instance (Kantelo's own `pk_test_…`):
 
@@ -400,21 +403,25 @@ answer "did the webview reload while backgrounded". See the run-book.
 
 Ordered by how early Phase 0 needs to know. Effort is my estimate, not a quote.
 
-| # | Change | Why | Effort |
-|---|---|---|---|
-| 1 | **`VoiceInput` provider abstraction** — one interface, two implementations, selected at runtime | see below | ~0.5 d |
-| 2 | **Fix the design-tokens §6 voice fallback** — platform check, not feature check | see below; **live bug on the web today** | ~0.5 d |
-| 3 | Dynamic routes → query params (or hash), 4 page files + 7 nav call sites | extensionless deep links all resolve to `index.html` | 0.5–1 d |
-| 4 | Dynamic pages split into server shell + client component *(only if any path params are kept)* | `'use client'` cannot export `generateStaticParams` | ~2 h |
-| 5 | Replace `clerkMiddleware` with a client-side guard (`<SignedIn>/<SignedOut>` or a redirecting layout) | `output: 'export'` emits no middleware; `src/middleware.ts` becomes dead code in the mobile build | 0.5 d |
-| 6 | `@clerk/nextjs` → `@clerk/clerk-react`, sign-in/sign-up to `routing="hash"` | the Next integration is middleware- and server-shaped | 0.5 d |
-| 7 | `next.config`: `output: 'export'` + `images: { unoptimized: true }` behind a build flag, so web and mobile share one codebase | the image failure is silent | ~2 h |
-| 8 | `CORS_ORIGINS` gains `capacitor://localhost` (and whatever `iosScheme` ends up being); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today | ~10 min |
-| 9 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | ~10 min, ops |
-| 10 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | 1 d |
-| 11 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | 0.5 d |
-| 12 | Session auto-save: likely **mandatory**, pending D2 | if the webview reloads on resume, unsaved session state dies | decide after D2 |
-| 13 | `100vh` → `100dvh`, keyboard-aware bottom bar, pending D3 | `safe-area-pb` already exists in `globals.css`; the keyboard case is untested | pending D3 |
+The **Basis** column says what the row rests on, using the same labels as the
+rest of this document — a row resting on `needs device` is a row that could
+still evaporate.
+
+| # | Change | Why | Basis | Effort |
+|---|---|---|---|---|
+| 1 | **`VoiceInput` provider abstraction** — one interface, two implementations, selected at runtime | see below | `documented` (product-spec:191 requires it) | ~0.5 d |
+| 2 | **Replace the feature check in `useSpeechRecognition` with a platform check** | see below; shipped code violates product-spec:191 | `observed` (the code), `documented` (why it matters) | ~0.5 d |
+| 3 | Dynamic routes → query params (or hash), 4 page files + 7 nav call sites | extensionless deep links all resolve to `index.html` | `documented` (Router.swift) + `observed (sim)` | 0.5–1 d |
+| 4 | Dynamic pages split into server shell + client component *(only if any path params are kept)* | `'use client'` cannot export `generateStaticParams` | `observed` (build error) | ~2 h |
+| 5 | Replace `clerkMiddleware` with a client-side guard (`<SignedIn>/<SignedOut>` or a redirecting layout) | `output: 'export'` emits no middleware; `src/middleware.ts` becomes dead code in the mobile build | `observed` (the harness runs this way) | 0.5 d |
+| 6 | `@clerk/nextjs` → `@clerk/clerk-react`, sign-in/sign-up to `routing="hash"` | the Next integration is middleware- and server-shaped | `observed` (sign-in flow used `#/factor-two`) | 0.5 d |
+| 7 | `next.config`: `output: 'export'` + `images: { unoptimized: true }` behind a build flag, so web and mobile share one codebase | the image failure is silent | `observed` | ~2 h |
+| 8 | `CORS_ORIGINS` gains `capacitor://localhost` (and whatever `iosScheme` ends up being); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today | `observed` (both directions) | ~10 min |
+| 9 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | `documented` (Clerk docs) | ~10 min, ops |
+| 10 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
+| 11 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | `observed` | 0.5 d |
+| 12 | Session auto-save: likely **mandatory**, pending D2 | if the webview reloads on resume, unsaved session state dies | **`needs device`** — the whole row is conditional | decide after D2 |
+| 13 | `100vh` → `100dvh`, keyboard-aware bottom bar, pending D3 | `safe-area-pb` already exists in `globals.css`; the keyboard case is untested | **`needs device`** | pending D3 |
 
 ### #1 — the `VoiceInput` provider abstraction (design this into Phase 0)
 
@@ -439,34 +446,69 @@ export function pickVoiceProvider(): VoiceProvider {
 ```
 
 Keep the callback shape Kantelo's hook already exposes
-(`onTranscript` / `onInterim` / `onError` / `onEnd`) and the change stays inside
+(`onTranscript` / `onInterimTranscript` / `onError` / `onEnd` —
+`useSpeechRecognition.ts:72-85`) and the change stays inside
 the hook — `VoiceInput.tsx` and every caller are untouched. Retrofitting this
 later means touching every consumer, which is why it belongs in Phase 0.
 
-### #2 — the design-tokens §6 fallback is wrong *on the web today*
+### #2 — the shipped voice gate violates an explicit spec rule  `observed` (code), `documented` (WKWebView)
 
-`docs/kantelo-design-tokens.md` §6 ("Voice input (mic button)", line 360) specifies:
+**Correction to how this spike originally framed it, and to #305's own wording.**
+I first wrote this up as "the design-tokens §6 fallback is wrong as specified"
+and asserted a live production bug as present-tense fact. Both were sloppy: the
+tokens doc specifies no detection mechanism, and nothing about WKWebView was
+observed from this Linux sandbox. The real finding is narrower, checkable
+without any inference about WKWebView, and stronger.
 
-> **Fallback:** If the Web Speech API is unavailable (Firefox, some mobile
-> browsers), hide the mic button entirely.
+**`docs/kantelo-product-spec.md:191` already states the rule** — this is not a
+discovery, it is a violation:
 
-and the implementation tests `'webkitSpeechRecognition' in window`. That
-property is **`true` in WKWebView**, where the API never fires a result
-([WebKit #239816](https://bugs.webkit.org/show_bug.cgi?id=239816)). So the check
-that is supposed to hide a useless mic button is exactly the check that shows
-one.
+> **Platform warning — do not use feature detection.** The Web Speech API is
+> *exposed but non-functional* inside WKWebView ([WebKit
+> #239816](https://bugs.webkit.org/show_bug.cgi?id=239816)) … `'webkitSpeechRecognition'
+> in window` therefore returns `true` where the API does nothing, so the "hide
+> the mic when unavailable" fallback specified in the design tokens doc silently
+> fails. … `VoiceInput` requires a **provider abstraction**: one interface, a Web
+> Speech implementation and a native-plugin implementation, selected by platform
+> check rather than feature check.
 
-This is **not** a Capacitor-only problem. Every iOS in-app browser — Instagram,
-Slack, Gmail, X — is WKWebView. A user who opens a Kantelo link from any of
-those today sees a mic button that pulses and produces nothing. It is a live
-production bug on the web, independent of whether Capacitor ever ships.
+**The shipped code does exactly what that line forbids** — `observed`, by
+reading the files:
 
-**It deserves its own ticket** — separate from the mobile-packaging decision on
-#54, because it should be fixed whether Capacitor wins or loses, and it is a
-small, self-contained change: replace the feature check with a platform check
-(WKWebView-on-iOS detection for the web build, `Capacitor.isNativePlatform()`
-for the app build), then hide the button or route to the native provider
-accordingly. Not filed here, as agreed.
+| Where | What it does |
+|---|---|
+| `frontend/src/components/ui/useSpeechRecognition.ts:47` | `return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null` — a feature check |
+| `useSpeechRecognition.ts:137` | `setSupported(getSpeechRecognitionCtor() != null)` |
+| `frontend/src/components/ui/VoiceInput.tsx:129` | `if (!supported) return null` — the hide-the-button behaviour keyed off that check |
+
+So the chain the spec warns about is present in `main` today: a feature check
+decides whether the mic button renders.
+
+**What is *not* established here.** That `'webkitSpeechRecognition' in window`
+is `true` in WKWebView while the API never fires is `documented` — WebKit
+#239816 and product-spec:191, not something this sandbox could run. The
+user-visible consequence (a mic button that pulses and produces nothing in
+Instagram/Slack/Gmail link previews) is `needs device` and is run-book step 5.
+The only thing `observed` on the platform axis is that the constructor is
+present in headless Chromium, where the API does work.
+
+For the record, `docs/kantelo-design-tokens.md` §6 line 360 is a *behavioural*
+requirement — "hide the mic button entirely" when the API is unavailable — and
+names no mechanism. It is the behaviour that product-spec:191 says silently
+fails; the tokens doc is not itself wrong.
+
+**Still worth its own ticket**, separate from the packaging decision on #54,
+because the fix stands whether Capacitor wins or loses: replace the feature
+check with a platform check (WKWebView-on-iOS detection for the web build,
+`Capacitor.isNativePlatform()` for the app build). Framing it as *"shipped code
+violates product-spec:191"* is both more accurate and easier to verify than
+*"there is a production incident"*. Not filed here — the manager is filing it.
+
+**Loose end worth recording:** product-spec:191 closes with "See
+`kantelo-capacitor-spike.md`", and that file does not exist in the repo. #305's
+own footer says the same name lives in someone's Downloads. This document is
+plausibly what that pointer wanted; if so, the spec line should be repointed at
+wherever this note ends up.
 
 ---
 
@@ -605,7 +647,8 @@ Go to `/mic`. The log already shows `platform`, the picked provider, and
 `'webkitSpeechRecognition' in window`.
 
 - **Screenshot that line.** Expected `true` on a platform where the API is
-  dead — that is the false positive the fallback bug depends on.
+  dead. That screenshot is the missing evidence for the claim in §2: it turns
+  product-spec:191's warning from `documented` into `observed`.
 - Tap the mic button. **Pass:** iOS shows *two* permission prompts (microphone,
   then speech recognition) with the copy from `Info.plist`. **Fail:** the app
   **terminates** — that means a usage-description key is missing.

@@ -1,0 +1,15 @@
+✔ Adding native Xcode project in ios in 20.18ms
+✔ add in 20.64ms
+✔ Copying web assets from out to ios/App/App/public in 11.18ms
+✔ Creating capacitor.config.json in ios/App/App in 391.11μs
+✔ copy ios in 26.19ms
+✔ Updating iOS plugins in 4.47ms
+[warn] @capacitor-community/speech-recognition does not have a Package.swift
+[warn] Some installed Capacitor plugins are not compatible with SPM
+[info] Writing Package.swift
+[info] Found 1 Capacitor plugin for ios:
+       @capacitor-community/speech-recognition@7.0.1
+✔ update ios in 21.34ms
+[success] ios platform added!
+Follow the Developer Workflow guide to get building:
+https://capacitorjs.com/docs/basics/workflow
