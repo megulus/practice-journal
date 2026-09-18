@@ -10,6 +10,7 @@ const {
   mockGetHeatmap,
   mockGetComparison,
   mockGetRatings,
+  mockGetSettings,
   mockApi,
 } = vi.hoisted(() => {
   const mockListInstruments = vi.fn()
@@ -17,6 +18,7 @@ const {
   const mockGetHeatmap = vi.fn()
   const mockGetComparison = vi.fn()
   const mockGetRatings = vi.fn()
+  const mockGetSettings = vi.fn()
   // Stable identity, like the real memoized useApi — a fresh object per render
   // would retrigger the load effects forever.
   return {
@@ -25,6 +27,7 @@ const {
     mockGetHeatmap,
     mockGetComparison,
     mockGetRatings,
+    mockGetSettings,
     mockApi: {
       listInstruments: mockListInstruments,
       getHistory: mockGetHistory,
@@ -32,6 +35,7 @@ const {
       getHeatmap: mockGetHeatmap,
       getComparison: mockGetComparison,
       getRatings: mockGetRatings,
+      getSettings: mockGetSettings,
     },
   }
 })
@@ -86,6 +90,12 @@ describe('ProgressPage', () => {
     })
     mockGetRatings.mockReset()
     mockGetRatings.mockResolvedValue({ weeks: [] })
+    mockGetSettings.mockReset()
+    mockGetSettings.mockResolvedValue({
+      suggestions_preference: 'all',
+      default_session_duration_minutes: 30,
+      week_starts_on: 'monday',
+    })
   })
 
   it('opens on History for the first instrument', async () => {
@@ -161,6 +171,69 @@ describe('ProgressPage', () => {
     await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(2, localYear()))
     expect(mockGetComparison).toHaveBeenLastCalledWith(2)
     expect(mockGetRatings).toHaveBeenLastCalledWith(2, 4)
+  })
+
+  it("hands Insights the selected instrument's last-practiced date", async () => {
+    // #287: with every chart window empty, whether this is a first-run user or
+    // a returning one is only answerable from `last_practiced_at`, which lives
+    // in this page's instruments array. Pins that it actually reaches down.
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ last_practiced_at: '2025-12-18' }),
+    ])
+    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Practice calendar' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Last session on this instrument: Dec 18, 2025/),
+    ).toBeInTheDocument()
+  })
+
+  it('passes the selected instrument\u2019s date, not the first one\u2019s', async () => {
+    // `instruments[0]` in place of `instruments.find(...)` would leave every
+    // other assertion in this file green, and would show a lapsed note on an
+    // instrument that has never been touched.
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ id: 1, name: 'Violin', last_practiced_at: '2025-12-18' }),
+      makeInstrument({ id: 2, name: 'Viola', last_practiced_at: null }),
+    ])
+    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    expect(
+      await screen.findByText(/Last session on this instrument: Dec 18, 2025/),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Viola' }))
+    expect(
+      await screen.findByText('Your first session starts the picture.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Last session on this instrument/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('still first-runs an instrument that has never been practiced', async () => {
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ last_practiced_at: null }),
+    ])
+    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    expect(
+      await screen.findByText('Your first session starts the picture.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Practice calendar' }),
+    ).not.toBeInTheDocument()
   })
 
   it('leaves the tab stop to the panel content, which both tabs have', async () => {

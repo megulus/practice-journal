@@ -15,7 +15,14 @@ export function ratingTrendSummary(weeks: RatingsWeek[]): string {
   const rated = weeks.filter((w) => w.total > 0)
 
   if (rated.length === 0) {
-    return 'No ratings yet — rate a few exercises and the trend shows up here.'
+    // Names the window rather than saying "yet": these weeks are the last
+    // four, and a user returning from a break has ratings — just not in here
+    // (#287). The chart above says the same thing with its own weeks count.
+    return weeks.length === 0
+      ? 'No ratings in this window — rate a few exercises and the trend shows up here.'
+      : `No ratings in the last ${weeks.length} week${
+          weeks.length === 1 ? '' : 's'
+        } — rate a few exercises and the trend shows up here.`
   }
 
   const share = (w: RatingsWeek) => w.step_forward / w.total

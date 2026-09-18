@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef } from 'react'
 import { formatDuration } from '@/lib/duration'
 import {
   buildHeatmapWeeks,
+  dayLabels,
   heatmapCellLabel,
   heatmapScrollLeft,
   type HeatmapLevel,
 } from './heatmapGrid'
-import type { HeatmapDay } from '@/lib/types'
+import type { HeatmapDay, WeekStart } from '@/lib/types'
 
 const CELL = 11
 const GAP = 3
@@ -23,13 +24,17 @@ const LEVEL_CLASS: Record<HeatmapLevel, string> = {
   4: 'bg-heatmap-full',
 }
 
-const DAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
-
 /**
  * Practice calendar heatmap (spec §5.7, Insights #1): a GitHub-style
- * contribution grid over one calendar year. Rows are days of the week
- * (Monday first), columns are weeks, month names sit above the column that
- * holds the 1st.
+ * contribution grid over one calendar year. Rows are days of the week,
+ * columns are weeks, month names sit above the column that holds the 1st.
+ *
+ * The first row follows the user's **Week starts on** preference (spec §5.8),
+ * so the grid's week *boundary* matches the comparison and rating-trend charts
+ * below it — those are bucketed server-side from the same setting (#300).
+ * Only the boundary: `WeekComparison` still renders its bars in a hardcoded
+ * Monday-first day order, so a Sunday-preference user gets Sunday-first rows
+ * above a Monday-first bar chart. Tracked separately, not fixed here.
  *
  * Cell intensity is practice *duration*, not a binary practiced/didn't — the
  * point is "am I showing up", with weight for the days you showed up properly.
@@ -38,11 +43,17 @@ const DAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
 export function PracticeHeatmap({
   year,
   days,
+  weekStartsOn,
 }: {
   year: number
   days: HeatmapDay[]
+  weekStartsOn: WeekStart
 }) {
-  const weeks = useMemo(() => buildHeatmapWeeks(year, days), [year, days])
+  const weeks = useMemo(
+    () => buildHeatmapWeeks(year, days, weekStartsOn),
+    [year, days, weekStartsOn],
+  )
+  const labels = useMemo(() => dayLabels(weekStartsOn), [weekStartsOn])
   const scroller = useRef<HTMLDivElement>(null)
 
   // Open on the current week rather than on January.
@@ -102,11 +113,12 @@ export function PracticeHeatmap({
           <div className="flex" style={{ gap: GAP }}>
             {/* Sticky so the weekday labels survive scrolling into the year. */}
             <div
+              data-testid="heatmap-day-labels"
               className="sticky left-0 z-10 flex flex-shrink-0 flex-col bg-card-bg"
               style={{ gap: GAP, width: DAY_LABEL_WIDTH }}
               aria-hidden="true"
             >
-              {DAY_LABELS.map((label, i) => (
+              {labels.map((label, i) => (
                 <div
                   key={i}
                   className="text-[10px] leading-none text-text-tertiary"
