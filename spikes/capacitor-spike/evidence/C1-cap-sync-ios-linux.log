@@ -1,0 +1,11 @@
+✔ Copying web assets from out to ios/App/App/public in 16.10ms
+✔ Creating capacitor.config.json in ios/App/App in 553.84μs
+✔ copy ios in 31.52ms
+✔ Updating iOS plugins in 2.37ms
+[warn] Skipping pod install because CocoaPods is not installed
+[warn] Unable to find "xcodebuild". Skipping xcodebuild clean step...
+✔ Updating iOS native dependencies with pod install in 5.15ms
+[info] Found 1 Capacitor plugin for ios:
+       @capacitor-community/speech-recognition@7.0.1
+✔ update ios in 29.73ms
+[info] Sync finished in 0.086s

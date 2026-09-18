@@ -1,0 +1,69 @@
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/9) ...
+   Generating static pages (2/9) 
+Error: @clerk/clerk-react: SignedOut can only be used within the <ClerkProvider /> component. Learn more: https://clerk.com/docs/components/clerk-provider
+    at Object.throwMissingClerkProviderError (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:1651)
+    at /root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8409
+    at ts (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:19208)
+    at tG (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8398)
+    at t1 (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:21:184)
+    at nj (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
+    at nM (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
+    at nL (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
+    at nB (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:67539)
+    at nD (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:66681) {
+  digest: '4148448409'
+}
+
+Error occurred prerendering page "/sign-in". Read more: https://nextjs.org/docs/messages/prerender-error
+
+Error: @clerk/clerk-react: SignedOut can only be used within the <ClerkProvider /> component. Learn more: https://clerk.com/docs/components/clerk-provider
+    at Object.throwMissingClerkProviderError (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:1651)
+    at /root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8409
+    at ts (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:19208)
+    at tG (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8398)
+    at t1 (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:21:184)
+    at nj (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
+    at nM (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
+    at nL (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
+    at nB (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:67539)
+    at nD (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:66681)
+   Generating static pages (4/9) 
+   Generating static pages (6/9) 
+Error: @clerk/clerk-react: useAuth can only be used within the <ClerkProvider /> component. Learn more: https://clerk.com/docs/components/clerk-provider
+    at Object.throwMissingClerkProviderError (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:1651)
+    at /root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8409
+    at ts (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:19208)
+    at tG (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8398)
+    at tK (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8710)
+    at o (/root/practice-journal/spikes/capacitor-spike/.next/server/app/protected/page.js:1:2495)
+    at nj (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
+    at nM (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
+    at nL (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
+    at nI (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47011) {
+  digest: '786794501'
+}
+
+Error occurred prerendering page "/protected". Read more: https://nextjs.org/docs/messages/prerender-error
+
+Error: @clerk/clerk-react: useAuth can only be used within the <ClerkProvider /> component. Learn more: https://clerk.com/docs/components/clerk-provider
+    at Object.throwMissingClerkProviderError (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:1651)
+    at /root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8409
+    at ts (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:14:19208)
+    at tG (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8398)
+    at tK (/root/practice-journal/spikes/capacitor-spike/.next/server/chunks/175.js:20:8710)
+    at o (/root/practice-journal/spikes/capacitor-spike/.next/server/app/protected/page.js:1:2495)
+    at nj (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
+    at nM (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
+    at nL (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
+    at nI (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47011)
+ ✓ Generating static pages (9/9)
+
+> Export encountered errors on following paths:
+	/protected/page: /protected
+	/sign-in/[[...rest]]/page: /sign-in

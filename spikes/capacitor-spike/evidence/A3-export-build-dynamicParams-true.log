@@ -1,0 +1,17 @@
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+
+> Build error occurred
+Error: Page "/thing/[id]/page" cannot use both "use client" and export function "generateStaticParams()".
+    at getPageStaticInfo (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/analysis/get-page-static-info.js:468:19)
+    at async getStaticInfoIncludingLayouts (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/entries.js:108:28)
+    at async /root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/entries.js:410:32
+    at async Promise.all (index 4)
+    at async Promise.all (index 0)
+    at async createEntrypoints (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/entries.js:550:5)
+    at async Span.traceAsyncFn (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/trace/trace.js:154:20)
+    at async webpackBuildImpl (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/webpack-build/impl.js:104:25)
+    at async Object.workerMain (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/webpack-build/impl.js:330:20) {
+  type: 'Error'
+}
