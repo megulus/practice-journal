@@ -211,13 +211,17 @@ describe('InsightsPanel', () => {
     expect(screen.queryByText(/Nothing to chart yet/)).not.toBeInTheDocument()
   })
 
-  it('names the gap above a lapsed user\u2019s charts', async () => {
+  it('says the charts do not reach back, without guessing how far', async () => {
+    // Heatmap year 2026, last session 2025 — the widest window genuinely
+    // predates it. `!charted` cannot tell us the gap is *weeks*: it only
+    // guarantees the whole charted year is empty, so the last session could
+    // be last December or 2019. The headline must not put a length on it.
     resolveEmptyWindows()
     render(<InsightsPanel instrumentId={7} lastPracticedAt="2025-12-18" />)
 
     expect(
       await screen.findByText(
-        'Nothing in the last few weeks \u2014 the practice before that is still here.',
+        'These charts don\u2019t reach back as far as your last session.',
       ),
     ).toBeInTheDocument()
     // The date is the acknowledgement — a bare "some time ago" would be the
@@ -227,14 +231,78 @@ describe('InsightsPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('leaves the gap note off when the windows have data', async () => {
+  it('does not claim a gap when the last session is inside the charted year', async () => {
+    // The other way to reach the note: the heatmap's year *does* cover the
+    // last session and still drew nothing, which means that session logged no
+    // minutes and no ratings (a quick-added section is created with
+    // `actual_duration_minutes=0`, and `last_practiced_at` is a plain
+    // max(practice_date) that doesn't care). Claiming a gap over a session
+    // dated inside the charted year is #287's own bug, reversed.
+    resolveEmptyWindows()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt="2026-03-02" />)
+
+    expect(
+      await screen.findByText(
+        'Your last session didn\u2019t record any time or ratings.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Last session on this instrument: Mar 2, 2026\./),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/reach back as far as/)).not.toBeInTheDocument()
+  })
+
+  it('never claims a gap above a session dated today', async () => {
+    // The worst rendering of the old copy: "Nothing in the last few weeks"
+    // sitting directly above "Last session on this instrument: Today."
+    // Built from the real clock so it can't rot into a date that stops
+    // being today.
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(now.getDate()).padStart(2, '0')}`
+    resolveEmptyWindows()
+    mockGetHeatmap.mockResolvedValue({ year: localYear(), days: [] })
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={today} />)
+
+    expect(
+      await screen.findByText(/Last session on this instrument: Today\./),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Your last session didn\u2019t record any time or ratings.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/reach back as far as/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/last few weeks/)).not.toBeInTheDocument()
+  })
+
+  it('leaves the note off entirely when the windows have data', async () => {
     resolveAll()
     render(<InsightsPanel instrumentId={7} lastPracticedAt="2026-07-20" />)
 
     await screen.findByRole('heading', { name: 'Practice calendar' })
     expect(
-      screen.queryByText(/the practice before that is still here/),
+      screen.queryByText(/Last session on this instrument/),
     ).not.toBeInTheDocument()
+  })
+
+  it('degrades to the default week start when settings fails', async () => {
+    // Settings only picks the grid's first column. Before #300 this panel
+    // never fetched it, so letting it share the charts' rejection path would
+    // hand a settings outage the power to blank a screen it couldn't
+    // previously reach.
+    resolveAll()
+    mockGetSettings.mockRejectedValue(new Error('settings offline'))
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Practice calendar' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: "How it's going" }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(dayLabelRow()).toEqual(['Mon', '', 'Wed', '', 'Fri', '', ''])
   })
 
   it('charts a week with ratings but no logged minutes this year', async () => {

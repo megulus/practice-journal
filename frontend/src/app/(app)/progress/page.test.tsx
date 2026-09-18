@@ -193,6 +193,32 @@ describe('ProgressPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('passes the selected instrument\u2019s date, not the first one\u2019s', async () => {
+    // `instruments[0]` in place of `instruments.find(...)` would leave every
+    // other assertion in this file green, and would show a lapsed note on an
+    // instrument that has never been touched.
+    const user = userEvent.setup()
+    mockListInstruments.mockResolvedValue([
+      makeInstrument({ id: 1, name: 'Violin', last_practiced_at: '2025-12-18' }),
+      makeInstrument({ id: 2, name: 'Viola', last_practiced_at: null }),
+    ])
+    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+    render(<ProgressPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Insights' }))
+    expect(
+      await screen.findByText(/Last session on this instrument: Dec 18, 2025/),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Viola' }))
+    expect(
+      await screen.findByText('Your first session starts the picture.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Last session on this instrument/),
+    ).not.toBeInTheDocument()
+  })
+
   it('still first-runs an instrument that has never been practiced', async () => {
     const user = userEvent.setup()
     mockListInstruments.mockResolvedValue([

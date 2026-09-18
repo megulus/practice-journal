@@ -110,6 +110,26 @@ describe('buildHeatmapWeeks', () => {
     expect(cells.some((c) => c!.date === '2028-02-29')).toBe(true)
   })
 
+  it('keeps the last week of the year across a midnight DST transition', () => {
+    // `cursor` walks by setDate(+7), preserving local wall-clock time, so in a
+    // zone that springs forward at local midnight it settles on 01:00. A
+    // timestamp comparison against Dec 31 00:00 then drops the final column.
+    // Needs a week starting exactly on Dec 31, so only the Sunday option
+    // reaches it — 2023, 2028 and 2034 in America/Santiago, Asia/Beirut, Cuba.
+    const tz = process.env.TZ
+    process.env.TZ = 'America/Santiago'
+    try {
+      for (const year of [2023, 2028, 2034]) {
+        const cells = cellsFor(
+          buildHeatmapWeeks(year, [], 'sunday', new Date(year, 11, 31)),
+        )
+        expect(cells[cells.length - 1]!.date).toBe(`${year}-12-31`)
+      }
+    } finally {
+      process.env.TZ = tz
+    }
+  })
+
   it('defaults to Monday-first, so an un-set preference is the old grid', () => {
     // The backend's `week_starts_on` column defaults to 'monday'; this pins
     // that the grid's default matches it rather than being merely arbitrary.

@@ -30,8 +30,11 @@ const LEVEL_CLASS: Record<HeatmapLevel, string> = {
  * columns are weeks, month names sit above the column that holds the 1st.
  *
  * The first row follows the user's **Week starts on** preference (spec §5.8),
- * so the grid's week boundary matches the comparison and rating-trend charts
+ * so the grid's week *boundary* matches the comparison and rating-trend charts
  * below it — those are bucketed server-side from the same setting (#300).
+ * Only the boundary: `WeekComparison` still renders its bars in a hardcoded
+ * Monday-first day order, so a Sunday-preference user gets Sunday-first rows
+ * above a Monday-first bar chart. Tracked separately, not fixed here.
  *
  * Cell intensity is practice *duration*, not a binary practiced/didn't — the
  * point is "am I showing up", with weight for the days you showed up properly.

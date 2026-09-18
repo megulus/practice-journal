@@ -13,28 +13,35 @@ import type {
   ComparisonResponse,
   HeatmapResponse,
   RatingsResponse,
-  UserSettings,
+  WeekStart,
 } from '@/lib/types'
 
 const RATING_WEEKS = 4
+
+/** What the `user_settings` column defaults to, and what the grid falls back on. */
+const DEFAULT_WEEK_START: WeekStart = 'monday'
 
 interface InsightsData {
   heatmap: HeatmapResponse
   comparison: ComparisonResponse
   ratings: RatingsResponse
-  settings: UserSettings
+  /** Only the one field the grid needs — see the fallback in `load`. */
+  weekStartsOn: WeekStart
 }
 
 /**
  * Progress → Insights (spec §5.7): the practice calendar, this-week-vs-last
  * comparison, and rating trend for the selected instrument.
  *
- * The endpoints are independent, so they load together and the panel shows one
- * loading/error state rather than three — partial charts would read as missing
- * data rather than a slow network. Settings rides along in the same
- * `Promise.all`: the heatmap's week boundary comes from `week_starts_on`
- * (#300), and fetching it separately would either flash a Monday-first grid
- * that then re-lays-out, or add a second spinner to the same card.
+ * The three chart endpoints are independent, so they load together and the
+ * panel shows one loading/error state rather than three — partial charts would
+ * read as missing data rather than a slow network.
+ *
+ * Settings rides along in the same `Promise.all` because the heatmap's week
+ * boundary comes from `week_starts_on` (#300) and a separate fetch would
+ * either flash a Monday-first grid that then re-lays-out or add a second
+ * spinner to one card — but it is *not* allowed to fail the panel with them.
+ * It picks the grid's first column; the charts are the panel.
  *
  * Not here yet: the pattern-level suggestion card spec §5.7 puts above both
  * sub-tabs. The rules engine computes that tier but no endpoint exposes it —
@@ -75,16 +82,24 @@ export function InsightsPanel({
     setLoading(true)
     setError(null)
     try {
-      const [heatmap, comparison, ratings, settings] = await Promise.all([
+      const [heatmap, comparison, ratings, weekStartsOn] = await Promise.all([
         // Ask for the browser's year rather than letting the endpoint default
         // to the server's UTC one — see localYear.
         api.getHeatmap(instrumentId, localYear()),
         api.getComparison(instrumentId),
         api.getRatings(instrumentId, RATING_WEEKS),
-        api.getSettings(),
+        // Caught on its own: a settings outage should cost the user their
+        // first-column preference, not all three charts. Before #300 this
+        // panel never fetched settings, so an un-caught promise here would
+        // hand /api/settings the power to blank a screen it previously
+        // couldn't reach. The fallback is the same default the column has.
+        api
+          .getSettings()
+          .then((s) => s.week_starts_on)
+          .catch(() => DEFAULT_WEEK_START),
       ])
       if (generation !== generationRef.current) return
-      setData({ heatmap, comparison, ratings, settings })
+      setData({ heatmap, comparison, ratings, weekStartsOn })
     } catch (err) {
       if (generation !== generationRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load insights')
@@ -136,14 +151,17 @@ export function InsightsPanel({
   return (
     <div className="space-y-4">
       {!charted && lastPracticedAt !== null && (
-        <LapsedNote lastPracticedAt={lastPracticedAt} />
+        <QuietWindowNote
+          lastPracticedAt={lastPracticedAt}
+          chartedYear={data.heatmap.year}
+        />
       )}
 
       <InsightCard title="Practice calendar">
         <PracticeHeatmap
           year={data.heatmap.year}
           days={data.heatmap.days}
-          weekStartsOn={data.settings.week_starts_on}
+          weekStartsOn={data.weekStartsOn}
         />
       </InsightCard>
 
@@ -214,21 +232,51 @@ function FirstRunState() {
 }
 
 /**
- * History exists but falls outside every chart's window. Sits above the
- * charts rather than replacing them, and says why they read empty — spec
- * §5.2's framing applies here too: an observation about the window, not a
- * verdict on the user.
+ * Why the three charts are empty for a user who does have history.
+ *
+ * There are exactly two ways to get here, and they need different sentences —
+ * the first draft of this note assumed only the second and could contradict
+ * itself out loud. The widest of the three windows is the heatmap's calendar
+ * year, so:
+ *
+ * - **Last session outside the charted year** — every window genuinely
+ *   predates the charts. A real gap, of at least "since January" and possibly
+ *   years; the note must not put a length on it, because `!charted` does not
+ *   tell us one.
+ * - **Last session inside the charted year** — the widest window *does* cover
+ *   it and the charts still drew nothing, which can only mean that session
+ *   logged no minutes and no ratings (`hasWindowData` tests `> 0`, while
+ *   `last_practiced_at` is a plain `max(practice_date)` over completed logs —
+ *   reachable via a quick-added section, which is created with
+ *   `actual_duration_minutes=0`). Saying "nothing in the last few weeks" over
+ *   a session dated today is the same denial #287 is about, pointed the other
+ *   way.
+ *
+ * Either way the last-session date is the acknowledgement, and spec §5.2's
+ * framing holds: an observation about the window, never a verdict on the user.
  */
-function LapsedNote({ lastPracticedAt }: { lastPracticedAt: string }) {
+function QuietWindowNote({
+  lastPracticedAt,
+  chartedYear,
+}: {
+  lastPracticedAt: string
+  chartedYear: number
+}) {
+  const lastYear = Number(lastPracticedAt.slice(0, 4))
+  const withinChartedYear = Number.isFinite(lastYear) && lastYear === chartedYear
+
   return (
     <Card>
       <p className="mb-1 text-sm text-text-secondary">
-        Nothing in the last few weeks — the practice before that is still here.
+        {withinChartedYear
+          ? 'Your last session didn\u2019t record any time or ratings.'
+          : 'These charts don\u2019t reach back as far as your last session.'}
       </p>
       <p className="text-xs text-text-tertiary">
         Last session on this instrument: {formatSessionDate(lastPracticedAt)}.
-        These charts cover this year and the last few weeks, so they&rsquo;ll
-        start filling in again with your next session.
+        {withinChartedYear
+          ? ' The calendar shades each day by how long you played and the trend follows your ratings, so a session with neither leaves them empty.'
+          : ` The practice calendar covers ${chartedYear} and the two charts below it the last few weeks, so they\u2019ll start filling in again with your next session.`}
       </p>
     </Card>
   )

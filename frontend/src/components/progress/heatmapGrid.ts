@@ -120,7 +120,16 @@ export function buildHeatmapWeeks(
   const weeks: HeatmapWeek[] = []
   const cursor = weekStartOf(yearStart, weekStartsOn)
 
-  while (cursor <= yearEnd) {
+  // Compare calendar days, not timestamps. `cursor` walks by `setDate(+7)`,
+  // which preserves local wall-clock time — so in a zone whose DST transition
+  // lands on local midnight (America/Santiago, Asia/Beirut, Cuba) it
+  // normalizes to 01:00 and stays there. A `cursor <= yearEnd` on Date objects
+  // then reads Dec 31 01:00 > Dec 31 00:00 and drops the year's last column:
+  // real in 2023, 2028 and 2034, and only under the Sunday option, since it
+  // needs a week to begin on Dec 31. Keys make the comparison say what it means.
+  const endKey = toKey(yearEnd)
+
+  while (toKey(cursor) <= endKey) {
     const week: HeatmapWeek = { days: [], monthLabel: null }
     for (let i = 0; i < 7; i++) {
       const d = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + i)
