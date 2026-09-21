@@ -18,11 +18,23 @@ function week(
 }
 
 describe('ratingTrendSummary', () => {
-  it('nudges toward rating when nothing has been rated', () => {
-    expect(ratingTrendSummary([])).toMatch(/No ratings yet/)
+  it('nudges toward rating, naming the window rather than claiming "never"', () => {
+    // The old copy said "No ratings yet", which is a claim about all time from
+    // a four-week window — the #287 denial, one level down inside the chart.
     expect(
-      ratingTrendSummary([week('2026-07-20', 0, 0, 0), week('2026-07-13', 0, 0, 0)]),
-    ).toMatch(/No ratings yet/)
+      ratingTrendSummary([
+        week('2026-07-20', 0, 0, 0),
+        week('2026-07-13', 0, 0, 0),
+        week('2026-07-06', 0, 0, 0),
+        week('2026-06-29', 0, 0, 0),
+      ]),
+    ).toBe(
+      'No ratings in the last 4 weeks — rate a few exercises and the trend shows up here.',
+    )
+    expect(ratingTrendSummary([week('2026-07-20', 0, 0, 0)])).toMatch(
+      /No ratings in the last 1 week —/,
+    )
+    expect(ratingTrendSummary([])).toMatch(/No ratings in this window/)
   })
 
   it('reports the single week when there is nothing to compare against', () => {

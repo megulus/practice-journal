@@ -354,7 +354,7 @@ Every Insights time window below is deliberately chosen. **Do not extend any of 
 
 **1. Practice calendar heatmap** **[v1]**
 
-A GitHub-style contribution grid showing practice activity over the year. Rows are days of the week (Mon–Sun), columns are months. Cell intensity maps to practice duration (not just binary practiced/didn't-practice), using the teal ramp: empty (no practice), light, medium, dark, full. A legend ("Less → More") sits below the grid.
+A GitHub-style contribution grid showing practice activity over the year. Rows are days of the week, ordered by the user's **Week starts on** preference (§5.8) so the grid's week boundary matches the two charts below it; columns are months. Cell intensity maps to practice duration (not just binary practiced/didn't-practice), using the teal ramp: empty (no practice), light, medium, dark, full. A legend ("Less → More") sits below the grid.
 
 This is the primary consistency motivator — the user can see the pattern of their week/month at a glance. It answers: "Am I showing up?"
 
@@ -417,7 +417,7 @@ Note the "Fewer" description omits the Insights tab: pattern-level suggestions a
 
 Slim for v1:
 - **Default session duration** — used by the quick-start wizard when generating a plan. Options: 15, 30, 45, 60 min.
-- **Week starts on** — affects the practice calendar heatmap and weekly comparisons in Insights. Options: Monday / Sunday.
+- **Week starts on** — sets the week boundary for everything calendar-aligned in Insights: the practice calendar heatmap's rows, the weekly comparison, and the rating trend. Options: Monday / Sunday. It does *not* affect History's time-range filters, which are rolling windows by design (see §5.7).
 
 Additional preferences can slot in here as needed in later releases.
 

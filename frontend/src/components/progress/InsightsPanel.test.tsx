@@ -6,26 +6,36 @@ import type {
   ComparisonResponse,
   DailyMinutes,
   RatingsResponse,
+  UserSettings,
+  WeekStart,
 } from '@/lib/types'
 
-const { mockGetHeatmap, mockGetComparison, mockGetRatings, mockApi } =
-  vi.hoisted(() => {
-    const mockGetHeatmap = vi.fn()
-    const mockGetComparison = vi.fn()
-    const mockGetRatings = vi.fn()
-    // Stable identity, like the real memoized useApi — a fresh object per
-    // render would retrigger the load effect forever.
-    return {
-      mockGetHeatmap,
-      mockGetComparison,
-      mockGetRatings,
-      mockApi: {
-        getHeatmap: mockGetHeatmap,
-        getComparison: mockGetComparison,
-        getRatings: mockGetRatings,
-      },
-    }
-  })
+const {
+  mockGetHeatmap,
+  mockGetComparison,
+  mockGetRatings,
+  mockGetSettings,
+  mockApi,
+} = vi.hoisted(() => {
+  const mockGetHeatmap = vi.fn()
+  const mockGetComparison = vi.fn()
+  const mockGetRatings = vi.fn()
+  const mockGetSettings = vi.fn()
+  // Stable identity, like the real memoized useApi — a fresh object per
+  // render would retrigger the load effect forever.
+  return {
+    mockGetHeatmap,
+    mockGetComparison,
+    mockGetRatings,
+    mockGetSettings,
+    mockApi: {
+      getHeatmap: mockGetHeatmap,
+      getComparison: mockGetComparison,
+      getRatings: mockGetRatings,
+      getSettings: mockGetSettings,
+    },
+  }
+})
 
 vi.mock('@/lib/useApi', () => ({ useApi: () => mockApi }))
 
@@ -58,10 +68,26 @@ function comparison(thisMinutes = 0, lastMinutes = 0): ComparisonResponse {
   }
 }
 
+function settings(weekStartsOn: WeekStart = 'monday'): UserSettings {
+  return {
+    suggestions_preference: 'all',
+    default_session_duration_minutes: 30,
+    week_starts_on: weekStartsOn,
+  }
+}
+
 const NO_RATINGS: RatingsResponse = {
   weeks: [
     { week_start: '2026-07-20', step_forward: 0, steady: 0, step_back: 0, total: 0 },
   ],
+}
+
+/** Nothing in any of the three chart windows — the #287 starting point. */
+function resolveEmptyWindows() {
+  mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
+  mockGetComparison.mockResolvedValue(comparison())
+  mockGetRatings.mockResolvedValue(NO_RATINGS)
+  mockGetSettings.mockResolvedValue(settings())
 }
 
 function resolveAll() {
@@ -75,6 +101,13 @@ function resolveAll() {
       { week_start: '2026-07-20', step_forward: 3, steady: 1, step_back: 1, total: 5 },
     ],
   })
+  mockGetSettings.mockResolvedValue(settings())
+}
+
+function dayLabelRow(): string[] {
+  return Array.from(screen.getByTestId('heatmap-day-labels').children).map(
+    (el) => el.textContent ?? '',
+  )
 }
 
 describe('InsightsPanel', () => {
@@ -82,11 +115,12 @@ describe('InsightsPanel', () => {
     mockGetHeatmap.mockReset()
     mockGetComparison.mockReset()
     mockGetRatings.mockReset()
+    mockGetSettings.mockReset().mockResolvedValue(settings())
   })
 
   it('renders all three insights for the instrument', async () => {
     resolveAll()
-    render(<InsightsPanel instrumentId={7} />)
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
 
     expect(
       await screen.findByRole('heading', { name: 'Practice calendar' }),
@@ -106,30 +140,173 @@ describe('InsightsPanel', () => {
     expect(mockGetRatings).toHaveBeenCalledWith(7, 4)
   })
 
+  it('anchors the heatmap grid to the week_starts_on preference', async () => {
+    // The whole point of #300: the grid's week boundary has to come from the
+    // same setting the comparison and rating-trend charts below it use, which
+    // means settings is part of this panel's load, not a Monday-first constant.
+    resolveAll()
+    mockGetSettings.mockResolvedValue(settings('sunday'))
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
+
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(mockGetSettings).toHaveBeenCalled()
+    expect(dayLabelRow()).toEqual(['', 'Mon', '', 'Wed', '', 'Fri', ''])
+  })
+
+  it('leaves the grid Monday-first on the default preference', async () => {
+    resolveAll()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
+
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(dayLabelRow()).toEqual(['Mon', '', 'Wed', '', 'Fri', '', ''])
+  })
+
   it('refetches when the instrument changes', async () => {
     resolveAll()
-    const { rerender } = render(<InsightsPanel instrumentId={7} />)
+    const { rerender } = render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
     await screen.findByRole('heading', { name: 'Practice calendar' })
 
-    rerender(<InsightsPanel instrumentId={8} />)
+    rerender(<InsightsPanel instrumentId={8} lastPracticedAt={null} />)
     await waitFor(() => expect(mockGetHeatmap).toHaveBeenLastCalledWith(8, localYear()))
     expect(mockGetComparison).toHaveBeenLastCalledWith(8)
     expect(mockGetRatings).toHaveBeenLastCalledWith(8, 4)
   })
 
-  it('shows one empty state rather than three blank charts', async () => {
-    mockGetHeatmap.mockResolvedValue({ year: 2026, days: [] })
-    mockGetComparison.mockResolvedValue(comparison())
-    mockGetRatings.mockResolvedValue(NO_RATINGS)
-    render(<InsightsPanel instrumentId={7} />)
+  it('shows one first-run state rather than three blank charts', async () => {
+    resolveEmptyWindows()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
 
-    expect(await screen.findByText('Nothing to chart yet.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Your first session starts the picture.'),
+    ).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'Practice calendar' }),
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'Start practicing' }),
     ).toBeInTheDocument()
+  })
+
+  it('charts a lapsed user rather than telling them they never practiced', async () => {
+    // #287: every window signal is recency-scoped, so a user returning from a
+    // break looks identical to a brand-new one. `last_practiced_at` is the
+    // un-windowed tiebreak — with it set, the charts render with the gap
+    // visible and nothing claims there is no history.
+    resolveEmptyWindows()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt="2025-12-18" />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Practice calendar' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'This week vs. last' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: "How it's going" }),
+    ).toBeInTheDocument()
+
+    expect(
+      screen.queryByText('Your first session starts the picture.'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/Nothing to chart yet/)).not.toBeInTheDocument()
+  })
+
+  it('states what the calendar covers, without guessing how long the gap is', async () => {
+    // Heatmap year 2026, last session 2025 — the widest window genuinely
+    // predates it. `!charted` cannot tell us the gap is *weeks*: it only
+    // guarantees the whole charted year is empty, so the last session could
+    // be last December or 2019. The headline puts no length on it.
+    resolveEmptyWindows()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt="2025-12-18" />)
+
+    expect(
+      await screen.findByText('Your practice calendar for 2026 is empty so far.'),
+    ).toBeInTheDocument()
+    // The date is the acknowledgement — a bare "some time ago" would be the
+    // same denial in softer words. No trailing clause outside the year: the
+    // date needs no explaining.
+    expect(
+      screen.getByText('Last session on this instrument: Dec 18, 2025.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/record any time or ratings/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not claim a gap when the last session is inside the charted year', async () => {
+    // The other way to reach the note: the heatmap's year *does* cover the
+    // last session and still drew nothing, which means that session logged no
+    // minutes and no ratings (a quick-added section is created with
+    // `actual_duration_minutes=0`, and `last_practiced_at` is a plain
+    // max(practice_date) that doesn't care). Claiming a gap over a session
+    // dated inside the charted year is #287's own bug, reversed.
+    resolveEmptyWindows()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt="2026-03-02" />)
+
+    // Same headline as the gap case — only the trailing clause branches, and
+    // the date's period is replaced by it rather than sitting beside it.
+    expect(
+      await screen.findByText('Your practice calendar for 2026 is empty so far.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Last session on this instrument: Mar 2, 2026 \u2014 it didn\u2019t record any time or ratings.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('never claims a gap above a session dated today', async () => {
+    // The worst rendering of the original copy: "Nothing in the last few
+    // weeks" sitting directly above "Last session on this instrument: Today."
+    // Built from the real clock so it can't rot into a date that stops being
+    // today.
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(now.getDate()).padStart(2, '0')}`
+    resolveEmptyWindows()
+    mockGetHeatmap.mockResolvedValue({ year: localYear(), days: [] })
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={today} />)
+
+    expect(
+      await screen.findByText(
+        'Last session on this instrument: Today \u2014 it didn\u2019t record any time or ratings.',
+      ),
+    ).toBeInTheDocument()
+    // The clause is what keeps "Today" from reading as a non-sequitur under a
+    // headline about an empty calendar.
+    expect(screen.queryByText(/Today\./)).not.toBeInTheDocument()
+    expect(screen.queryByText(/last few weeks/)).not.toBeInTheDocument()
+  })
+
+  it('leaves the note off entirely when the windows have data', async () => {
+    resolveAll()
+    render(<InsightsPanel instrumentId={7} lastPracticedAt="2026-07-20" />)
+
+    await screen.findByRole('heading', { name: 'Practice calendar' })
+    expect(
+      screen.queryByText(/Last session on this instrument/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('degrades to the default week start when settings fails', async () => {
+    // Settings only picks the grid's first column. Before #300 this panel
+    // never fetched it, so letting it share the charts' rejection path would
+    // hand a settings outage the power to blank a screen it couldn't
+    // previously reach.
+    resolveAll()
+    mockGetSettings.mockRejectedValue(new Error('settings offline'))
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Practice calendar' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: "How it's going" }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(dayLabelRow()).toEqual(['Mon', '', 'Wed', '', 'Fri', '', ''])
   })
 
   it('charts a week with ratings but no logged minutes this year', async () => {
@@ -141,7 +318,7 @@ describe('InsightsPanel', () => {
         { week_start: '2026-07-20', step_forward: 2, steady: 0, step_back: 0, total: 2 },
       ],
     })
-    render(<InsightsPanel instrumentId={7} />)
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
 
     expect(
       await screen.findByRole('heading', { name: "How it's going" }),
@@ -153,7 +330,7 @@ describe('InsightsPanel', () => {
     mockGetHeatmap.mockRejectedValueOnce(new Error('offline'))
     mockGetComparison.mockResolvedValue(comparison(45, 30))
     mockGetRatings.mockResolvedValue(NO_RATINGS)
-    render(<InsightsPanel instrumentId={7} />)
+    render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('offline')
     expect(
@@ -188,8 +365,8 @@ describe('InsightsPanel', () => {
       ],
     })
 
-    const { rerender } = render(<InsightsPanel instrumentId={7} />)
-    rerender(<InsightsPanel instrumentId={8} />)
+    const { rerender } = render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
+    rerender(<InsightsPanel instrumentId={8} lastPracticedAt={null} />)
     await screen.findByRole('heading', { name: 'Practice calendar' })
     expect(
       screen.getByText('1 day practiced in 2026, 1 hr 30 min total.'),
@@ -223,8 +400,8 @@ describe('InsightsPanel', () => {
       ],
     })
 
-    const { rerender } = render(<InsightsPanel instrumentId={7} />)
-    rerender(<InsightsPanel instrumentId={8} />)
+    const { rerender } = render(<InsightsPanel instrumentId={7} lastPracticedAt={null} />)
+    rerender(<InsightsPanel instrumentId={8} lastPracticedAt={null} />)
     await screen.findByRole('heading', { name: 'Practice calendar' })
 
     rejectSeven(new Error('offline'))
@@ -237,7 +414,7 @@ describe('InsightsPanel', () => {
   })
 
   it('does not call the API without an instrument', async () => {
-    render(<InsightsPanel instrumentId={null} />)
+    render(<InsightsPanel instrumentId={null} lastPracticedAt={null} />)
 
     await waitFor(() => expect(screen.queryByText('Loading…')).not.toBeInTheDocument())
     expect(mockGetHeatmap).not.toHaveBeenCalled()
