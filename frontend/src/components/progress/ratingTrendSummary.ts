@@ -15,9 +15,10 @@ export function ratingTrendSummary(weeks: RatingsWeek[]): string {
   const rated = weeks.filter((w) => w.total > 0)
 
   if (rated.length === 0) {
-    // Names the window rather than saying "yet": these weeks are the last
-    // four, and a user returning from a break has ratings — just not in here
-    // (#287). The chart above says the same thing with its own weeks count.
+    // Names the window rather than saying "yet": a user returning from a
+    // break has ratings, just not inside these weeks (#287). The count comes
+    // off the response rather than `RATING_WEEKS`, so it stays true if the
+    // caller ever asks for a different window.
     return weeks.length === 0
       ? 'No ratings in this window — rate a few exercises and the trend shows up here.'
       : `No ratings in the last ${weeks.length} week${

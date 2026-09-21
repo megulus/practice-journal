@@ -143,7 +143,8 @@ export function InsightsPanel({
   // So only a user with neither gets a first-run state. A returning user gets
   // the charts, gap and all — an empty January under a dense December is a
   // truer picture than a placeholder that denies the December happened — with
-  // a line above them that names the gap instead of the user.
+  // a note above them that states what the charts cover and when the last
+  // session was, rather than passing judgement on either.
   const charted = hasWindowData(data)
 
   if (!charted && lastPracticedAt === null) return <FirstRunState />
@@ -206,9 +207,13 @@ function InsightCard({
 }
 
 /**
- * No sessions on this instrument, ever. Per #310's pattern an empty state
- * should name what will appear and why it's worth having, then point at the
- * single action that fills it — rather than only reporting an absence.
+ * No sessions on this instrument, ever.
+ *
+ * The headline replaces "Nothing to chart yet." — leading with what is about
+ * to exist rather than with an absence (#310). The body is the original
+ * wording, kept deliberately: naming the three charts concretely is worth
+ * more here than #310's "teach why it's worth having" angle, which the
+ * headline carries enough of on its own.
  */
 function FirstRunState() {
   return (
@@ -217,9 +222,8 @@ function FirstRunState() {
         Your first session starts the picture.
       </p>
       <p className="mb-4 text-xs text-text-tertiary">
-        The practice calendar fills a square for every day you play, and the
-        rating trend follows which way your work is heading. One session is
-        enough to begin.
+        Your practice calendar, weekly comparison and rating trend fill in once
+        you finish a session on this instrument.
       </p>
       <Link
         href="/today"
@@ -252,6 +256,12 @@ function FirstRunState() {
  *   a session dated today is the same denial #287 is about, pointed the other
  *   way.
  *
+ * The headline deliberately does *not* branch on that: "your calendar for
+ * this year is empty so far" is true in both, since reaching here at all
+ * means the widest window drew nothing. Only the trailing clause branches,
+ * to answer the question a date rendering as "Today" would otherwise leave
+ * hanging.
+ *
  * Either way the last-session date is the acknowledgement, and spec §5.2's
  * framing holds: an observation about the window, never a verdict on the user.
  */
@@ -268,15 +278,13 @@ function QuietWindowNote({
   return (
     <Card>
       <p className="mb-1 text-sm text-text-secondary">
-        {withinChartedYear
-          ? 'Your last session didn\u2019t record any time or ratings.'
-          : 'These charts don\u2019t reach back as far as your last session.'}
+        Your practice calendar for {chartedYear} is empty so far.
       </p>
+      {/* No period after the date: in the within-year branch the clause
+          carries it, so the seam must not render "Today. — it didn’t…". */}
       <p className="text-xs text-text-tertiary">
-        Last session on this instrument: {formatSessionDate(lastPracticedAt)}.
-        {withinChartedYear
-          ? ' The calendar shades each day by how long you played and the trend follows your ratings, so a session with neither leaves them empty.'
-          : ` The practice calendar covers ${chartedYear} and the two charts below it the last few weeks, so they\u2019ll start filling in again with your next session.`}
+        Last session on this instrument: {formatSessionDate(lastPracticedAt)}
+        {withinChartedYear ? ' — it didn’t record any time or ratings.' : '.'}
       </p>
     </Card>
   )
