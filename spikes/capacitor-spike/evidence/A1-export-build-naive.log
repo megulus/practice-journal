@@ -1,0 +1,21 @@
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+
+warn - No utility classes were detected in your source files. If this is unexpected, double-check the `content` option in your Tailwind CSS configuration.
+warn - https://tailwindcss.com/docs/content-configuration
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+
+> Build error occurred
+Error: Page "/sign-in/[[...rest]]" is missing "generateStaticParams()" so it cannot be used with "output: export" config.
+    at /root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/index.js:1297:59
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Span.traceAsyncFn (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/trace/trace.js:154:20)
+    at async Promise.all (index 6)
+    at async /root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/index.js:1175:17
+    at async Span.traceAsyncFn (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/trace/trace.js:154:20)
+    at async /root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/index.js:1098:124
+    at async Span.traceAsyncFn (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/trace/trace.js:154:20)
+    at async build (/root/practice-journal/spikes/capacitor-spike/node_modules/next/dist/build/index.js:368:9)

@@ -1,0 +1,34 @@
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+
+warn - No utility classes were detected in your source files. If this is unexpected, double-check the `content` option in your Tailwind CSS configuration.
+warn - https://tailwindcss.com/docs/content-configuration
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/7) ...
+   Generating static pages (1/7) 
+   Generating static pages (3/7) 
+   Generating static pages (5/7) 
+ ✓ Generating static pages (7/7)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    9.29 kB        96.7 kB
+├ ○ /_not-found                          873 B          88.2 kB
+├ ○ /img                                 5.34 kB        92.7 kB
+├ ● /sign-in/[[...rest]]                 138 B          87.5 kB
+├   └ /sign-in
+└ ● /thing/[id]                          332 B          87.7 kB
+    └ /thing/1
++ First Load JS shared by all            87.4 kB
+  ├ chunks/117-28affb1ba7ab25ca.js       31.8 kB
+  ├ chunks/fd9d1056-9f91b5e418130764.js  53.6 kB
+  └ other shared chunks (total)          1.89 kB
+
+
+○  (Static)  prerendered as static content
+●  (SSG)     prerendered as static HTML (uses getStaticProps)
+

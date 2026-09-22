@@ -1,0 +1,22 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Capacitor native output that is regenerated / installed locally
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/public/
+ios/DerivedData/
+
+# Local keys (Clerk publishable key, API base) — see README
+.env.local
+.env*.local
+
+# The repo-root .gitignore carries `lib/` (Python packaging leftover, with an
+# explicit exception for frontend/src/lib) and `*.log`. Both silently swallowed
+# real spike content — the voice provider abstraction and the Phase A build
+# transcripts — on the first commit. Re-include them here.
+!src/lib/
+!evidence/*.log
