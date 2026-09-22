@@ -265,11 +265,29 @@ without code changes.
   stacks such as browser extensions, Electron, or Capacitor.js, the instance
   allowed origins need to be updated with the request origin value … Capacitor.js:
   `capacitor://localhost`."* An ops step, not code.
-- **`@clerk/clerk-react` is deprecated.** `observed` at install: *"This package
-  is no longer supported. Please use `@clerk/react` instead"* (Clerk Core 3).
-  Kantelo is on `@clerk/nextjs@6.36.7` (Core 2), whose React layer *is*
-  `@clerk/clerk-react@5.59.3` — so the swap is version-aligned **today**, and
-  a Capacitor port inherits a Core-3 upgrade later rather than now.
+- **`@clerk/clerk-react` is deprecated, and Core 2 has an expiry date.**
+  `observed` at install: *"This package is no longer supported. Please use
+  `@clerk/react` instead"* (Clerk Core 3). Kantelo is on `@clerk/nextjs@6.36.7`
+  (Core 2), which is **not** deprecated — the 6.x line still ships (6.39.7,
+  2026-09-18) — so the SPA swap this spike used is version-aligned today.
+  **But `documented`, from [Clerk's versioning
+  policy](https://clerk.com/docs/guides/development/upgrading/versioning):
+  Core 2 is in long-term support until January 2027**, covering critical
+  patches only; after that, nothing. Checked 2026-09-22, four months out, with
+  a v1 launch and an App Store submission in between.
+
+  This spike first recorded the deprecation without checking the support
+  window, and concluded a port "inherits a Core-3 upgrade later rather than
+  now". That was the wrong read of a dated deadline. **Kantelo should upgrade
+  to Core 3 regardless of how the Capacitor decision lands** — filed as
+  [#331](https://github.com/megulus/practice-journal/issues/331), and changes
+  table row 7. Two consequences specific to this spike, if Capacitor does
+  proceed: on Core 2 a port would deliberately adopt a dead package and then
+  migrate both builds later, where on Core 3 it is `@clerk/nextjs@7.x` →
+  `@clerk/react@6.x`, one generation, one migration. And nothing in Phase B
+  breaks on Core 3 — `standardBrowser`, the escape hatch above, still exists
+  with identical wording (`@clerk/shared/dist/types/clerk.d.ts:1341` in
+  `@clerk/react@6.16.1`, `observed`).
 - **OAuth: not tested, and it will not work by dropping the button in.**
   `documented`. RFC 8252 forbids embedded user-agents for OAuth and Google
   enforces it (`disallowed_useragent`), so the Google flow must open in the
@@ -457,13 +475,14 @@ still evaporate.
 | 4 | Dynamic pages split into server shell + client component *(only if any path params are kept)* | `'use client'` cannot export `generateStaticParams` | `observed` (build error) | ~2 h |
 | 5 | Replace `clerkMiddleware` with a client-side guard (`<SignedIn>/<SignedOut>` or a redirecting layout) | `output: 'export'` emits no middleware; `src/middleware.ts` becomes dead code in the mobile build | `observed` (the harness runs this way) | 0.5 d |
 | 6 | `@clerk/nextjs` → `@clerk/clerk-react`, sign-in/sign-up to `routing="hash"` | the Next integration is middleware- and server-shaped | `observed` (sign-in flow used `#/factor-two`) | 0.5 d |
-| 7 | `next.config`: `output: 'export'` + `images: { unoptimized: true }` behind a build flag, so web and mobile share one codebase | the image failure is silent | `observed` | ~2 h |
-| 8 | `CORS_ORIGINS` gains `capacitor://localhost` (and whatever `iosScheme` ends up being); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today | `observed` (both directions) | ~10 min |
-| 9 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | `documented` (Clerk docs) | ~10 min, ops |
-| 10 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
-| 11 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | `observed` | 0.5 d |
-| 12 | Session auto-save: likely **mandatory**, pending D2 | if the webview reloads on resume, unsaved session state dies | **`needs device`** — the whole row is conditional | decide after D2 |
-| 13 | `100vh` → `100dvh`, keyboard-aware bottom bar, pending D3 | `safe-area-pb` already exists in `globals.css`; the keyboard case is untested | **`needs device`** | pending D3 |
+| 7 | **`@clerk/nextjs` 6.x → 7.x (Core 3)** — needed whether or not Capacitor ships; tracked as [#331](https://github.com/megulus/practice-journal/issues/331) | Core 2 LTS ends Jan 2027; the SPA package a port needs is only non-deprecated on Core 3 | `documented` (Clerk versioning policy) | 0.5–1 d |
+| 8 | `next.config`: `output: 'export'` + `images: { unoptimized: true }` behind a build flag, so web and mobile share one codebase | the image failure is silent | `observed` | ~2 h |
+| 9 | `CORS_ORIGINS` gains `capacitor://localhost` (and whatever `iosScheme` ends up being); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today | `observed` (both directions) | ~10 min |
+| 10 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | `documented` (Clerk docs) | ~10 min, ops |
+| 11 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
+| 12 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | `observed` | 0.5 d |
+| 13 | Session auto-save: likely **mandatory**, pending D2 | if the webview reloads on resume, unsaved session state dies | **`needs device`** — the whole row is conditional | decide after D2 |
+| 14 | `100vh` → `100dvh`, keyboard-aware bottom bar, pending D3 | `safe-area-pb` already exists in `globals.css`; the keyboard case is untested | **`needs device`** | pending D3 |
 
 ### #1 — the `VoiceInput` provider abstraction (design this into Phase 0)
 
@@ -573,7 +592,7 @@ biggest factor in this number.
 
 | Chunk | Estimate |
 |---|---|
-| Rows 3–8 above (export config, routing, Clerk swap, middleware removal, CORS) | **3–4 days** |
+| Rows 3–9 above (export config, routing, Clerk swap, middleware removal, CORS), **excluding row 7** — the Core 3 upgrade is work Kantelo owes anyway, not a cost of the port | **3–4 days** |
 | Native shell: Xcode project, icons/splash, signing, permissions, first device build | **2–3 days** |
 | Voice provider abstraction + native plugin wiring + the fallback fix (#1, #2) | **1–2 days** |
 | Account deletion path, front and back (#10) | **1 day** |
