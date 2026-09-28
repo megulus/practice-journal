@@ -258,11 +258,45 @@ original prompt) behaves the same, which requires deleting and reinstalling the
 app — and that wipes the localStorage counters D2 depends on, so it should come
 after the backgrounding test.
 
+### D2 answered: the webview survives backgrounding — auto-save is not forced
+
+`observed (device)`. Run-book step 7, phone locked for **11 minutes** (18:35 →
+18:46 wall clock), then reopened:
+
+| Field | Before | After | Reading |
+|---|---|---|---|
+| `mounted at` | `2026-09-28T22:35:26.486Z` | **identical** | same JS context; React never remounted |
+| `localStorage webview loads` | `13` | **`13`** | no page load happened |
+| `in-memory ticks` | `3` | `41` | resumed rather than reset |
+
+**The webview was not discarded.** In-memory state — an in-progress session, a
+half-typed note, ratings tapped but not submitted — would have survived.
+
+The tick counter is the nice corroboration: it advanced by only 38 over 11
+minutes of wall clock, confirming that iOS suspended the JS timer while the app
+was backgrounded and then resumed the *same* context. A reload would have reset
+it to ~0 and incremented `webview loads`; neither happened.
+
+**Consequence for the `[undecided]` session auto-save decision: this does not
+force it.** The specific failure mode that would have made auto-save mandatory —
+"lock the phone mid-practice, come back, lose everything" — did not occur.
+
+**But do not over-read this.** It is the easy case, on three counts: 11 minutes
+against practice sessions of 15–60; a phone that was **plugged in**, where iOS
+is less eager to reclaim memory; and no deliberate memory pressure from other
+apps in between. The run-book's harder variant — 30+ minutes with heavy apps
+cycled in between — has not been run, and a webview discard under real memory
+pressure remains plausible. Auto-save is still worth having for crashes, calls
+and force-quits, which this test says nothing about. What changed is that it is
+a **product choice rather than a forced requirement**.
+
 ### Still outstanding after this run
 
-`needs device`: the OAuth round trip (B2 — explicitly not a kill), all of Phase
-C's mechanical and judgement questions, D2 backgrounding, and D3's keyboard
-behaviour. Everything else in the run-book is now answered.
+`needs device`: the OAuth round trip (B2 — explicitly not a kill), Phase C's
+remaining mechanical questions (interim results streaming, per-session duration
+cap, airplane-mode/on-device recognition) and its judgement half (step 6, Meg
+with a violin), D3's keyboard behaviour, and the harder D2 variant described
+above. Everything else in the run-book is answered.
 
 ---
 
@@ -680,7 +714,7 @@ still evaporate.
 | 10 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | `documented` (Clerk docs) | ~10 min, ops |
 | 11 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
 | 12 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | `observed` | 0.5 d |
-| 13 | Session auto-save: likely **mandatory**, pending D2 | if the webview reloads on resume, unsaved session state dies | **`needs device`** — the whole row is conditional | decide after D2 |
+| 13 | Session auto-save: **not forced** by webview reloads — a product choice, not a requirement | the webview survived 11 min backgrounded with state intact; still worth having for crashes and force-quits | `observed (device)`, easy case only | product decision |
 | 14 | `100vh` → `100dvh`, keyboard-aware bottom bar, pending D3 | `safe-area-pb` already exists in `globals.css`; the keyboard case is untested | **`needs device`** | pending D3 |
 
 ### #1 — the `VoiceInput` provider abstraction (design this into Phase 0)
