@@ -218,6 +218,46 @@ https on Railway, which needs no ATS exception at all. But anyone running the
 mobile build against a local backend will hit this, and should be told rather
 than left to discover it.
 
+### Phase C, mechanical: a denied mic permission is unrecoverable in-app
+
+`observed (device)`. Once microphone or speech-recognition access is denied in
+Settings, **iOS never prompts again**. Tapping the mic in the harness produces:
+
+```
+ensurePermission() = denied
+```
+
+…and nothing else. There is no second chance to grant from inside the app; the
+only recovery is Settings → Privacy & Security → Microphone (and the separate
+Speech Recognition list). Flipping either toggle also terminates the app
+immediately, which is normal iOS behaviour but startling if you don't expect it.
+
+**This makes the design-tokens §6 error handling insufficient on mobile.** It
+currently specifies:
+
+> **Error handling:** If mic permissions are denied, show a brief toast:
+> "Microphone access is needed for voice input." Don't block the UI — the text
+> field remains usable.
+
+…and `frontend/src/components/ui/VoiceInput.tsx:155` implements exactly that: a
+portaled `role="status"` notice with that copy, auto-dismissed after 5 seconds.
+On the web that is a reasonable design, because the browser will re-prompt on a
+later attempt and the user can also fix it in site settings. **In a packaged
+app it is a dead end** — the notice tells the user something is wrong and gives
+them no way to act on it, and the next tap produces the same notice forever.
+
+The fix is small but it is a *product* decision, not a mechanical one: the
+denied state on native needs an actionable affordance — copy that names
+Settings, and ideally a button that deep-links there (iOS apps can open their
+own Settings pane). Worth its own ticket alongside
+[#324](https://github.com/megulus/practice-journal/issues/324), since both are
+`VoiceInput` behaviour that is wrong-on-mobile rather than merely absent.
+
+Not yet tested: whether a **first-run** denial (tapping "Don't Allow" at the
+original prompt) behaves the same, which requires deleting and reinstalling the
+app — and that wipes the localStorage counters D2 depends on, so it should come
+after the backgrounding test.
+
 ### Still outstanding after this run
 
 `needs device`: the OAuth round trip (B2 — explicitly not a kill), all of Phase
@@ -628,6 +668,7 @@ still evaporate.
 |---|---|---|---|---|
 | 1 | **`VoiceInput` provider abstraction** — one interface, two implementations, selected at runtime | see below | `documented` (product-spec:191 requires it) | ~0.5 d |
 | 2 | **Replace the feature check in `useSpeechRecognition` with a platform check** — tracked as [#324](https://github.com/megulus/practice-journal/issues/324) | see below; shipped code violates product-spec:191 | `observed` (the code), `documented` (why it matters) | ~0.5 d |
+| 2a | **`VoiceInput`'s denied-permission state needs an actionable affordance on native** — copy naming Settings, ideally a deep link | iOS never re-prompts once denied; today's 5-second toast is a dead end in a packaged app | `observed (device)` | ~0.5 d + a copy decision |
 | 3 | Dynamic routes → query params (or hash), 4 page files + 7 nav call sites | extensionless deep links all resolve to `index.html` | `documented` (Router.swift) + `observed (sim)` | 0.5–1 d |
 | 4 | Dynamic pages split into server shell + client component *(only if any path params are kept)* | `'use client'` cannot export `generateStaticParams` | `observed` (build error) | ~2 h |
 | 5 | Replace `clerkMiddleware` with a client-side guard (`<SignedIn>/<SignedOut>` or a redirecting layout) | `output: 'export'` emits no middleware; `src/middleware.ts` becomes dead code in the mobile build | `observed` (the harness runs this way) | 0.5 d |
