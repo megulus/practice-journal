@@ -69,7 +69,10 @@ export default function MicPage() {
   }
 
   return (
-    <main style={{ padding: 12, fontFamily: 'system-ui' }}>
+    <main className="spike-page">
+      <nav className="spike-nav">
+        <a href="/">← home</a> · <a href="/sign-in">/sign-in</a> · <a href="/protected">/protected</a>
+      </nav>
       <h1>mic harness</h1>
       <p>provider: <code id="provider-name">{provider?.name ?? '…'}</code></p>
       <textarea
@@ -107,7 +110,6 @@ export default function MicPage() {
         />
       </div>
       <p style={{ height: 80 }} />
-      <p><a href="/">home</a></p>
     </main>
   )
 }

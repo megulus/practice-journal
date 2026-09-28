@@ -1,3 +1,52 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Phase D3, learned the hard way on a real iPhone: the webview draws under the
+ * status bar and the home indicator. With `viewportFit=cover` set in the root
+ * layout (which is what exposes env(safe-area-inset-*) at all), content at the
+ * top of the page sits beneath the clock, and taps there are swallowed by the
+ * system — a link rendered at y=0 is simply not tappable.
+ *
+ * The harness is meant to be unstyled, but "unstyled" must not mean
+ * "unusable": every probe screen is read and tapped on a phone. This is the
+ * minimum that makes that possible, and it is also the thing Kantelo's real
+ * layout will need (globals.css there has `safe-area-pb` for the bottom bar,
+ * but nothing for the top).
+ */
+.spike-page {
+  padding: 12px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  padding-left: calc(12px + env(safe-area-inset-left));
+  padding-right: calc(12px + env(safe-area-inset-right));
+  font-family: system-ui, sans-serif;
+  /* A wide token (a JWT, a long user agent) must not push the layout sideways
+     and strand the links off-screen. */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Every screen carries this, so that a page whose main content fails to render
+ * — e.g. Clerk's <SignedIn>/<SignedOut> both returning null when ClerkJS does
+ * not initialise — still leaves a usable way back. Without it the only escape
+ * is force-quitting the app.
+ */
+.spike-nav {
+  position: sticky;
+  /* Not `top: 0` — that pins it to the viewport top, i.e. back underneath the
+     status bar the moment you scroll, recreating the untappable-link bug. */
+  top: env(safe-area-inset-top);
+  z-index: 10;
+  margin: 0 0 12px;
+  padding: 8px 0;
+  background: #fff;
+  border-bottom: 1px solid #ccc;
+  font-size: 16px;
+}
+.spike-nav a {
+  display: inline-block;
+  padding: 8px 10px;  /* a real tap target, not a 12px-tall line of text */
+  color: #06c;
+}

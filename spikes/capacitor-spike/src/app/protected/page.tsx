@@ -64,7 +64,10 @@ export default function Protected() {
   }
 
   return (
-    <main style={{ padding: 12, fontFamily: 'system-ui' }}>
+    <main className="spike-page">
+      <nav className="spike-nav">
+        <a href="/">← home</a> · <a href="/sign-in">/sign-in</a> · <a href="/mic">/mic</a>
+      </nav>
       <h1>protected</h1>
       <SignedOut>
         <p id="signed-out">SIGNED OUT — a real app would redirect to /sign-in here.</p>
@@ -111,7 +114,6 @@ export default function Protected() {
       </SignedIn>
       <h2>where the session lives</h2>
       <pre id="session-storage" style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{storage}</pre>
-      <p><a href="/">home</a></p>
     </main>
   )
 }

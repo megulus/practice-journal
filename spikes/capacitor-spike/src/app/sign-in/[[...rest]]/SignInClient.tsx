@@ -13,7 +13,12 @@ import { useState } from 'react'
 export default function SignInClient() {
   const [mode, setMode] = useState<'in' | 'up'>('in')
   return (
-    <main style={{ padding: 12, fontFamily: 'system-ui' }}>
+    <main className="spike-page">
+      {/* First, not last: when Clerk fails to initialise, both control
+          components below render null and this is the only thing on screen. */}
+      <nav className="spike-nav">
+        <a href="/">← home</a> · <a href="/protected">/protected</a> · <a href="/mic">/mic</a>
+      </nav>
       <SignedOut>
         <button id="toggle-mode" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>
           switch to sign {mode === 'in' ? 'up' : 'in'}
@@ -24,7 +29,6 @@ export default function SignInClient() {
         <p id="already-signed-in">already signed in</p>
         <UserButton />
       </SignedIn>
-      <p><a href="/">home</a> · <a href="/protected">/protected</a></p>
     </main>
   )
 }

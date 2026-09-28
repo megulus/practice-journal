@@ -97,7 +97,7 @@ export default function Home() {
   }, [])
 
   return (
-    <main style={{ padding: 12, fontFamily: 'system-ui' }}>
+    <main className="spike-page">
       <h1>capacitor-spike</h1>
       <ul>
         <li><Link href="/thing/1">/thing/1 (prerendered)</Link></li>
