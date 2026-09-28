@@ -70,5 +70,22 @@
 	<string>Kantelo uses the microphone so you can dictate practice notes instead of typing them.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Kantelo turns your spoken practice notes into text.</string>
+	<!-- Phase D1 / run-book step 4. Reaching a dev API on the LAN
+	     (http://192.168.x.x:8787) is plain cleartext HTTP, which App Transport
+	     Security blocks by default: the fetch fails with an opaque TypeError
+	     that reads exactly like a CORS rejection, sending you after the wrong
+	     bug. NSAllowsLocalNetworking permits cleartext to local-network hosts
+	     only — the public internet stays ATS-protected, so this does not
+	     weaken a production build talking to an https API. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!-- iOS 14+ prompts before an app may reach hosts on the local network.
+	     Without this key the prompt has no copy and the connection can fail
+	     silently. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>The spike harness talks to a development API server running on your Mac.</string>
 </dict>
 </plist>
