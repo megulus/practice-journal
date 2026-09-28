@@ -168,11 +168,61 @@ across a relaunch ([#6308](https://github.com/ionic-team/capacitor/issues/6308),
 reproduce here on iOS 18.7 with Capacitor 8.5.2 — but they are the reason the
 force-quit step exists, and a reason to re-test on an OS bump.
 
+### D1 closed: the webview sends a real origin, not an opaque one
+
+Run-book step 4, against `cors-echo-server.mjs` on a Mac over the LAN. The
+harness's `/protected` page issued a cross-origin `fetch` with a Clerk bearer
+token, and the server reported back:
+
+```json
+{ "sawOrigin": "capacitor://localhost", "sawAuthorization": true,
+  "sawCookie": null, "mode": "echo" }
+```
+
+Three things settled:
+
+- **`Origin: capacitor://localhost`** — the literal custom-scheme origin, not
+  the opaque `null` that was the feared outcome. So the changes-table row
+  stands as written: **one exact string in `CORS_ORIGINS`**. No `"null"` in an
+  allow-list (which would have admitted every sandboxed iframe on the web), and
+  no need for Capacitor's native HTTP plugin with the `fetch`-patching and
+  cookie-semantics changes that would have brought. This was the single largest
+  open risk in Phase D.
+- **`sawAuthorization: true`** — the Clerk bearer token reaches the API intact
+  from the webview. That is **B5**, answered.
+- `sawCookie: null` — no cookies on the cross-origin call, which is correct and
+  expected; Kantelo's client authenticates with a bearer header, not cookies
+  (`frontend/src/lib/api.ts`).
+
+Combined with the sandbox-side probes above — where the real Kantelo backend
+rejected `capacitor://localhost` by default and accepted it once allow-listed —
+**D1 is fully answered.** The backend change is one environment variable.
+
+### A dev-only cost found along the way
+
+Reaching a dev API on the LAN over cleartext `http://192.168.x.x` is blocked by
+**App Transport Security**, and the block surfaces in JavaScript as
+`TypeError: Load failed` — indistinguishable from a CORS rejection, which is a
+genuinely expensive way to lose an hour. `NSAllowsLocalNetworking` alone was not
+sufficient; the harness ended up setting `NSAllowsArbitraryLoads`, which is fine
+for a throwaway and must never be copied into Kantelo.
+
+Notably the iOS **Local Network permission was never involved**: no prompt
+appeared and the app never showed up in Settings → Privacy & Security → Local
+Network, yet the request succeeded once ATS was out of the way. So
+`NSLocalNetworkUsageDescription` appears not to be required for
+WKWebView-originated fetches on iOS 18.7.
+
+**This is a developer-experience cost, not a production one.** Kantelo's API is
+https on Railway, which needs no ATS exception at all. But anyone running the
+mobile build against a local backend will hit this, and should be told rather
+than left to discover it.
+
 ### Still outstanding after this run
 
-`needs device`, unchanged: OAuth round trip (B2, not a kill), the API call and
-the real `Origin` header WKWebView sends (B5/D1), all of Phase C's mechanical
-and judgement questions, D2 backgrounding, and D3's keyboard behaviour.
+`needs device`: the OAuth round trip (B2 — explicitly not a kill), all of Phase
+C's mechanical and judgement questions, D2 backgrounding, and D3's keyboard
+behaviour. Everything else in the run-book is now answered.
 
 ---
 
@@ -585,7 +635,7 @@ still evaporate.
 | 7 | **`@clerk/nextjs` 6.x → 7.x (Core 3)** — needed whether or not Capacitor ships; tracked as [#331](https://github.com/megulus/practice-journal/issues/331) | Core 2 LTS ends Jan 2027; the SPA package a port needs is only non-deprecated on Core 3 | `documented` (Clerk versioning policy) | 0.5–1 d |
 | 8 | `next.config`: `output: 'export'` + `images: { unoptimized: true }` behind a build flag, so web and mobile share one codebase | the image failure is silent | `observed` | ~2 h |
 | 8a | **`CapacitorCookies: { enabled: true }` in `capacitor.config.ts`** — without it Clerk cannot hold a session on iOS at all | `document.cookie` writes are silently dropped at `capacitor://localhost`; this routes them to the native cookie store | `observed (device)` | ~5 min |
-| 9 | `CORS_ORIGINS` gains `capacitor://localhost` (and whatever `iosScheme` ends up being); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today | `observed` (both directions) | ~10 min |
+| 9 | `CORS_ORIGINS` gains exactly `capacitor://localhost` (the scheme cannot be changed — see the device run); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today, and the webview's real `Origin` is now confirmed on hardware | `observed` + **`observed (device)`** | ~10 min |
 | 10 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | `documented` (Clerk docs) | ~10 min, ops |
 | 11 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
 | 12 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | `observed` | 0.5 d |
