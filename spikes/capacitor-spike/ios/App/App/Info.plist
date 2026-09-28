@@ -79,6 +79,19 @@
 	     weaken a production build talking to an https API. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- NSAllowsLocalNetworking alone did not get a request out to a LAN
+		     address (192.168.x.x): the app never even appeared in Settings >
+		     Privacy & Security > Local Network, which iOS only populates once
+		     an app has *attempted* a local-network connection. Apple's wording
+		     on which private ranges that key exempts is ambiguous, so rather
+		     than argue with it, this throwaway harness disables ATS outright.
+
+		     DO NOT COPY THIS INTO KANTELO. Production talks to Railway over
+		     https and needs no ATS exception at all. This exists so one
+		     spike question - what Origin header does WKWebView send - can be
+		     answered against a dev server on someone's Mac. -->
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
