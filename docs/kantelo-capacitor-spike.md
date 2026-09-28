@@ -7,9 +7,12 @@
 > `kantelo-capacitor-spike.md`", in the *Platform warning* paragraph) and the
 > file it pointed at never existed in the repo.
 >
-> **Verdict: undetermined — device phases outstanding.** Both kill criteria
-> that could be evaluated without Apple hardware came back survivable; the
-> WKWebView half is untested. Nothing here decides Capacitor vs. PWA.
+> **Verdict: undetermined — device phases outstanding**, as written on
+> 2026-09-17. **Partially superseded:** a device run on 2026-09-28 cleared
+> Phase B's kill criterion on hardware, which means *every* kill criterion in
+> #305 is now cleared — see "Device run" below. Phase C, D2 and D3 remain
+> untested, and the final verdict is Meg's call, so the line above stands until
+> she changes it.
 >
 > **This is not a contract doc.** `kantelo-product-spec.md`,
 > `kantelo-schema-api.md` and `kantelo-design-tokens.md` describe what Kantelo
@@ -66,6 +69,110 @@ until they do, "viable" would be a guess.
 | `observed (sim)` | Observed in headless Chromium against a local server that reproduces Capacitor's **path resolution** only — not WKWebView. |
 | `documented` | Read out of installed source/typings or a cited doc page. Not executed. |
 | `needs device` | Cannot be answered here at all. In the run-book. |
+| `observed (device)` | **Added 2026-09-28.** Run by Meg on a physical iPhone. Supersedes the `needs device` label wherever it appears below. |
+
+---
+
+## Device run — 2026-09-28 (partial)
+
+Meg ran the run-book on a physical iPhone, iOS 18.7, free personal team.
+Everything in this section is `observed (device)`. It supersedes the `needs
+device` labels on the questions it covers; every other `needs device` item is
+still outstanding.
+
+> **All of #305's kill criteria are now cleared.** Phase A's was cleared in the
+> sandbox. Phase B's — *"if email/password sessions don't persist across
+> restarts with no reasonable fix → stop"* — is cleared on hardware, but it
+> took three attempts and the fix is a config line Kantelo would have to carry.
+> The verdict above is deliberately left as Meg wrote it; changing it is her
+> call, not this document's.
+
+### What the probe screen reported on first launch
+
+| Field | Value | Effect |
+|---|---|---|
+| `location.origin` | `capacitor://localhost` | Phase A's `documented` default → **confirmed on hardware** |
+| `window.isSecureContext` | `true` | crypto-dependent code (including Clerk's) is fine |
+| `crypto.subtle` | `true` | as above |
+| `document.cookie` | **`write silently dropped`** | the Phase B risk, realised — see below |
+| `localStorage` | `read+write ok` | a persistence mechanism does exist |
+| `indexedDB` | `true` | ditto |
+| `'webkitSpeechRecognition' in window` | **`true`** | the false positive, on a platform where the API is dead — the exposure half of [#324](https://github.com/megulus/practice-journal/issues/324) |
+| `'SpeechRecognition' in window` | `false` | only the prefixed name is exposed |
+| `safe-area-inset-top` / `-bottom` | `62px` / `34px` | D3: `viewportFit=cover` works; insets are real |
+| `100vh` / `100dvh` | `874px` / `874px` | D3: identical **at rest**. The keyboard case is still open |
+| `userAgent` | `iPhone OS 18_7 … AppleWebKit/605.1.15` | — |
+
+### Phase B: four attempts to make a session survive
+
+**1. Default config — fails.** Clerk's sign-in *completes*: the card renders,
+the password is accepted, the emailed code verifies, and it redirects. The
+session then does not survive that redirect — `/protected` reports `SIGNED
+OUT`. Exactly what the cookie result predicts: Clerk keeps its session entirely
+in cookies (established in the sandbox), and the webview discards them without
+raising anything.
+
+**2. `standardBrowser: false` — worse.** Clerk's own documented escape hatch
+for native platforms. With it set, ClerkJS did not appear to come up at all:
+`<SignedIn>` and `<SignedOut>` both rendered null, leaving the sign-in page
+blank apart from its links. ⚠️ **Observed, but not root-caused** — no debugger
+was attached at the time, so "ClerkJS failed to initialise" is inference from
+what rendered, not from an error. Treat as a lead, not a conclusion; a Safari
+Web Inspector session would settle it in seconds.
+
+**3. `server.iosScheme: 'https'` — impossible, not merely unhelpful.** The
+obvious idea is to move the app onto a standard scheme where WKWebView keeps a
+cookie store. It cannot be done, and it fails *silently*: setting it changed
+nothing on device, `location.origin` stayed `capacitor://localhost`. Capacitor's
+own CLI types say why — *"Can't be set to schemes that the WKWebView already
+handles, such as http or https"* — and `InstanceDescriptor.normalize()`
+enforces it by resetting the value with no warning:
+
+```swift
+if let scheme = urlScheme, WKWebView.handlesURLScheme(scheme) == false, … {
+    schemeValid = true
+}
+if !schemeValid {
+    urlScheme = InstanceDescriptorDefaults.scheme   // back to "capacitor"
+}
+```
+
+Worth recording precisely because it looks like the obvious fix and costs a
+build cycle to disprove.
+
+**4. `CapacitorCookies: { enabled: true }` — works.** Capacitor ships this
+plugin **disabled by default**; enabling it makes `native-bridge.js` replace
+the `document.cookie` accessor on iOS so reads and writes go through the native
+cookie store instead of WebKit's. It is built into `@capacitor/ios` — config
+only, no install. On device, `document.cookie` flipped to `read+write ok`.
+
+### The result that clears the kill criterion
+
+With CapacitorCookies enabled and `standardBrowser` back at its default:
+
+- Sign-in with email + password (and the emailed code) → **`/protected` reports
+  `SIGNED IN`**.
+- The session-storage panel shows Clerk's full cookie set — `__session`,
+  `__client_uat`, `__clerk_db_jwt` and others — i.e. the same shape observed in
+  a desktop browser.
+- **Force-quit → reopen → `/protected` still reports `SIGNED IN`.**
+- `localStorage webview loads` **incremented** across that force-quit,
+  confirming the webview genuinely cold-started rather than resuming from
+  memory. That is what makes the persistence result unambiguous.
+
+This also answers **D4** for the session: storage survives termination.
+
+Two open Capacitor issues report cookies working within a session but not
+across a relaunch ([#6308](https://github.com/ionic-team/capacitor/issues/6308),
+[#6809](https://github.com/ionic-team/capacitor/issues/6809)). They did not
+reproduce here on iOS 18.7 with Capacitor 8.5.2 — but they are the reason the
+force-quit step exists, and a reason to re-test on an OS bump.
+
+### Still outstanding after this run
+
+`needs device`, unchanged: OAuth round trip (B2, not a kill), the API call and
+the real `Origin` header WKWebView sends (B5/D1), all of Phase C's mechanical
+and judgement questions, D2 backgrounding, and D3's keyboard behaviour.
 
 ---
 
@@ -477,6 +584,7 @@ still evaporate.
 | 6 | `@clerk/nextjs` → `@clerk/clerk-react`, sign-in/sign-up to `routing="hash"` | the Next integration is middleware- and server-shaped | `observed` (sign-in flow used `#/factor-two`) | 0.5 d |
 | 7 | **`@clerk/nextjs` 6.x → 7.x (Core 3)** — needed whether or not Capacitor ships; tracked as [#331](https://github.com/megulus/practice-journal/issues/331) | Core 2 LTS ends Jan 2027; the SPA package a port needs is only non-deprecated on Core 3 | `documented` (Clerk versioning policy) | 0.5–1 d |
 | 8 | `next.config`: `output: 'export'` + `images: { unoptimized: true }` behind a build flag, so web and mobile share one codebase | the image failure is silent | `observed` | ~2 h |
+| 8a | **`CapacitorCookies: { enabled: true }` in `capacitor.config.ts`** — without it Clerk cannot hold a session on iOS at all | `document.cookie` writes are silently dropped at `capacitor://localhost`; this routes them to the native cookie store | `observed (device)` | ~5 min |
 | 9 | `CORS_ORIGINS` gains `capacitor://localhost` (and whatever `iosScheme` ends up being); keep `allow_credentials` with an **explicit** list, never `*` | preflight is rejected today | `observed` (both directions) | ~10 min |
 | 10 | Clerk **production** instance `allowedOrigins` += `capacitor://localhost` | Clerk Backend API; dev instances hide this | `documented` (Clerk docs) | ~10 min, ops |
 | 11 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
@@ -613,6 +721,12 @@ code written. Stop and write down what you see even if something fails — a
 failure here is a finding.
 
 ## Setup (once, ~15 min)
+
+> **Run-book status:** Setup and steps 1–3 were completed on 2026-09-28; their
+> results are in "Device run" above. Steps 4–9 are still open. The harness on
+> the branch has since gained safe-area padding, a sticky nav on every screen,
+> and `CapacitorCookies` enabled — so a fresh run starts from a better place
+> than that one did.
 
 **Step 0 — get the harness.** It is not on `main`, and `spikes/` does not exist
 there. From a clean checkout of this repo:
