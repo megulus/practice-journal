@@ -290,6 +290,27 @@ pressure remains plausible. Auto-save is still worth having for crashes, calls
 and force-quits, which this test says nothing about. What changed is that it is
 a **product choice rather than a forced requirement**.
 
+### Phase C: dictation works offline
+
+`observed (device)`. Transcription succeeded **both in and out of airplane
+mode** on iOS 18.7.
+
+This is better than the plugin's source suggested. `@capacitor-community/speech-recognition@7.0.1`
+never sets `requiresOnDeviceRecognition` and exposes no option to, so the spike
+recorded airplane-mode behaviour as a genuine risk whose only fix would be
+forking the plugin. In practice iOS selected on-device recognition by itself,
+so **no fork is needed**.
+
+Why it matters for Kantelo specifically: practice rooms, basements and
+rehearsal spaces routinely have no usable signal, and voice is meant to be the
+*primary* input for session notes. Had this failed, voice input would have been
+unusable exactly where musicians practise.
+
+Two limits on the claim: this was `en-US` on a recent iPhone, and on-device
+models are generally less accurate than server-backed ones — so the offline
+*quality* question rolls into the judgement test (step 6), which is where
+musical vocabulary gets stressed.
+
 ### Still outstanding after this run
 
 `needs device`: the OAuth round trip (B2 — explicitly not a kill), Phase C's
