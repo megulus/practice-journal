@@ -311,6 +311,74 @@ models are generally less accurate than server-backed ones — so the offline
 *quality* question rolls into the judgement test (step 6), which is where
 musical vocabulary gets stressed.
 
+### Phase C, the judgement half: native and Web Speech are a **tie**
+
+`observed (device)`, Meg with a violin. Dictating the reference phrase —
+*"intonation still shaky in the top octave of measures twenty-four to
+twenty-eight"* — produced **the same result in the Capacitor app (native
+plugin) and in mobile Safari (Web Speech)**. Both engines also turned
+**"intonation" into "internation"**, which is not a word.
+
+**This is the outcome #305 anticipated as "mediocre", and it matters for the
+decision.** The ticket's hoped-for result was:
+
+> good native plugin → Capacitor beats PWA on Kantelo's most friction-sensitive
+> interaction. Mediocre → not a kill, but voice input's `[v1]` status and the
+> fallback UX both deserve a second look.
+
+A tie is not a win. **The technical argument for Capacitor over a PWA does not
+come from voice** — the native plugin is no better here. Whatever case there is
+for Capacitor rests on the original product motivation (App Store presence,
+install friction for a non-technical audience), not on dictation quality.
+
+And "intonation" is not an incidental miss. It is arguably the single most
+common word in a string player's practice notes; a note-taking tool for
+musicians that cannot spell it is failing at its core vocabulary.
+
+**One concrete avenue, documented but untested.** `SFSpeechRecognitionRequest`
+exposes `contextualStrings` — a list of domain words that bias recognition.
+Feeding it musical vocabulary (*intonation*, *legato*, *spiccato*, note names,
+"measures") is exactly what it is for. `@capacitor-community/speech-recognition@7.0.1`
+**never sets it** and exposes no option to, so using it means forking the plugin
+or landing a PR upstream. That is the difference between "voice input is
+mediocre for musicians" and "voice input is tuned for musicians", and it is
+available only on the native path — which, if it works, would be a *real*
+Capacitor advantage where dictation quality alone is not. Worth its own spike
+before voice input's `[v1]` status is settled.
+
+### Phase C, the rest of the mechanical questions
+
+All `observed (device)`:
+
+- **Interim results stream live.** Text appears in the field as you speak, so
+  design-tokens §6's *"Text streams into the field as it's recognized"* is
+  achievable on native, not just on the web.
+- **No session cap within 209.9 seconds.** A single dictation ran three and a
+  half minutes without being cut off. If `SFSpeechRecognizer` has a limit it is
+  longer than any realistic practice note, so no stitching of multiple sessions
+  is needed.
+- **Two permission prompts on first run**, microphone then speech recognition,
+  both carrying the `Info.plist` copy. Worth designing for: a user meets two
+  system dialogs back to back the first time they tap the mic, which is a lot
+  of friction at exactly the wrong moment. Kantelo may want to prime them.
+
+### D3 answered: the keyboard behaves
+
+`observed (device)`. On `/mic`, focusing the bottom-anchored input **raises it
+above the keyboard** rather than letting the keyboard cover it. Combined with
+the earlier probe readings — `safe-area-inset-top: 62px`, `-bottom: 34px`, and
+`100vh == 100dvh == 874px` at rest — D3 is answered and costs much less than
+feared:
+
+- No keyboard-inset plumbing (`@capacitor/keyboard`) is required for
+  bottom-anchored inputs.
+- `100vh` needs no migration to `100dvh`: in a webview there is no collapsing
+  browser chrome, so they are identical.
+- Safe-area insets work, but Kantelo only handles the **bottom** today
+  (`safe-area-pb` in `globals.css`). The harness had to add top/left/right
+  padding after content rendered underneath the status bar and became
+  untappable — Kantelo will need the same.
+
 ### Still outstanding after this run
 
 `needs device`: the OAuth round trip (B2 — explicitly not a kill), Phase C's
@@ -723,6 +791,7 @@ still evaporate.
 |---|---|---|---|---|
 | 1 | **`VoiceInput` provider abstraction** — one interface, two implementations, selected at runtime | see below | `documented` (product-spec:191 requires it) | ~0.5 d |
 | 2 | **Replace the feature check in `useSpeechRecognition` with a platform check** — tracked as [#324](https://github.com/megulus/practice-journal/issues/324) | see below; shipped code violates product-spec:191 | `observed` (the code), `documented` (why it matters) | ~0.5 d |
+| 1a | **A loading/error state for Clerk** — `<SignedIn>`/`<SignedOut>` render `null` both while loading *and* on failure, so a Clerk that never initialises shows a blank screen with no error | hit three times during this spike; indistinguishable from "still loading" without checking `useAuth().isLoaded` | `observed (device)` | ~0.5 d |
 | 2a | **`VoiceInput`'s denied-permission state needs an actionable affordance on native** — copy naming Settings, ideally a deep link | iOS never re-prompts once denied; today's 5-second toast is a dead end in a packaged app | `observed (device)` | ~0.5 d + a copy decision |
 | 3 | Dynamic routes → query params (or hash), 4 page files + 7 nav call sites | extensionless deep links all resolve to `index.html` | `documented` (Router.swift) + `observed (sim)` | 0.5–1 d |
 | 4 | Dynamic pages split into server shell + client component *(only if any path params are kept)* | `'use client'` cannot export `generateStaticParams` | `observed` (build error) | ~2 h |
@@ -736,7 +805,8 @@ still evaporate.
 | 11 | In-app account deletion: `useReverification()` + a backend `DELETE /api/user/me` (or a `user.deleted` webhook) that removes app data | Apple 5.1.1(v); Clerk deletion doesn't touch Kantelo's DB | `observed` (reverification error) + `documented` (Apple, Clerk) | 1 d |
 | 12 | `NEXT_PUBLIC_*` are inlined at build — a Capacitor binary is pinned to one environment | no runtime config in a packaged app; needs a build matrix or a runtime config fetch | `observed` | 0.5 d |
 | 13 | Session auto-save: **not forced** by webview reloads — a product choice, not a requirement | the webview survived 11 min backgrounded with state intact; still worth having for crashes and force-quits | `observed (device)`, easy case only | product decision |
-| 14 | `100vh` → `100dvh`, keyboard-aware bottom bar, pending D3 | `safe-area-pb` already exists in `globals.css`; the keyboard case is untested | **`needs device`** | pending D3 |
+| 14 | **Top/side safe-area padding** — `globals.css` handles only the bottom (`safe-area-pb`); content renders under the status bar without it, and taps there are swallowed | the webview draws edge-to-edge; the harness hit exactly this and had to be fixed mid-run | `observed (device)` | ~2 h |
+| 14a | ~~`100vh` → `100dvh`, keyboard-aware bottom bar~~ — **not needed.** They are identical in a webview, and bottom inputs already rise above the keyboard | no collapsing browser chrome; iOS handles the inset | `observed (device)` | none |
 
 ### #1 — the `VoiceInput` provider abstraction (design this into Phase 0)
 
