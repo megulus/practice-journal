@@ -2,6 +2,7 @@
 
 import { SignIn, SignUp, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 import { useState } from 'react'
+import ClerkStatus from '@/app/ClerkStatus'
 
 /**
  * Phase B: Clerk's prebuilt components from the SPA package.
@@ -19,6 +20,7 @@ export default function SignInClient() {
       <nav className="spike-nav">
         <a href="/">← home</a> · <a href="/protected">/protected</a> · <a href="/mic">/mic</a>
       </nav>
+      <ClerkStatus />
       <SignedOut>
         <button id="toggle-mode" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>
           switch to sign {mode === 'in' ? 'up' : 'in'}

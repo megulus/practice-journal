@@ -3,6 +3,7 @@
 import { SignedIn, SignedOut, useAuth, useUser, useClerk } from '@clerk/clerk-react'
 import { useEffect, useState } from 'react'
 import { API_URL } from '@/lib/env'
+import ClerkStatus from '@/app/ClerkStatus'
 
 /**
  * Phase B: a "protected" route with no middleware — the only gate available in
@@ -69,6 +70,7 @@ export default function Protected() {
         <a href="/">← home</a> · <a href="/sign-in">/sign-in</a> · <a href="/mic">/mic</a>
       </nav>
       <h1>protected</h1>
+      <ClerkStatus />
       <SignedOut>
         <p id="signed-out">SIGNED OUT — a real app would redirect to /sign-in here.</p>
         <a href="/sign-in">go to /sign-in</a>
