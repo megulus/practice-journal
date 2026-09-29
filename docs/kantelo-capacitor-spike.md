@@ -7,12 +7,16 @@
 > `kantelo-capacitor-spike.md`", in the *Platform warning* paragraph) and the
 > file it pointed at never existed in the repo.
 >
-> **Verdict: undetermined — device phases outstanding**, as written on
-> 2026-09-17. **Partially superseded:** a device run on 2026-09-28 cleared
-> Phase B's kill criterion on hardware, which means *every* kill criterion in
-> #305 is now cleared — see "Device run" below. Phase C, D2 and D3 remain
-> untested, and the final verdict is Meg's call, so the line above stands until
-> she changes it.
+> **Verdict as written on 2026-09-17: undetermined — device phases
+> outstanding. Now superseded by the device run of 2026-09-28/29, which
+> completed the run-book.** Every kill criterion in #305 is cleared and nothing
+> found is fatal, so the technical answer is **viable with caveats**. But the
+> *reason* to pick Capacitor got weaker, not stronger: dictation quality — the
+> one place native was expected to beat the web — came back a **tie**. So the
+> case now rests entirely on the original product motivation (App Store
+> presence, install friction), which is a product judgement and **Meg's call,
+> not this document's**. See "Device run" below, and "Where this leaves the
+> decision" at the end.
 >
 > **This is not a contract doc.** `kantelo-product-spec.md`,
 > `kantelo-schema-api.md` and `kantelo-design-tokens.md` describe what Kantelo
@@ -379,13 +383,70 @@ feared:
   padding after content rendered underneath the status bar and became
   untappable — Kantelo will need the same.
 
+### B2 answered: OAuth fails at Clerk's callback, and the fix is bigger than expected
+
+`observed (device)`. Tapping **Continue with Google** leaves the app, completes
+at Google, and then dies on the way back. Clerk's callback endpoint returns:
+
+```
+https://clerk.shared.lcl.dev/v1/oauth_callback?state=…
+{"errors":[{"message":"Invalid URL scheme", …}]}
+```
+
+Clerk will not redirect to a `capacitor://` target. This is **not a kill** —
+#305 says so explicitly, and email/password works — but the remedy is more than
+the "wire up a plugin" the original note assumed:
+
+- The straightforward route (`@capacitor/browser` for the system browser, a
+  custom scheme in `CFBundleURLTypes`, `App.addListener('appUrlOpen')` to catch
+  the return, then hand the params to Clerk's `handleRedirectCallback`) hits
+  this same rejection, because the failure is **server-side at Clerk**, not in
+  the app's URL handling. Clerk validates the redirect target's scheme before
+  the app ever sees it.
+- That points instead at **universal links**: an `https://` redirect landing on
+  a hosted page that deep-links into the app, which means an
+  `apple-app-site-association` file, an Associated Domains entitlement — and
+  therefore a **paid** Apple Developer membership, since that entitlement is not
+  available on a free personal team.
+
+So "add Google sign-in later" is not a half-day of plumbing. Revised estimate:
+**2–3 days**, plus the $99/year membership as a prerequisite rather than a
+store-submission afterthought. #305's fallback — ship email/password on mobile
+first — looks like the right call, and Apple's 4.8 requirement only bites once a
+third-party login is actually offered.
+
+### The "unreliable Clerk" scare, and what it actually was
+
+Worth recording because the instinct — *"unreliable is worse than 100%
+broken"* — is right, and because the explanation is a product finding rather
+than a flake.
+
+ClerkJS rendering nothing happened **three times** during this run, and at least
+once it resolved on its own while someone was fetching a camera to photograph
+it. The cause is structural, not intermittent: `<SignedIn>` and `<SignedOut>`
+both render `null` while `isLoaded` is false **and** if Clerk never loads at
+all. A slow cold start and a permanent failure are pixel-identical — blank
+screen, no spinner, no error. On a fresh install a development instance has
+nothing cached and must round-trip to the Frontend API before anything appears.
+
+The harness now renders a Clerk status line reporting `isLoaded` and the time
+taken, flagging anything over three seconds
+(`spikes/capacitor-spike/src/app/ClerkStatus.tsx`). **Kantelo needs the same
+distinction in its real UI** — changes-table row 1a. Without it, every slow
+network produces a blank app that users will report as broken, and which no
+amount of log-reading will distinguish from an outage.
+
 ### Still outstanding after this run
 
-`needs device`: the OAuth round trip (B2 — explicitly not a kill), Phase C's
-remaining mechanical questions (interim results streaming, per-session duration
-cap, airplane-mode/on-device recognition) and its judgement half (step 6, Meg
-with a violin), D3's keyboard behaviour, and the harder D2 variant described
-above. Everything else in the run-book is answered.
+**The run-book is complete.** Every question in it has an answer above, except
+two deliberate remainders:
+
+- the **harder D2 variant** — 30+ minutes, unplugged, with memory pressure from
+  other apps. The pass recorded above is the easy case.
+- a **first-run denial** of the microphone prompt (tapping "Don't Allow"),
+  which needs another delete-and-reinstall.
+
+Neither can change a kill criterion. The spike's questions are answered.
 
 ---
 
@@ -1129,6 +1190,47 @@ Note `localStorage last seen` on the probe screen. Force-quit, reopen.
 **Pass:** `last seen` shows the previous timestamp (i.e. it persisted) and
 `webview loads` incremented. **Fail:** `never` — storage was evicted, which
 would also explain any Clerk session loss in step 3.
+
+---
+
+## Where this leaves the decision
+
+Added 2026-09-29, after the run-book was completed on hardware. This section
+frames the choice; it does not make it.
+
+**Technically, Capacitor works.** Every kill criterion is cleared. Static export
+fits Kantelo's shape, Clerk holds a session across force-quit, the API is
+reachable with one CORS string, the webview survives backgrounding, the keyboard
+behaves, and dictation works offline. Nothing found is fatal, and most of the
+costs are small and enumerated in the changes table.
+
+**But the technical case *for* it is weaker than when the spike started.** #305
+framed voice input as the decider: *"good native plugin → Capacitor beats PWA on
+Kantelo's most friction-sensitive interaction."* It doesn't. Native and Web
+Speech transcribed the reference phrase identically, mangling "intonation" the
+same way. On the evidence, a PWA would give musicians exactly the same dictation
+experience.
+
+So the decision rests where it began — on **install friction for a
+non-technical audience**, which is a product judgement, not something this spike
+can settle. What the spike *can* say:
+
+| | Capacitor | PWA |
+|---|---|---|
+| Dictation quality | tie | tie |
+| Dictation *tunability* | `contextualStrings` is reachable (needs a plugin fork) | not reachable |
+| Install | App Store | share-sheet → "Add to Home Screen" |
+| Session persistence | works, needs `CapacitorCookies` | native to the browser |
+| Port cost | the changes table, ≈2–3 weeks | far less |
+| Ongoing | Apple review, $99/yr, native build in CI | none |
+| Google sign-in | 2–3 days + paid membership (universal links) | works today |
+
+**The one thing that could still make native decisively better is
+`contextualStrings`** — biasing recognition toward musical vocabulary, available
+only on the native path. That is untested and needs a plugin fork. If voice
+input is genuinely the product's differentiator, that experiment is worth
+running *before* the decision, because it is the only place where Capacitor
+could beat the web rather than merely match it.
 
 ---
 
