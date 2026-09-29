@@ -186,7 +186,7 @@ token, and the server reported back:
 Three things settled:
 
 - **`Origin: capacitor://localhost`** — the literal custom-scheme origin, not
-  the opaque `null` that was the feared outcome. So the changes-table row
+  the opaque `null` that was the feared outcome. So changes-table row 9
   stands as written: **one exact string in `CORS_ORIGINS`**. No `"null"` in an
   allow-list (which would have admitted every sandboxed iframe on the web), and
   no need for Capacitor's native HTTP plugin with the `fetch`-patching and
@@ -610,8 +610,10 @@ runs fine on Linux and is committed here ready to open.
 
 **Half the kill question is answered: Clerk works with no server and no
 middleware — in a browser.** The other half (does the session survive in
-WKWebView, where it has to live in cookies on a custom-scheme origin) is
-`needs device` and is the single most important thing left in this spike.
+WKWebView, where it has to live in cookies on a custom-scheme origin) was
+`needs device` and was the single most important thing left in this spike.
+**It has since been answered on hardware — it passes, but only with
+`CapacitorCookies` enabled. See "Device run" above.**
 `observed`, in headless Chromium against the exported `out/` served by the
 router sim, Clerk **development** instance (Kantelo's own `pk_test_…`):
 
@@ -849,7 +851,8 @@ One unknown remains, and it is the reason the run-book has an echo server:
 whether WKWebView actually sends `Origin: capacitor://localhost` or an opaque
 `Origin: null` for cross-origin fetches from a custom scheme. If it is `null`,
 the allow-list needs `"null"` (bad — every sandboxed iframe on the internet is
-also `null`) or the request has to go native. `needs device`.
+also `null`) or the request has to go native. `needs device` — **since
+answered: the webview sends `capacitor://localhost`. See "Device run" above.**
 
 The native fallback, `documented` from
 `node_modules/@capacitor/ios/Capacitor/Capacitor/WebViewAssetHandler.swift`:
@@ -862,7 +865,11 @@ semantics under Kantelo's API client. Only reach for it if the echo server says
 
 ---
 
-## Phases D2–D4 — all `needs device`
+## Phases D2–D4 — all `needs device` *(since answered — see "Device run")*
+
+> As written on 2026-09-17. D2, D3 and D4 were all run on hardware on
+> 2026-09-28/29 and all passed; this section is kept for how they were
+> instrumented, not as outstanding work.
 
 Not guessable, and instrumented rather than described: the probe screen prints
 `mounted at`, an in-memory tick counter, a localStorage load counter, viewport
@@ -876,14 +883,15 @@ answer "did the webview reload while backgrounded". See the run-book.
 Ordered by how early Phase 0 needs to know. Effort is my estimate, not a quote.
 
 The **Basis** column says what the row rests on, using the same labels as the
-rest of this document — a row resting on `needs device` is a row that could
-still evaporate.
+rest of this document. After the device run no row rests on `needs device` any
+more; the ones marked `observed (device)` were confirmed on hardware, and the
+strikethrough row is work the device run proved unnecessary.
 
 | # | Change | Why | Basis | Effort |
 |---|---|---|---|---|
 | 1 | **`VoiceInput` provider abstraction** — one interface, two implementations, selected at runtime | see below | `documented` (product-spec:191 requires it) | ~0.5 d |
-| 2 | **Replace the feature check in `useSpeechRecognition` with a platform check** — tracked as [#324](https://github.com/megulus/practice-journal/issues/324) | see below; shipped code violates product-spec:191 | `observed` (the code), `documented` (why it matters) | ~0.5 d |
 | 1a | **A loading/error state for Clerk** — `<SignedIn>`/`<SignedOut>` render `null` both while loading *and* on failure, so a Clerk that never initialises shows a blank screen with no error | hit three times during this spike; indistinguishable from "still loading" without checking `useAuth().isLoaded` | `observed (device)` | ~0.5 d |
+| 2 | **Replace the feature check in `useSpeechRecognition` with a platform check** — tracked as [#324](https://github.com/megulus/practice-journal/issues/324) | see below; shipped code violates product-spec:191 | `observed` (the code), `documented` (why it matters) | ~0.5 d |
 | 2a | **`VoiceInput`'s denied-permission state needs an actionable affordance on native** — copy naming Settings, ideally a deep link | iOS never re-prompts once denied; today's 5-second toast is a dead end in a packaged app | `observed (device)` | ~0.5 d + a copy decision |
 | 3 | Dynamic routes → query params (or hash), 4 page files + 7 nav call sites | extensionless deep links all resolve to `index.html` | `documented` (Router.swift) + `observed (sim)` | 0.5–1 d |
 | 4 | Dynamic pages split into server shell + client component *(only if any path params are kept)* | `'use client'` cannot export `generateStaticParams` | `observed` (build error) | ~2 h |
@@ -1010,15 +1018,26 @@ biggest factor in this number.
 |---|---|
 | Rows 3–9 above (export config, routing, Clerk swap, middleware removal, CORS), **excluding row 7** — the Core 3 upgrade is work Kantelo owes anyway, not a cost of the port | **3–4 days** |
 | Native shell: Xcode project, icons/splash, signing, permissions, first device build | **2–3 days** |
-| Voice provider abstraction + native plugin wiring + the fallback fix (#1, #2) | **1–2 days** |
-| Account deletion path, front and back (#10) | **1 day** |
-| Whatever D2–D4 turn up (auto-save is the big one; assume it lands) | **2–5 days** |
+| Voice provider abstraction + native plugin wiring + the fallback fix (rows 1 and 2) | **1–2 days** |
+| Account deletion path, front and back (row 11) | **1 day** |
+| Clerk loading/error state + client-side auth gate (rows 1a and 5) — work the web path does not need | **0.5–1 day** |
+| ~~Whatever D2–D4 turn up~~ — **mostly resolved by the device run.** D2 passed (auto-save is not forced), D3 needs only top/side safe-area padding, D4 passed. What remains is that padding | **~2 h** |
 | App Store prep: Sign in with Apple, privacy manifest, screenshots, review round-trips | **3–5 days**, mostly calendar |
 
-**≈ 2–3 engineering weeks to a TestFlight build**, assuming the device phases
-come back clean. A bad Phase C result doesn't stop the port — it demotes voice
-input's `[v1]` status. A bad cookie/session result (Phase B, device) is the one
-that could still swing this back to PWA, and it is the first thing to test.
+**≈ 2–2.5 engineering weeks to a TestFlight build.** Revised down slightly after
+the device run: the open-ended D2–D4 allowance was the largest source of
+uncertainty and it collapsed to a couple of hours, offset by the Clerk
+loading/error work the static-export path turns out to need.
+
+The hedges this estimate originally carried are now settled. Phase B's
+cookie/session result — the one that could have swung this back to PWA — passed.
+Phase C came back a **tie**, which does not stop the port but does demote the
+argument *for* it; see "Where this leaves the decision".
+
+What the number excludes, deliberately: Google sign-in (2–3 days plus a paid
+Apple membership for universal links, per B2), the Core 3 upgrade (row 7, owed
+regardless), and any `contextualStrings` experiment. It assumes email/password
+only on mobile at launch, which is #305's stated fallback.
 
 ---
 
@@ -1030,11 +1049,17 @@ failure here is a finding.
 
 ## Setup (once, ~15 min)
 
-> **Run-book status:** Setup and steps 1–3 were completed on 2026-09-28; their
-> results are in "Device run" above. Steps 4–9 are still open. The harness on
-> the branch has since gained safe-area padding, a sticky nav on every screen,
-> and `CapacitorCookies` enabled — so a fresh run starts from a better place
-> than that one did.
+> **Run-book status: complete.** Every step below was run on a physical iPhone
+> on 2026-09-28/29; the results are in "Device run" above, and the run-book is
+> kept as the reproducible procedure rather than as outstanding work. Two
+> deliberate remainders, neither able to move a kill criterion: the harder D2
+> variant (30+ minutes, unplugged, under memory pressure) and a first-run
+> denial of the microphone prompt.
+>
+> The harness also gained safe-area padding, a sticky nav on every screen,
+> `CapacitorCookies`, an ATS exception and a Clerk status line **during** that
+> run — several of them because the run needed them — so anyone re-running this
+> starts from a better place than the first attempt did.
 
 **Step 0 — get the harness.** It is not on `main`, and `spikes/` does not exist
 there. From a clean checkout of this repo:
