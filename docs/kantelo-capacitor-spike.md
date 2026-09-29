@@ -436,6 +436,37 @@ distinction in its real UI** — changes-table row 1a. Without it, every slow
 network produces a blank app that users will report as broken, and which no
 amount of log-reading will distinguish from an outage.
 
+#### Why this is a Capacitor cost specifically, and not a PWA one
+
+This is the part worth carrying into the decision, and it is not obvious.
+
+**Kantelo has no client-side auth gate today, because it has never needed one.**
+`frontend/src/middleware.ts` runs `auth.protect()` on every non-public route, so
+the *server* decides before a byte of HTML is sent; an unauthenticated user is
+redirected and never reaches a page. `frontend/src/app/(app)/layout.tsx` does no
+auth checking whatsoever — it renders `AppShell` and trusts the middleware. The
+only `isLoaded` check in the entire app is `app/page.tsx`, a redirect stub.
+
+`output: 'export'` deletes middleware. So a Capacitor build must replace a
+server-side guarantee with a **client-side race**: on every cold start there is
+a window where Clerk has not resolved, the app knows nothing about the user, and
+`<SignedIn>`/`<SignedOut>` render nothing. That window is invisible on a fast
+network and indefinite on a bad one — which is what produced three "Clerk is
+broken" moments during this run.
+
+**A PWA does not inherit any of this.** A PWA is the deployed Next app with a
+manifest and a service worker; the server is still there, so `clerkMiddleware`
+keeps working exactly as it does today. The blank-window problem, the loading
+state, the flash of an empty protected shell before the client gate resolves —
+none of it arises.
+
+To be precise about severity: this is **not a data leak**. Protected content
+comes from the API, which requires a bearer token, so the worst case is an empty
+shell rather than another user's data. It is a UX and perceived-reliability cost,
+paid on every cold launch, plus a category of bug that does not exist on the web
+path. Changes-table rows 1a and 5 are the work; the judgement is that they are
+**new risk surface Capacitor introduces and a PWA does not**.
+
 ### Still outstanding after this run
 
 **The run-book is complete.** Every question in it has an answer above, except
@@ -1221,6 +1252,7 @@ can settle. What the spike *can* say:
 | Dictation *tunability* | `contextualStrings` is reachable (needs a plugin fork) | not reachable |
 | Install | App Store | share-sheet → "Add to Home Screen" |
 | Session persistence | works, needs `CapacitorCookies` | native to the browser |
+| Auth gating | **client-side only** — middleware is deleted by static export, so every cold start has a blank window until Clerk resolves | **server-side `clerkMiddleware`, unchanged** — the guarantee Kantelo already relies on |
 | Port cost | the changes table, ≈2–3 weeks | far less |
 | Ongoing | Apple review, $99/yr, native build in CI | none |
 | Google sign-in | 2–3 days + paid membership (universal links) | works today |
