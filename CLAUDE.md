@@ -212,8 +212,11 @@ Everything here is something that actually bit.
 
 **Group tickets by file overlap, not by theme.** Two tickets that read as
 unrelated but edit the same component belong in one task; two that sound like a
-pair but touch different directories should be separate PRs. Before dispatching,
-map what each branch will touch — and once PRs exist, map it for real:
+pair but touch different directories should be separate PRs. Grouping decides
+what belongs *together*, not how much lands *at once* — a large grouped change
+still gets split into several small PRs (see "Keep PRs small and reviewable" under
+Conventions). Before dispatching, map what each branch will touch — and once PRs
+exist, map it for real:
 
 ```bash
 for n in "${!BRANCHES[@]}"; do
