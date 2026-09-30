@@ -1,0 +1,24 @@
+# Context for frontend/Dockerfile, which builds from the repo root (the npm
+# workspace root). Only the workspace root manifests, frontend/ and (later)
+# packages/ are needed; everything else is excluded.
+backend
+docs
+.git
+.github
+.claude
+.cursor
+.vscode
+**/node_modules
+**/.next
+**/out
+**/build
+**/dist
+**/*.log
+**/.DS_Store
+# The root .env (compose variables, may hold secrets) is new to this context;
+# frontend/.env was always in the old frontend/ context, so it stays included.
+.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local

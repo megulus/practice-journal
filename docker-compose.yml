@@ -36,8 +36,10 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      # Repo root, not ./frontend: it's the npm workspace root (lockfile lives
+      # there). See the header of frontend/Dockerfile.
+      context: .
+      dockerfile: frontend/Dockerfile
       target: dev
       args:
         # NEXT_PUBLIC_* must be passed as build args so the static export in
@@ -71,9 +73,13 @@ services:
       # `npm run dev` (without docker) shows it automatically via NODE_ENV.
       NEXT_PUBLIC_PREVIEW_ENABLED: ${NEXT_PUBLIC_PREVIEW_ENABLED:-}
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      # Only frontend/ is bind-mounted for hot reload; the workspace
+      # node_modules at /app/node_modules comes from the image. The anonymous
+      # volumes keep a host frontend/node_modules or .next from shadowing the
+      # container's.
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+      - /app/frontend/.next
     depends_on:
       - backend
     command: npm run dev

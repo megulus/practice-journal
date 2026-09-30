@@ -7,7 +7,7 @@
   "python.analysis.extraPaths": ["./backend"],
 
   // TypeScript / Frontend
-  "typescript.tsdk": "./frontend/node_modules/typescript/lib",
+  "typescript.tsdk": "./node_modules/typescript/lib",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[python]": {
     "editor.defaultFormatter": "ms-python.python"

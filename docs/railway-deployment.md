@@ -62,9 +62,29 @@ This guide walks through deploying the Kantelo backend (FastAPI) and frontend (N
 
 1. In your Railway project, click **"+ New"** → **"GitHub Repo"** → select `practice-journal` again
 2. In the service settings:
-   - **Root Directory:** `frontend`
-   - **Build Command:** (leave default — Railway will auto-detect the Dockerfile)
-3. The `frontend/railway.toml` file automatically passes `NEXT_PUBLIC_*` env vars as Docker build args so they're available at Next.js build time. You just need to set them as regular environment variables.
+   - **Root Directory:** leave **empty** (the repo root). Not `frontend` — see
+     below.
+   - **Railway Config File** (config-as-code path): `/frontend/railway.toml`.
+     Railway does not look for the config file under the Root Directory, so
+     this has to be set explicitly.
+   - **Build Command:** (leave default — the config file selects the Dockerfile)
+3. The `frontend/railway.toml` file sets the Dockerfile path
+   (`frontend/Dockerfile`), the watch paths, and passes `NEXT_PUBLIC_*` env vars
+   as Docker build args so they're available at Next.js build time. You just
+   need to set them as regular environment variables.
+
+   > **Why the repo root?** The repo is an npm workspace: the root
+   > `package.json` and `package-lock.json` sit at the top level, and the
+   > frontend imports shared workspace packages from `packages/` (#334). A Root
+   > Directory of `frontend` limits the Docker build context to that directory,
+   > so neither the lockfile nor `packages/` would be visible and `npm ci`
+   > fails. The watch paths in `railway.toml` (`/frontend/**`, `/packages/**`,
+   > the root manifests, `/.dockerignore`) keep backend-only pushes from
+   > rebuilding the frontend.
+   >
+   > Don't add a `railway.toml` at the repo root: a service without an explicit
+   > config-file path reads `/railway.toml`, so the backend service would pick
+   > it up.
 4. Add these **environment variables**:
 
    | Variable | Value |
@@ -137,6 +157,14 @@ Railway auto-deploys on every push to your default branch. To change this:
 - Check the deploy logs in Railway for the service
 - Verify `DATABASE_URL` is set (click the variable and confirm it resolves)
 - Check that Alembic migrations succeeded in the deploy log
+
+**Frontend build can't find its Dockerfile, or `npm ci` can't find a lockfile:**
+- The service still has **Root Directory** `frontend` (the setting before the
+  repo became an npm workspace, #334). Clear it and set the config file path to
+  `/frontend/railway.toml`, as in step 4, then deploy the latest commit.
+- If the build succeeds but the image has no `NEXT_PUBLIC_*` values (Clerk
+  "Missing publishableKey"), the config file path isn't set, so the build args
+  in `frontend/railway.toml` were never applied.
 
 **Auth not working:**
 - Verify `CLERK_SECRET_KEY` is set on both backend and frontend
