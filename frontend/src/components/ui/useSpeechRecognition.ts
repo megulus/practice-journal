@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isSpeechPlatformAllowed } from './speechPlatform'
 
 // ---------------------------------------------------------------------------
 // Minimal Web Speech API typings (not in the default TS DOM lib). Only the
@@ -40,6 +41,18 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
 
 function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
   if (typeof window === 'undefined') return null
+  // Platform check first: iOS WKWebViews expose a constructor that never
+  // works, so its presence alone can't be trusted (#324, speechPlatform.ts).
+  const nav = navigator as Navigator & { standalone?: boolean }
+  if (
+    !isSpeechPlatformAllowed({
+      userAgent: nav.userAgent,
+      maxTouchPoints: nav.maxTouchPoints ?? 0,
+      standalone: nav.standalone,
+    })
+  ) {
+    return null
+  }
   const w = window as unknown as {
     SpeechRecognition?: SpeechRecognitionConstructor
     webkitSpeechRecognition?: SpeechRecognitionConstructor
@@ -86,7 +99,10 @@ export interface UseSpeechRecognitionOptions {
 }
 
 export interface SpeechRecognitionControls {
-  /** False on the server and where the Web Speech API is unavailable. */
+  /**
+   * False on the server, where the Web Speech API is unavailable, and on
+   * platforms known to expose it without it working (iOS in-app browsers).
+   */
   supported: boolean
   isRecording: boolean
   start: () => void
