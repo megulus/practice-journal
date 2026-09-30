@@ -52,3 +52,4 @@ append-only discipline, plus the `Status` field, is what keeps the set honest.
 | [0013](0013-naive-utc-timestamps.md) | Naive-UTC timestamps via a single helper | Accepted |
 | [0014](0014-coaching-engine-rules-orchestrator.md) | Coaching engine as isolated rules + orchestrator | Accepted |
 | [0015](0015-schema-opinionated-for-product-thesis.md) | An opinionated schema in service of the product thesis | Accepted |
+| [0016](0016-mobile-platform-react-native.md) | Mobile platform: React Native (Capacitor and PWA rejected) | Accepted |
