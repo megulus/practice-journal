@@ -224,7 +224,7 @@ Repertoire blocks display the piece name as a header followed by the practiced s
 
 **Post-session suggestion:**
 
-A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more this week matches your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
+A coaching insight card (teal background) that combines backward-looking reflection and forward-looking motivation. The card should use the directional rating language. Example: "You've practiced 4 of the last 7 days — one more and you'll match your goal. Your Bruch first page is trending forward for the second session in a row. For mm. 17–32, try an even slower tempo next time — sometimes a step back means you're ready to go deeper."
 
 **Guided reflection prompt:**
 
@@ -342,7 +342,9 @@ A reverse-chronological list of past sessions. Each session card shows:
 - Session-level notes (if any)
 - Reflection prompt response (if any)
 
-**Filtering:** A row of time-range pills (All sessions / This week / This month) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+**Filtering:** A row of time-range pills (All sessions / Last 7 days / Last 30 days) sits below the suggestion card. Instrument filtering is handled by the pill toggle at the top. Session type filtering (template vs. freeform) and date range filtering can be added in a later release.
+
+The History pills are rolling windows, not calendar periods, and that's deliberate. History answers "show me my recent sessions"; Insights answers "this week vs. last", which needs fixed calendar-week boundaries. Because both live in the same tab, History's pills are labelled "Last 7 days" / "Last 30 days" rather than "This week" / "This month", so that "this week" means exactly one window in the product — the calendar week in Insights.
 
 #### Insights sub-tab
 
@@ -514,7 +516,7 @@ Rules-based coaching nudges surfaced at contextually appropriate moments rather 
 
 | Tier | Status | Location | Timing | Examples |
 |------|--------|----------|--------|----------|
-| Post-session reflection | **[v1]** | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more this week hits your goal." / "Your Bruch first page is trending forward for the second session in a row." |
+| Post-session reflection | **[v1]** | Session summary, coaching card | After finishing | "You've practiced 4 of the last 7 days — one more and you'll match your goal." / "Your Bruch first page is trending forward for the second session in a row." |
 | Pre-session nudges | **[v1]** | Today tab, above start button | Before practicing | "Your scales coverage has dropped off — consider adding a scales block today." / "It's been 5 days — even a short session counts." |
 | In-the-moment coaching | **[v1]** | Active session, inline below exercises | During practice | "Last session you noted intonation was shaky in the top octave." / "Try bumping tempo to 80 this time." |
 | Pattern-level insights | **[post-v1 — Pro]** | Progress tab | When reviewing stats | "Your average session is 15 min shorter on weekends." / "You tend to skip cool-down sections — these help with retention." |
@@ -646,6 +648,7 @@ Wireframes were developed in conversation and should be saved as screenshots in 
 - Wireframes are mobile-first (375px width) but the app is a responsive web app, not a native mobile app.
 - Colors in wireframes are placeholder — final visual design and brand identity are not yet determined.
 - Wireframes show structure and interaction patterns, not final copy or content.
+- **Rating labels in wireframes are illustrative and several predate the trajectory framing.** `progress-history.png`, for instance, labels ratings "Nailed it / Okay / Struggled". The canonical wording is **Step back / Steady / Step forward** (plus "Skipped"), and §5.2 "Rating indicator (chevrons)" explains why the outcome framing was rejected — it isn't a copy preference to be overridden by a wireframe. Where a wireframe and §5.2 disagree on rating wording, §5.2 wins.
 
 ---
 
@@ -714,7 +717,7 @@ Wireframes were developed in conversation and should be saved as screenshots in 
 | Feature | Status | Notes |
 |---|---|---|
 | History sub-tab, expandable session cards | **[v1]** | Unlimited and permanent. Never capped. |
-| Time filter pills (all / week / month) | **[v1]** | |
+| Time filter pills (all / last 7 days / last 30 days) | **[v1]** | |
 | Insights — rating trend, **4 weeks** | **[v1]** | **Pricing-critical. Not droppable.** |
 | Insights — practice heatmap, full year | **[v1]** | Browsing a past year is free |
 | Insights — this week vs. last, with paired bar chart | **[v1]** | |
