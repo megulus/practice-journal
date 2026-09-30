@@ -8,15 +8,26 @@ FROM node:20.20.2-alpine AS base
 
 WORKDIR /app
 
+# Build context is the REPO ROOT, not frontend/ (`docker build -f
+# frontend/Dockerfile .`). The repo is an npm workspace: the lockfile lives at
+# the root, and the frontend will import workspace packages from outside
+# frontend/ (#334). The root .dockerignore keeps backend/, docs/ etc. out.
+
 # --- Dependencies ---
+# Manifests only, so this layer is cached until a dependency actually changes.
+# Every workspace's package.json has to be here or `npm ci` rejects the lockfile.
 FROM base AS deps
-COPY package*.json ./
+COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/
 RUN npm ci --include=dev
 
 # --- Build ---
+# Copies all of /app from deps, not just the root node_modules, so any
+# per-workspace node_modules npm didn't hoist comes along too.
 FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app ./
 COPY . .
+WORKDIR /app/frontend
 
 # Build args for Next.js (needed at build time for static optimization)
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -41,20 +52,22 @@ RUN npm run build
 
 # --- Dev ---
 FROM base AS dev
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app ./
 COPY . .
+WORKDIR /app/frontend
 EXPOSE 3000
-CMD ["npm", "run", "dev"]    
+CMD ["npm", "run", "dev"]
 
 # --- Production ---
 FROM base AS runner
 ENV NODE_ENV=production
 
-# Copy built assets
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# Copy built assets. In a workspace, Next's standalone output mirrors the repo
+# layout: traced node_modules at the top, the server under frontend/.
+COPY --from=builder /app/frontend/.next/standalone ./
+COPY --from=builder /app/frontend/.next/static ./frontend/.next/static
+COPY --from=builder /app/frontend/public ./frontend/public
 
 # Railway sets PORT automatically; default to 3000
 EXPOSE ${PORT:-3000}
-CMD ["sh", "-c", "PORT=${PORT:-3000} node server.js"]
+CMD ["sh", "-c", "PORT=${PORT:-3000} node frontend/server.js"]

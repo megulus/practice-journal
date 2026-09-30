@@ -118,6 +118,7 @@ practice-journal/
 │   │   └── lib/                # API client and TypeScript types
 │   └── package.json
 ├── docs/                       # Product spec, schema/API docs, wireframes
+├── package.json                # npm workspace root (lockfile lives here too)
 └── docker-compose.yml
 ```
 

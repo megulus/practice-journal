@@ -1,8 +1,23 @@
 [build]
+# The frontend builds from the REPO ROOT (the npm workspace root), so the
+# Railway service's Root Directory must be empty/"/" and this file's path set
+# explicitly to /frontend/railway.toml (see docs/railway-deployment.md).
+# dockerfilePath is relative to that root.
+dockerfilePath = "frontend/Dockerfile"
+# With the root as Root Directory, every push would otherwise rebuild the
+# frontend. Patterns are matched from the repo root. /packages/** is for the
+# shared workspace packages (#334) and is harmless until they exist.
+watchPatterns = [
+  "/frontend/**",
+  "/packages/**",
+  "/package.json",
+  "/package-lock.json",
+  "/.dockerignore",
+]
+
 # Pass NEXT_PUBLIC_* env vars as Docker build args so they're available
 # at Next.js build time for static optimization. Railway injects these
 # from the service's environment variables automatically when listed here.
-dockerfilePath = "Dockerfile"
 
 [build.args]
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "${{NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}}"

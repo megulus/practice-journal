@@ -307,6 +307,7 @@ Spot-check the claims that would be expensive to get wrong.
 ```
 backend/    FastAPI + SQLModel (async) + PostgreSQL + Alembic, Clerk auth
 frontend/   Next.js 14 App Router + TypeScript + Tailwind, Clerk auth  (see frontend/CLAUDE.md)
+package.json, package-lock.json   npm workspace root (JS only; backend/ is not a workspace)
 docs/       Product spec, schema/API, design tokens, wireframes
 docker-compose.yml   db (5432) + backend (8000) + frontend (3000)
 ```
@@ -368,7 +369,8 @@ a flag rather than the missing package.
 `localhost` otherwise) and provides the test client, async session, and data
 factories. Leftover test DBs can be removed with `scripts/clean-test-dbs.sh`.
 
-**Frontend** — `cd frontend && npm test` (Vitest). See `frontend/CLAUDE.md`.
+**Frontend** — `npm ci && npm test` from the repo root (Vitest; the root is an
+npm workspace, so installs happen there). See `frontend/CLAUDE.md`.
 
 ## Backend conventions
 
