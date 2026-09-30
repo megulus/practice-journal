@@ -411,6 +411,14 @@ quick-start wizard (Today tab, for users with no active plan) with #151.
 ## Conventions for working here
 
 - Match surrounding style; keep changes scoped to the task.
+- **Keep PRs small and reviewable.** Every PR is read by a human, and a 20-file,
+  ~1000-line diff is very hard to absorb — review quality drops sharply with size.
+  Aim for focused PRs; a rough target is a few hundred changed lines and under
+  ~10 files, but it's a guideline, not a gate. When a ticket would otherwise land
+  as one large PR, **split it into several smaller PRs** (sequential or stacked).
+  *How* to divide it is your call — by layer, by module, or by
+  independently-reviewable increment — whichever makes each PR understandable on
+  its own. Err toward more, smaller PRs.
 - Don't commit or push unless asked. Branch off `main` before committing.
 - When the work traces to a GitHub issue (e.g. a Niteshift run dispatched from a
   ticket), **include the issue number in the branch name** —
