@@ -60,7 +60,7 @@ The port is a **view-layer rebuild on top of a highly reusable non-view core**, 
 | `react-dom` | `react-native` | n/a |
 | `tailwindcss` | **NativeWind** | biggest lever — keeps the Tailwind vocabulary and tokens |
 
-**Reuse as-is (the non-view core):** `lib/` — `types.ts`, `api.ts`, `useApi.ts`, `dates`, `duration`, `idempotency`, `quickstart`, `section-colors`, `confirm-copy`, `cx`, and `metronome.ts` (tempo *logic*; contains no Web Audio, so it ports as logic — audible playback is new native work). Data fetching is hand-rolled `fetch` + bearer (no react-query/redux/zustand), and `fetch` works unchanged in RN. The backend coaching engine is untouched (server-side).
+**Reuse as-is (the non-view core):** `lib/` — `types.ts`, `api.ts` (its `createAuthenticatedAPI` already takes an injected token-getter), `dates`, `duration`, `idempotency`, `quickstart`, `section-colors`, `confirm-copy`, `cx`, and `metronome.ts` (tempo *logic*; contains no Web Audio, so it ports as logic — audible playback is new native work). `useApi.ts` is **not** reusable as-is — it imports `@clerk/nextjs` and `next/navigation`, so it stays a thin per-platform wrapper over the core client. Data fetching is hand-rolled `fetch` + bearer (no react-query/redux/zustand), and `fetch` works unchanged in RN. The backend coaching engine is untouched (server-side).
 
 **Mechanical swaps (low risk):** `next/navigation` (13) + `next/link` (10) → the router; `localStorage` (6) → AsyncStorage / `expo-secure-store`; `middleware.ts` → deleted, replaced by clerk-expo client gating; `matchMedia`/`ResizeObserver` (3) → `useWindowDimensions`.
 
@@ -80,7 +80,7 @@ The port is a **view-layer rebuild on top of a highly reusable non-view core**, 
 
 **Adopt now (cheap, and it improves the current web app too):**
 
-1. **Extract `packages/core`** — `types.ts`, `api.ts`, `useApi.ts`, all pure-logic libs, and their vitest suites. Both `frontend/` (Next) and a new `mobile/` (Expo) import it. The repo is already an npm-workspaces monorepo (`backend`/`frontend`); add `mobile/` and `packages/core` alongside.
+1. **Extract `packages/core`** — `types.ts`, `api.ts`, all pure-logic libs, and their vitest suites (not `useApi.ts`, which stays a per-platform wrapper). Both `frontend/` (Next) and a new `mobile/` (Expo) import it. The repo is **not** a JS workspace today (no root `package.json`; `backend/` is Python and `frontend/` is the only npm package), so this includes **establishing the workspace** (npm or pnpm) and adding `mobile/` and `packages/core` alongside `frontend/`.
 2. **Single-source the design tokens** — `tokens.css` → `tokens.ts`, consumed by web Tailwind config *and* NativeWind.
 3. **Keep components thin over the core** — logic in hooks/core, presentational components "dumb" — so porting a screen to RN is a re-skin, not a re-derivation.
 4. **Build the voice/audio engine as a portable native/C++ core from day one**, so it serves RN, a later full-native option, and a possible server-side path.
