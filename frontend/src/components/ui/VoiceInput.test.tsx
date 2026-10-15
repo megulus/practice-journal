@@ -19,6 +19,30 @@ describe('VoiceInput', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  // #324: WKWebView exposes a constructor that never works, so an iOS in-app
+  // browser must hide the mic even though the API "exists".
+  describe('platform gate', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('renders nothing in an iOS in-app browser despite an exposed constructor', () => {
+      vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 399.0.0.24.84',
+      )
+      const { container } = render(<VoiceInput onTranscript={vi.fn()} />)
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('renders a mic button in iOS Safari', () => {
+      vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1',
+      )
+      render(<VoiceInput onTranscript={vi.fn()} />)
+      expect(
+        screen.getByRole('button', { name: 'Start voice input' }),
+      ).toBeInTheDocument()
+    })
+  })
+
   it('renders a mic button when supported', () => {
     render(<VoiceInput onTranscript={vi.fn()} />)
     expect(
