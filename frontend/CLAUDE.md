@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
+The repo root is an **npm workspace** and `frontend/` is one of its workspaces.
+Install from the root (`npm ci` there; there is no `frontend/package-lock.json`
+and no `frontend/node_modules` — everything hoists to the root). Add a
+dependency with `npm install <pkg> -w frontend` from the root. The scripts below
+run from `frontend/` or from the root (the root ones forward to this workspace).
+
 ```bash
 npm run dev        # Start dev server at http://localhost:3000
 npm run build      # Production build
@@ -26,7 +32,7 @@ someone else's editor, attributed to files that PR never touched. CI runs
 Both write `frontend/.next`, so the build replaces the dev server's chunks
 under it and every route starts 500-ing with `MODULE_NOT_FOUND` until the dev
 server is restarted with a clean `.next`. `docker compose up` is safe — the
-compose file shadows `.next` with an anonymous volume (`- /app/.next`) — but a
+compose file shadows `.next` with an anonymous volume (`- /app/frontend/.next`) — but a
 natively-run `next dev` (which is how cloud sandboxes start this app) shares
 the directory. CI runs the production build on every PR, so there's rarely a
 reason to run it by hand anyway; if you must, build a copy of the tree.
