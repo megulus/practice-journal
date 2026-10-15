@@ -4,7 +4,7 @@ import BottomNav from './BottomNav'
 import SideNav from './SideNav'
 import MobileHeader from './MobileHeader'
 import { AppChromeProvider, useAppChrome } from './appChrome'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 /**
  * Authenticated app shell. Mounted only by `app/(app)/layout.tsx`, so by

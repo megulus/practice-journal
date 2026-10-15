@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export type ProgressSubTab = 'history' | 'insights'
 

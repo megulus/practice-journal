@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Plus, X } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
-import { formatRelativeDay } from '@/lib/dates'
+import { formatRelativeDay } from '@kantelo/core/dates'
 import type { DefaultSpot, Spot } from '@/lib/types'
 import { Button, Menu, Sheet } from '@/components/ui'
 import { SearchCreateInput } from './SearchCreateInput'

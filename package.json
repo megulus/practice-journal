@@ -2,7 +2,8 @@
   "name": "kantelo",
   "private": true,
   "workspaces": [
-    "frontend"
+    "frontend",
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev -w frontend",

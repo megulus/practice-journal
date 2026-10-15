@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
 import { useHideAppChrome } from '@/components/layout/appChrome'
-import { createAttemptKey } from '@/lib/idempotency'
+import { createAttemptKey } from '@kantelo/core/idempotency'
 import {
   DEFAULT_AREA_TYPES,
   DEFAULT_TIME_BUDGET,

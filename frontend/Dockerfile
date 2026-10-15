@@ -19,6 +19,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/
+COPY packages/core/package.json ./packages/core/
 RUN npm ci --include=dev
 
 # --- Build ---

@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export interface RadioProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {

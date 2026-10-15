@@ -1,0 +1,17 @@
+{
+  "name": "@kantelo/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Platform-neutral logic shared by the web app and the future mobile app (#334).",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.18"
+  }
+}

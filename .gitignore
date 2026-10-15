@@ -13,9 +13,15 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-!frontend/src/lib/
-lib64/
+# lib/ and lib64/ are what a virtualenv created in place (`python -m venv .`)
+# leaves behind. Anchored to the two places that could happen, the repo root
+# and backend/ (#327): a bare `lib/` matched every lib/ directory in the repo
+# and silently dropped source files. The real venv, backend/venv/, is covered
+# by venv/ above.
+/lib/
+/lib64/
+/backend/lib/
+/backend/lib64/
 parts/
 sdist/
 var/

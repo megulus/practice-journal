@@ -13,9 +13,15 @@
  * is also exactly what the backend's payload check expects.
  */
 
+/**
+ * The one Web Crypto member used below, typed locally: core has no DOM types,
+ * and React Native may not provide `crypto` at all.
+ */
+type MaybeCrypto = { crypto?: { randomUUID?: () => string } }
+
 /** A random key. `crypto.randomUUID` needs a secure context; fall back if absent. */
 export function newIdempotencyKey(): string {
-  const uuid = globalThis.crypto?.randomUUID?.()
+  const uuid = (globalThis as MaybeCrypto).crypto?.randomUUID?.()
   if (uuid) return uuid
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
 }

@@ -3,7 +3,7 @@
 import { type ReactNode } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { MoreHorizontal } from 'lucide-react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 /**
  * Menu — a token-styled dropdown menu.
