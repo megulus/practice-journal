@@ -131,9 +131,13 @@ Board writes (adding an item, moving a column) do work with `GH_PROJECT_TOKEN` �
 verified 2026-08 by adding #254–#257 to `Backlog`. `gh project item-add` /
 `item-edit` are still unusable with it (missing `read:org`), so a write means a
 hand-written GraphQL mutation. **This stays propose-then-confirm: don't write to
-the board without explicit sign-off.** Adding an issue is two mutations — fetch
-its `node_id` with `gh api repos/megulus/practice-journal/issues/<N> --jq
-.node_id`, then:
+the board without explicit sign-off.**
+
+New issues usually don't need adding: the board's *Auto-add to project* workflow
+puts new issues from this repo in `Backlog` within seconds (every issue since at
+least #327; PRs are not auto-added). So moving a column is mutation 2 alone, and
+the full add is only for an issue the workflow missed — fetch its `node_id` with
+`gh api repos/megulus/practice-journal/issues/<N> --jq .node_id`, then:
 
 ```bash
 # 1. add to the board (returns the new item id)
@@ -263,10 +267,11 @@ that way.
   concrete example, lay out the options with their consequences, give a
   recommendation, and say what someone must choose. That is what makes them
   groomable instead of another investigation.
-- **Put every new ticket on the board** (`Backlog`) — see "Grooming" for the
-  mutations. A ticket that isn't on the board is invisible to the next
-  prioritization pass. Note the board is well past 100 items, so item-id lookups
-  need the paged query, not a single `first: 100`.
+- **Make sure every new ticket is on the board** (`Backlog`). New issues are
+  auto-added; anything else needs the mutations in "Grooming". A ticket that
+  isn't on the board is invisible to the next prioritization pass. Note the
+  board is well past 100 items, so item-id lookups need the paged query, not a
+  single `first: 100`.
 
 **"CI is green" is not "this will merge clean."** The failures that survive a
 green run:
@@ -422,6 +427,10 @@ quick-start wizard (Today tab, for users with no active plan) with #151.
   *How* to divide it is your call — by layer, by module, or by
   independently-reviewable increment — whichever makes each PR understandable on
   its own. Err toward more, smaller PRs.
+- **Keep PR descriptions short.** Lead with anything the reviewer must act on
+  (a deploy step, a pending rebase), then what changed and why, then how it was
+  verified — bullets, not paragraphs. Don't walk the diff file by file or repeat
+  rationale that lives in the ticket or an ADR; link it instead.
 - Don't commit or push unless asked. Branch off `main` before committing.
 - When the work traces to a GitHub issue (e.g. a Niteshift run dispatched from a
   ticket), **include the issue number in the branch name** —
