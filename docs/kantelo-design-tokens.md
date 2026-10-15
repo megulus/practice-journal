@@ -160,7 +160,7 @@ Five intensity levels on the teal ramp:
 
 **Typeface:** IBM Plex Sans
 
-Load via Google Fonts: `IBM+Plex+Sans:wght@400;500;600`
+Source: Google Fonts `IBM+Plex+Sans:wght@400;500;600`, self-hosted (files in `frontend/public/fonts/`, declared in `frontend/src/app/fonts.css`)
 
 | Token | Size | Weight | Letter-spacing | Usage |
 |-------|------|--------|----------------|-------|
@@ -426,7 +426,7 @@ A compact inline input for adding ad hoc blocks mid-session, without opening the
 
 **Typeface:** Finlandica (the official typeface of Finland, designed by Helsinki Type Studio)
 **Weight:** 700 (Bold)
-**Load via Google Fonts:** `Finlandica:wght@700`
+**Source:** Google Fonts `Finlandica:wght@700`, self-hosted alongside IBM Plex Sans
 
 Finlandica is used *only* for the wordmark — nowhere else in the app. IBM Plex Sans remains the UI typeface. This single-use keeps the wordmark distinctive without introducing a second font into the design system.
 

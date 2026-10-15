@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { ThemeProvider } from '@/components/ThemeProvider'
-import { ibmPlexSans, finlandica } from './fonts'
+import './fonts.css'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -46,12 +46,23 @@ export default function RootLayout({
         differ on this element. Scoped one level deep — it does not
         suppress warnings for descendants.
       */}
-      <html
-        lang="en"
-        suppressHydrationWarning
-        className={`${ibmPlexSans.variable} ${finlandica.variable}`}
-      >
+      <html lang="en" suppressHydrationWarning>
         <head>
+          {/* The latin subsets, as next/font preloaded them (see fonts.css). */}
+          <link
+            rel="preload"
+            href="/fonts/ibm-plex-sans-v23-latin.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="/fonts/finlandica-v11-latin.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
           <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         </head>
         <body>
