@@ -162,9 +162,10 @@ Railway auto-deploys on every push to your default branch. To change this:
 - The service still has **Root Directory** `frontend` (the setting before the
   repo became an npm workspace, #334). Clear it and set the config file path to
   `/frontend/railway.toml`, as in step 4, then deploy the latest commit.
-- If the build succeeds but the image has no `NEXT_PUBLIC_*` values (Clerk
-  "Missing publishableKey"), the config file path isn't set, so the build args
-  in `frontend/railway.toml` were never applied.
+- If the build log doesn't show the Dockerfile builder using
+  `frontend/Dockerfile`, Railway didn't read `frontend/railway.toml`: check the
+  config file path is `/frontend/railway.toml`. Nothing in that file applies
+  without it, including the Dockerfile path and the `NEXT_PUBLIC_*` build args.
 
 **Auth not working:**
 - Verify `CLERK_SECRET_KEY` is set on both backend and frontend
