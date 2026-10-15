@@ -268,9 +268,10 @@ that way.
   recommendation, and say what someone must choose. That is what makes them
   groomable instead of another investigation.
 - **Make sure every new ticket is on the board** (`Backlog`). New issues are
-  auto-added; anything else needs the mutations in "Grooming". A ticket that isn't on the board is invisible to the next
-  prioritization pass. Note the board is well past 100 items, so item-id lookups
-  need the paged query, not a single `first: 100`.
+  auto-added; anything else needs the mutations in "Grooming". A ticket that
+  isn't on the board is invisible to the next prioritization pass. Note the
+  board is well past 100 items, so item-id lookups need the paged query, not a
+  single `first: 100`.
 
 **"CI is green" is not "this will merge clean."** The failures that survive a
 green run:
