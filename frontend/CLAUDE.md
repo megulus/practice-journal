@@ -39,15 +39,16 @@ reason to run it by hand anyway; if you must, build a copy of the tree.
 
 **Docker Node version is pinned.** `frontend/Dockerfile` uses `node:20.20.2-alpine`
 (not the floating `node:20-alpine`). A silent bump to a newer Node can reintroduce
-the dev-mode Clerk middleware `EvalError` from #192 — Next 14's Edge Runtime runs
+the dev-mode Clerk middleware `EvalError` from #192 — Next's Edge Runtime runs
 middleware in a `vm` context with `codeGeneration.strings=false`, and stricter vm
 enforcement in some Node builds rejects the `eval()`-based HMR source maps, 404-ing
-every protected route under `docker compose up`. To move the pin, bump it deliberately
-and re-test `docker compose up` while signed in (a protected route must load, HMR intact).
+every protected route under `docker compose up`. (Re-checked on Next 15.5 in #340:
+20.20.2 still runs it cleanly.) To move the pin, bump it deliberately and re-test
+`docker compose up` while signed in (a protected route must load, HMR intact).
 
 ## Architecture
 
-This is a **Next.js 14 App Router** application (TypeScript, Tailwind CSS) for tracking music practice sessions across multiple instruments. It connects to a backend API (default: `http://localhost:8000`).
+This is a **Next.js 15 App Router** application (TypeScript, Tailwind CSS) for tracking music practice sessions across multiple instruments. It connects to a backend API (default: `http://localhost:8000`).
 
 The frontend's Phase-0 rebuild against the new Kantelo schema and design system is complete — all core screens are retoned to the token/primitive system (PRs #203–#210). See `docs/kantelo-frontend-phase-0-plan.md` for the (historical) Phase 0 plan. Current work is post-Phase-0 features; for what's built vs. planned, see the GitHub Project board rather than the design docs.
 

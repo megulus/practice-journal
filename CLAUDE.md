@@ -311,7 +311,7 @@ Spot-check the claims that would be expensive to get wrong.
 
 ```
 backend/    FastAPI + SQLModel (async) + PostgreSQL + Alembic, Clerk auth
-frontend/   Next.js 14 App Router + TypeScript + Tailwind, Clerk auth  (see frontend/CLAUDE.md)
+frontend/   Next.js 15 App Router + TypeScript + Tailwind, Clerk auth  (see frontend/CLAUDE.md)
 package.json, package-lock.json   npm workspace root (JS only; backend/ is not a workspace)
 docs/       Product spec, schema/API, design tokens, wireframes
 docker-compose.yml   db (5432) + backend (8000) + frontend (3000)
