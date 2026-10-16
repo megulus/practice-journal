@@ -1,6 +1,6 @@
 # Pinned (not `node:20-alpine`) to a verified-good patch. A silent bump to a
 # newer Node can reintroduce the dev-mode Clerk middleware EvalError (#192):
-# Next 14's Edge Runtime evaluates middleware in a `vm` context with
+# Next's Edge Runtime evaluates middleware in a `vm` context with
 # codeGeneration.strings=false, and stricter vm enforcement in some Node builds
 # rejects the eval()-based HMR source maps. 20.20.2 runs the current Clerk
 # cleanly. Bump deliberately, then re-test `docker compose up` signed in.

@@ -70,7 +70,7 @@ Lightweight social features (shared streaks, practice leaderboards among friends
 
 ## 3. Tech stack
 
-- **Frontend:** Next.js 14 / React / TypeScript
+- **Frontend:** Next.js 15 / React / TypeScript
 - **Backend:** FastAPI / Python
 - **Database:** PostgreSQL
 - **Auth:** Clerk
