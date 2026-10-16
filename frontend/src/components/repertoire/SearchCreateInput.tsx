@@ -12,7 +12,7 @@ export interface SearchCreateInputProps {
   label: string
   autoFocus?: boolean
   /** Lets the caller move focus back here after a result is acted on. */
-  inputRef?: RefObject<HTMLInputElement>
+  inputRef?: RefObject<HTMLInputElement | null>
 }
 
 /**
