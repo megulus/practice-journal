@@ -55,10 +55,10 @@ services:
         value: local
       - name: PYTHONUNBUFFERED
         value: "1"
-      # The app's own calls are same-origin through `web`; this only matters
-      # for things hitting :8000 directly (curl, Swagger UI).
+      # The browser's calls are same-origin through `web`, so preview origins
+      # never need CORS; this only covers a local page on :3000.
       - name: CORS_ORIGINS
-        value: ${NITESHIFT_PORT_3000_URL},${NITESHIFT_PORT_8000_URL},http://localhost:3000,http://127.0.0.1:3000
+        value: http://localhost:3000,http://127.0.0.1:3000
       # The backend derives Clerk's JWKS URL and issuer from the publishable key.
       - name: CLERK_PUBLISHABLE_KEY
         secret: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
