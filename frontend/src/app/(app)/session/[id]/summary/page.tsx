@@ -12,7 +12,7 @@ import {
   VoiceInput,
   useDictation,
 } from '@/components/ui'
-import { formatSessionDate } from '@/lib/dates'
+import { formatSessionDate } from '@kantelo/core/dates'
 import type { FinishResponse } from '@/lib/types'
 
 // Token-driven CTA styles for navigation links (mirrors the Today retone).

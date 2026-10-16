@@ -1,5 +1,5 @@
 import { forwardRef, type InputHTMLAttributes } from 'react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export type TextInputVariant = 'standard' | 'recessed'
 

@@ -7,7 +7,7 @@ import {
   type ChangeEvent,
 } from 'react'
 import { Check } from 'lucide-react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export interface CheckboxProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {

@@ -1,5 +1,5 @@
 import { forwardRef, type TextareaHTMLAttributes } from 'react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export type TextAreaVariant = 'standard' | 'recessed'
 

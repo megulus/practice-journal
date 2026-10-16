@@ -6,9 +6,9 @@ import { AlertCircle, X } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill, RotationDots } from '@/components/ui'
 import { QuickStartWizard } from '@/components/quickstart'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 import { getSectionColor } from '@/lib/section-colors'
-import { formatStartedAt } from '@/lib/dates'
+import { formatStartedAt } from '@kantelo/core/dates'
 import { needsQuickStart } from '@/lib/quickstart'
 import type {
   TodayResponse,

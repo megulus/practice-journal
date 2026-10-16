@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Mic, MicOff } from 'lucide-react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 import {
   useSpeechRecognition,
   type VoiceInputError,

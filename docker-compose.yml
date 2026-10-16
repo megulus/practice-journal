@@ -73,12 +73,14 @@ services:
       # `npm run dev` (without docker) shows it automatically via NODE_ENV.
       NEXT_PUBLIC_PREVIEW_ENABLED: ${NEXT_PUBLIC_PREVIEW_ENABLED:-}
     volumes:
-      # Only frontend/ is bind-mounted for hot reload; the workspace
+      # frontend/ and packages/ are bind-mounted for hot reload; the workspace
       # node_modules at /app/node_modules comes from the image. The anonymous
       # volumes keep a host frontend/node_modules or .next from shadowing the
       # container's.
       - ./frontend:/app/frontend
+      - ./packages:/app/packages
       - /app/frontend/node_modules
+      - /app/packages/core/node_modules
       - /app/frontend/.next
     depends_on:
       - backend

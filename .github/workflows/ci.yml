@@ -97,6 +97,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Every workspace's lint. `next build` below lints the frontend too, but
+      # nothing else covers packages/core, whose rules keep Next/Clerk/react-dom
+      # imports out of code the mobile app will share (#334).
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 

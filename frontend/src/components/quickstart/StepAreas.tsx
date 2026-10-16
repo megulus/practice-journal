@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, Checkbox } from '@/components/ui'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 import { QUICK_START_AREAS } from '@/lib/quickstart'
 import type { SectionType } from '@/lib/types'
 import { WizardFrame, WIZARD_HINT } from './WizardFrame'

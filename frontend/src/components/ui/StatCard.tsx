@@ -1,5 +1,5 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export interface StatCardProps extends HTMLAttributes<HTMLDivElement> {
   value: ReactNode

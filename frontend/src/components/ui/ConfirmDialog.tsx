@@ -33,7 +33,7 @@ export interface ConfirmDialogProps {
  * the safe action. Confirming always takes a deliberate move — Tab, or a click
  * on the button itself.
  *
- * Copy is the consumer's, but it should come from `@/lib/confirm-copy` so
+ * Copy is the consumer's, but it should come from `@kantelo/core/confirm-copy` so
  * every call site phrases the same guarantee the same way.
  */
 export function ConfirmDialog({
