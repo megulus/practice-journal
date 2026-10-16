@@ -65,14 +65,19 @@ services:
       - name: CLERK_SECRET_KEY
         secret: CLERK_SECRET_KEY
 
-  # Same image and credentials as docker-compose.yml.
+  # Same image and credentials as docker-compose.yml. On stop, `docker stop`
+  # sends the image's SIGINT (fast shutdown); a forwarded SIGTERM would be a
+  # smart shutdown that waits for the backend's pooled connections to close.
   - name: postgres
     command: |
       docker rm -f kantelo-postgres >/dev/null 2>&1 || true
-      exec docker run --rm --name kantelo-postgres --network=host \
+      trap 'docker stop kantelo-postgres >/dev/null' TERM INT
+      docker run --rm --sig-proxy=false --name kantelo-postgres --network=host \
         -e POSTGRES_USER=practice_user \
         -e POSTGRES_PASSWORD=practice_pass \
         -e POSTGRES_DB=practice_journal \
         -v kantelo_postgres_data:/var/lib/postgresql/data \
-        postgres:17-alpine
+        postgres:17-alpine &
+      wait $!
+      wait $!
     stopGracePeriod: 30s
