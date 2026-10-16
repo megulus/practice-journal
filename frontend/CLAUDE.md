@@ -67,9 +67,12 @@ imported by module: `@kantelo/core/dates`, `/duration`, `/idempotency`,
 `/confirm-copy`, `/cx`, `/metronome` (#334 moves the rest of `src/lib/` there
 over the next PRs). It ships TypeScript source (`transpilePackages` in
 `next.config.js`). Core must work on React Native too, so it can't use the DOM,
-`next/*`, `@clerk/*` or `process.env.NEXT_PUBLIC_*`. Its tsconfig has no DOM
-types and its tests run in plain Node, so a violation fails `typecheck` or
-`test`. Its tests live beside the code and run from the root `npm test`.
+`next/*`, `react-dom` or `@clerk/*`, and can't read `process.env`. Tooling
+enforces this: core's tsconfig has no DOM or Node types (`typecheck` fails on
+`window`, `document`, `localStorage` or `process`), and its ESLint config bans
+the Next, react-dom and Clerk imports (`lint`; type-checking alone won't catch
+them, because those packages are installed at the root for the frontend). Its
+tests live beside the code, run in plain Node, and run from the root `npm test`.
 
 ### API Layer
 

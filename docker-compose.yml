@@ -80,6 +80,7 @@ services:
       - ./frontend:/app/frontend
       - ./packages:/app/packages
       - /app/frontend/node_modules
+      - /app/packages/core/node_modules
       - /app/frontend/.next
     depends_on:
       - backend

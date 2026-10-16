@@ -476,7 +476,7 @@ Currently supported by `POST /api/quickstart`. The convention (not a per-endpoin
 - **A blank or over-long (>255 chars) key is a `400`.** Omitting the header is fine — behavior is then exactly as before.
 - Concurrent duplicates are safe: the second request waits on the key, then replays the winner's response.
 
-State lives in `idempotency_records` (§3). Client side, the quick-start wizard derives one key per attempt from the payload it's about to send — stable across retries of the same answers, new when an answer changes (`frontend/src/lib/idempotency.ts`).
+State lives in `idempotency_records` (§3). Client side, the quick-start wizard derives one key per attempt from the payload it's about to send — stable across retries of the same answers, new when an answer changes (`packages/core/src/idempotency.ts`).
 
 ---
 

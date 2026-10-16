@@ -1,0 +1,18 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["next", "next/*", "react-dom", "react-dom/*", "@clerk/*"],
+            "message": "@kantelo/core must also run on React Native (#334): no Next, react-dom or Clerk imports. Keep platform wiring in the app."
+          }
+        ]
+      }
+    ]
+  }
+}
