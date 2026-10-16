@@ -1,5 +1,5 @@
 # Context for frontend/Dockerfile, which builds from the repo root (the npm
-# workspace root). Only the workspace root manifests, frontend/ and (later)
+# workspace root). Only the workspace root manifests, frontend/ and
 # packages/ are needed; everything else is excluded.
 backend
 docs

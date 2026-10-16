@@ -1,0 +1,17 @@
+{
+  // No "dom" lib and no ambient types: core must run on React Native as well
+  // as the web, so a stray `window`, `document` or `localStorage` should fail
+  // `npm run typecheck` rather than reach the mobile app.
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2022"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}

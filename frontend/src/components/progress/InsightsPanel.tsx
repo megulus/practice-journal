@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
-import { formatSessionDate } from '@/lib/dates'
+import { formatSessionDate } from '@kantelo/core/dates'
 import { Button, Card } from '@/components/ui'
 import { PracticeHeatmap } from './PracticeHeatmap'
 import { localYear } from './heatmapGrid'

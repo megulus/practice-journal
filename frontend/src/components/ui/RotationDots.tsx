@@ -1,4 +1,4 @@
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 export interface RotationDotsProps {
   /** Number of sessions in the rotation. */

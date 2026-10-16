@@ -16,13 +16,13 @@ import SectionCard from '@/components/SectionCard'
 import AddBlockSheet from '@/components/AddBlockSheet'
 import { SpotManagementDrawer } from '@/components/repertoire'
 import { AutoSaveInput, Button, ConfirmDialog, Pill } from '@/components/ui'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 import { getSectionColor } from '@/lib/section-colors'
 import {
   alsoRemoves,
   archiveConfirmCopy,
   deleteConfirmCopy,
-} from '@/lib/confirm-copy'
+} from '@kantelo/core/confirm-copy'
 
 // TODO(#168): replace hardcoded section_type with a real picker (template
 // editor + freeform session). All new sections in this PR are 'other'.

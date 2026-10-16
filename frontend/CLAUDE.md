@@ -61,6 +61,20 @@ Uses **Clerk** (`@clerk/nextjs`) for all authentication:
 - `src/app/(auth)/layout.tsx` is a passthrough — auth pages don't render the shell
 - Client components use `useUser()` for auth state and `useAuth()` + `getToken()` for JWT tokens
 
+### Shared core (`@kantelo/core`)
+
+Platform-neutral logic lives in `packages/core/src/` (repo root) and is
+imported by module: `@kantelo/core/dates`, `/duration`, `/idempotency`,
+`/confirm-copy`, `/cx`, `/metronome` (#334 moves the rest of `src/lib/` there
+over the next PRs). It ships TypeScript source (`transpilePackages` in
+`next.config.js`). Core must work on React Native too, so it can't use the DOM,
+`next/*`, `react-dom` or `@clerk/*`, and can't read `process.env`. Tooling
+enforces this: core's tsconfig has no DOM or Node types (`typecheck` fails on
+`window`, `document`, `localStorage` or `process`), and its ESLint config bans
+the Next, react-dom and Clerk imports (`lint`; type-checking alone won't catch
+them, because those packages are installed at the root for the frontend). Its
+tests live beside the code, run in plain Node, and run from the root `npm test`.
+
 ### API Layer
 
 - `src/lib/api.ts` — Factory function `createAuthenticatedAPI()` returns an object with methods for all backend endpoints. Each method injects a Bearer JWT token from Clerk.
@@ -121,7 +135,7 @@ and focus restore. Two invariants make dismissal the safe default: `onCancel` is
 what `Dialog` calls for Escape and backdrop clicks, and Cancel renders before the
 destructive button so `Dialog`'s initial focus lands on it. Don't hand-roll a
 confirm out of `Dialog`, and don't write the copy inline — pull it from
-`deleteConfirmCopy` / `archiveConfirmCopy` in `src/lib/confirm-copy.ts` so every
+`deleteConfirmCopy` / `archiveConfirmCopy` in `packages/core/src/confirm-copy.ts` so every
 call site names its target and states the cascade the same way.
 
 ### Styling

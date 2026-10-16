@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Archive, History, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { ConfirmDialog, Menu } from '@/components/ui'
-import { count, deleteConfirmCopy } from '@/lib/confirm-copy'
-import { formatRelativeDay } from '@/lib/dates'
+import { count, deleteConfirmCopy } from '@kantelo/core/confirm-copy'
+import { formatRelativeDay } from '@kantelo/core/dates'
 import type { Spot } from '@/lib/types'
 import { SpotEditForm, type SpotFormValues } from './SpotEditForm'
 

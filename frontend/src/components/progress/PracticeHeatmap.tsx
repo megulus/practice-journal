@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { formatDuration } from '@/lib/duration'
+import { formatDuration } from '@kantelo/core/duration'
 import {
   buildHeatmapWeeks,
   dayLabels,

@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, useRovingFocus } from '@/components/ui'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 import { TIME_BUDGETS, type QuickStartPlan } from '@/lib/quickstart'
 import { PlanPreview } from './PlanPreview'
 import { WizardFrame, WIZARD_LINK } from './WizardFrame'

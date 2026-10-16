@@ -1,7 +1,7 @@
 'use client'
 
 import { StatCard } from '@/components/ui'
-import { formatDuration } from '@/lib/duration'
+import { formatDuration } from '@kantelo/core/duration'
 import type { ComparisonResponse, WeekStats } from '@/lib/types'
 
 const DAY_ORDER = [

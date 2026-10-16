@@ -4,7 +4,7 @@ import {
   type HTMLAttributes,
   type ReactNode,
 } from 'react'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 type CardVariant = 'default' | 'suggestion' | 'coaching' | 'hint'
 

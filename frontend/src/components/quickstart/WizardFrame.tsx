@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Card } from '@/components/ui'
-import { cx } from '@/lib/cx'
+import { cx } from '@kantelo/core/cx'
 
 /**
  * Shared chrome for every quick-start step: wordmark bar with a single
