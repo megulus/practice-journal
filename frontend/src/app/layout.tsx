@@ -62,8 +62,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
-        {/* Clerk Core 3 requires ClerkProvider inside <body>, not around <html>. */}
-        <ClerkProvider>
+        {/* Clerk Core 3 requires ClerkProvider inside <body>, not around <html>.
+            showOptionalFields: Core 3 flipped its default to false, which hides
+            optional sign-up fields (first/last name); keep Core 2's default. */}
+        <ClerkProvider appearance={{ options: { showOptionalFields: true } }}>
           <ThemeProvider>{children}</ThemeProvider>
         </ClerkProvider>
       </body>
