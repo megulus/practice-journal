@@ -1,0 +1,83 @@
+# Kantelo's documented dev loop is `docker compose up` (db + backend +
+# frontend), but containers on a Docker bridge network can't reach each other
+# or the internet in this sandbox. So postgres runs in a container on the host
+# network and the backend and frontend run natively, with the same commands as
+# their Dockerfiles.
+#
+# The browser can't reach the backend on its own preview subdomain (the
+# preview proxy doesn't carry the viewer's session across subdomains, so every
+# call comes back 401). The API is served from the frontend's origin instead:
+# `web` is a small proxy on the public port that sends /kantelo-api/* to the
+# backend and everything else to `next dev`, and NEXT_PUBLIC_API_URL is that
+# relative prefix. Not "": api.ts treats it as same-origin, but next.config.js
+# builds its /api rewrite from the same variable and Next rejects a destination
+# that doesn't start with "/" or "http". See README "API calls fail on preview
+# URLs".
+services:
+  - name: web
+    command: node .niteshift/files/kantelo-proxy.js
+    port: 3000
+    environment:
+      - name: NEXT_PORT
+        value: "3001"
+      - name: API_PORT
+        value: "8000"
+      - name: API_PREFIX_PATH
+        value: /kantelo-api
+
+  - name: next
+    command: npm run dev -- --port 3001
+    cwd: frontend
+    environment:
+      - name: NEXT_PUBLIC_API_URL
+        value: /kantelo-api
+      - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        secret: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      - name: CLERK_SECRET_KEY
+        secret: CLERK_SECRET_KEY
+      - name: NEXT_PUBLIC_CLERK_SIGN_IN_URL
+        value: /sign-in
+      - name: NEXT_PUBLIC_CLERK_SIGN_UP_URL
+        value: /sign-up
+      - name: NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
+        value: /
+      - name: NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
+        value: /
+
+  - name: backend
+    command: venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    cwd: backend
+    port: 8000
+    environment:
+      - name: DATABASE_URL
+        value: postgresql+asyncpg://practice_user:practice_pass@localhost:5432/practice_journal
+      - name: ENVIRONMENT
+        value: local
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      # The browser's calls are same-origin through `web`, so preview origins
+      # never need CORS; this only covers a local page on :3000.
+      - name: CORS_ORIGINS
+        value: http://localhost:3000,http://127.0.0.1:3000
+      # The backend derives Clerk's JWKS URL and issuer from the publishable key.
+      - name: CLERK_PUBLISHABLE_KEY
+        secret: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      - name: CLERK_SECRET_KEY
+        secret: CLERK_SECRET_KEY
+
+  # Same image and credentials as docker-compose.yml. On stop, `docker stop`
+  # sends the image's SIGINT (fast shutdown); a forwarded SIGTERM would be a
+  # smart shutdown that waits for the backend's pooled connections to close.
+  - name: postgres
+    command: |
+      docker rm -f kantelo-postgres >/dev/null 2>&1 || true
+      trap 'docker stop kantelo-postgres >/dev/null' TERM INT
+      docker run --rm --sig-proxy=false --name kantelo-postgres --network=host \
+        -e POSTGRES_USER=practice_user \
+        -e POSTGRES_PASSWORD=practice_pass \
+        -e POSTGRES_DB=practice_journal \
+        -v kantelo_postgres_data:/var/lib/postgresql/data \
+        postgres:17-alpine &
+      wait $!
+      wait $!
+    stopGracePeriod: 30s

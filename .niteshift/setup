@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Niteshift setup for Kantelo: dependencies, migrations, seed data. The
+# long-running processes (postgres, backend, Next, the front proxy) live in
+# services.yaml; see the comments there for why the stack doesn't run under
+# `docker compose`.
+#
+# Safe to rerun: the venv and node_modules are reinstalled only when
+# backend/requirements.txt or package-lock.json changed since the last install.
+set -euo pipefail
+
+cd "${NITESHIFT_CHECKOUT_ROOT:-/root}/practice-journal"
+
+log() { echo "[kantelo-setup] $*"; }
+
+# backend/venv is gitignored and is where pyrightconfig.json looks for it.
+VENV_DIR=backend/venv
+
+# ---------------------------------------------------------------------------
+# Postgres (needed now for migrations; the service keeps running afterwards)
+# ---------------------------------------------------------------------------
+ns services start postgres
+log "waiting for postgres..."
+for i in $(seq 1 60); do
+  if docker exec kantelo-postgres pg_isready -U practice_user -d practice_journal >/dev/null 2>&1; then
+    log "postgres ready (${i}s)"
+    break
+  fi
+  if [ "${i}" -eq 60 ]; then
+    echo "[kantelo-setup] ERROR: postgres not ready after 60s (ns services logs postgres)" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+# ---------------------------------------------------------------------------
+# Backend dependencies
+# ---------------------------------------------------------------------------
+REQ_HASH="$(sha256sum backend/requirements.txt | cut -d' ' -f1)"
+if [ ! -x "${VENV_DIR}/bin/python" ] || [ "$(cat "${VENV_DIR}/.requirements.sha256" 2>/dev/null || true)" != "${REQ_HASH}" ]; then
+  log "installing backend dependencies"
+  uv venv --allow-existing --python python3 "${VENV_DIR}" >/dev/null
+  VIRTUAL_ENV="${VENV_DIR}" uv pip install -q -r backend/requirements.txt
+  echo "${REQ_HASH}" > "${VENV_DIR}/.requirements.sha256"
+else
+  log "backend dependencies up to date"
+fi
+
+# ---------------------------------------------------------------------------
+# Migrations + curated block library (the seed no-ops once the table is filled)
+# ---------------------------------------------------------------------------
+log "running alembic migrations"
+( cd backend && venv/bin/alembic upgrade head )
+
+# The README's `python scripts/seed_curated_blocks.py` can't import `app`
+# outside the container; the module form can.
+log "seeding curated block library"
+( cd backend && PYTHONPATH=. ENVIRONMENT=quiet venv/bin/python -m scripts.seed_curated_blocks 2>&1 | tail -1 ) ||
+  log "WARNING: curated block seed failed (non-fatal; the block library UI will be empty)"
+
+# ---------------------------------------------------------------------------
+# Frontend dependencies (npm workspace: one lockfile, hoisted node_modules)
+# ---------------------------------------------------------------------------
+LOCK_HASH="$(sha256sum package-lock.json | cut -d' ' -f1)"
+if [ ! -d node_modules ] || [ "$(cat node_modules/.kantelo-lock.sha256 2>/dev/null || true)" != "${LOCK_HASH}" ]; then
+  log "installing frontend dependencies"
+  npm ci --no-audit --no-fund
+  echo "${LOCK_HASH}" > node_modules/.kantelo-lock.sha256
+else
+  log "frontend dependencies up to date"
+fi
