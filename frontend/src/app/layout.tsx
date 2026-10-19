@@ -38,37 +38,35 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider>
-      {/*
-        suppressHydrationWarning: the themeInitScript above mutates
-        <html>'s data-theme attribute before React hydrates, so the
-        server markup and the client's first render intentionally
-        differ on this element. Scoped one level deep — it does not
-        suppress warnings for descendants.
-      */}
-      <html lang="en" suppressHydrationWarning>
-        <head>
-          {/* The latin subsets, as next/font preloaded them (see fonts.css). */}
-          <link
-            rel="preload"
-            href="/fonts/ibm-plex-sans-v23-latin.woff2"
-            as="font"
-            type="font/woff2"
-            crossOrigin="anonymous"
-          />
-          <link
-            rel="preload"
-            href="/fonts/finlandica-v11-latin.woff2"
-            as="font"
-            type="font/woff2"
-            crossOrigin="anonymous"
-          />
-          <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        </head>
-        <body>
+    // suppressHydrationWarning: the themeInitScript above mutates <html>'s
+    // data-theme attribute before React hydrates, so the server markup and the
+    // client's first render intentionally differ on this element. Scoped one
+    // level deep — it does not suppress warnings for descendants.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* The latin subsets, as next/font preloaded them (see fonts.css). */}
+        <link
+          rel="preload"
+          href="/fonts/ibm-plex-sans-v23-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/finlandica-v11-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body>
+        {/* Clerk Core 3 requires ClerkProvider inside <body>, not around <html>. */}
+        <ClerkProvider>
           <ThemeProvider>{children}</ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+        </ClerkProvider>
+      </body>
+    </html>
   )
 }
