@@ -9,7 +9,7 @@ import { QuickStartWizard } from '@/components/quickstart'
 import { cx } from '@kantelo/core/cx'
 import { getSectionColor } from '@kantelo/core/section-colors'
 import { formatStartedAt } from '@kantelo/core/dates'
-import { needsQuickStart } from '@/lib/quickstart'
+import { needsQuickStart } from '@kantelo/core/quickstart'
 import type {
   TodayResponse,
   TodayInstrumentDue,

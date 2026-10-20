@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui'
 import { getSectionColor } from '@kantelo/core/section-colors'
-import type { QuickStartPlan } from '@/lib/quickstart'
+import type { QuickStartPlan } from '@kantelo/core/quickstart'
 import { WIZARD_HINT, WIZARD_LABEL } from './WizardFrame'
 
 export interface PlanPreviewProps {

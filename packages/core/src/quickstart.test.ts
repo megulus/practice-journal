@@ -7,7 +7,7 @@ import {
   buildQuickStartPlan,
   needsQuickStart,
 } from './quickstart'
-import type { Instrument, SectionType, TodayResponse } from '@kantelo/core/types'
+import type { Instrument, SectionType, TodayResponse } from './types'
 
 function makeInstrument(o: Partial<Instrument> = {}): Instrument {
   return {
