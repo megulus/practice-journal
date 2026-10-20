@@ -55,12 +55,13 @@ rot and conflict across branches):
   (dashboard access, secret rotation, etc.), not an agent.
   The Ready column is label-agnostic, so it stays the "what's next" signal no
   matter which workstream is active. For structure/sequence, find the current
-  epic(s) via `gh issue list --label epic --state open` — as of 2026-07 the active
-  one is **#141** (the frontend rebuild), but verify it's still current and watch
-  for others (workstream labels like `frontend-rebuild` eventually retire). Treat
+  epic(s) via `gh issue list --label epic --state open` (as of 2026-10: #26
+  onboarding, #88 E2E tests, #89 observability; the frontend-rebuild epic #141 is
+  closed). Verify rather than trust this list; workstream labels like
+  `frontend-rebuild` eventually retire. Treat
   an epic's checklist as a lagging indicator; the board columns are authoritative
   for status. Reading the board needs **`GH_PROJECT_TOKEN`** (see below), and it
-  needs paging — the board is ~140 items and **every paged API truncates
+  needs paging — the board is ~190 items and **every paged API truncates
   silently** (`gh project item-list` stops at 30 by default; GraphQL caps a page
   at 100), which will hide most of the board:
   ```bash
@@ -157,11 +158,7 @@ Status option ids: `Backlog` `f75ad846`, `Ready` `61e4505c`, `In progress`
 `47fc9ee4`, `Done` `98236657`, `Closed` `d5b06b84` (the `In review` column was
 removed 2026-08). Re-derive them if the
 board is ever restructured by querying `fields(first:20)` for
-`ProjectV2SingleSelectField`. Closing issues needs repo write. Known groom
-candidates as of this
-writing: **#80** (docs consolidation — largely overtaken by the docs refresh +
-ADRs), **#156** (reconcile schema-api — addressed by that same work), **#33**
-(ancient, needs rethink).
+`ProjectV2SingleSelectField`. Closing issues needs repo write.
 
 ## Reviewing PRs: post the review on the PR
 
