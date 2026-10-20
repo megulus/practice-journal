@@ -11,7 +11,7 @@ import type {
   UserSettings,
   UserSettingsUpdate,
   WeekStart,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 import { SectionHeading } from './SectionHeading'
 
 const SUGGESTION_OPTIONS: {

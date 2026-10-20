@@ -9,7 +9,7 @@ import {
   heatmapScrollLeft,
   type HeatmapLevel,
 } from './heatmapGrid'
-import type { HeatmapDay, WeekStart } from '@/lib/types'
+import type { HeatmapDay, WeekStart } from '@kantelo/core/types'
 
 const CELL = 11
 const GAP = 3

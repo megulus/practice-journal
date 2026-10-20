@@ -1,4 +1,4 @@
-import type { PracticeFrequency } from '@/lib/types'
+import type { PracticeFrequency } from '@kantelo/core/types'
 
 /** Practice cadence options, in order, with their display labels (spec §5.8). */
 export const PRACTICE_FREQUENCIES: {

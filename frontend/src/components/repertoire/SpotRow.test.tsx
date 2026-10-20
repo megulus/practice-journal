@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, userEvent, within } from '@/test/utils'
 import { SpotRow } from './SpotRow'
-import type { Spot } from '@/lib/types'
+import type { Spot } from '@kantelo/core/types'
 
 function makeSpot(o: Partial<Spot> = {}): Spot {
   return {

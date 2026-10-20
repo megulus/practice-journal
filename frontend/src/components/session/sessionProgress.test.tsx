@@ -6,7 +6,7 @@ import {
   sectionCompletionLabel,
   useLastCompletedSection,
 } from './sessionProgress'
-import type { BlockLog, SectionLog } from '@/lib/types'
+import type { BlockLog, SectionLog } from '@kantelo/core/types'
 
 function makeBlock(overrides: Partial<BlockLog> = {}): BlockLog {
   return {

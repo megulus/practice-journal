@@ -26,7 +26,7 @@ checking types, so before #293 a PR could widen a shared interface, leave every
 existing fixture ill-typed, and still go green — the errors then surfaced in
 someone else's editor, attributed to files that PR never touched. CI runs
 `typecheck` as its own step now; run it locally after changing a shared type in
-`src/lib/types.ts`.
+`packages/core/src/types.ts`.
 
 **Don't run `npm run build` against a tree with a dev server running on it.**
 Both write `frontend/.next`, so the build replaces the dev server's chunks
@@ -64,17 +64,18 @@ Uses **Clerk** (`@clerk/nextjs`) for all authentication:
 
 ### Shared core (`@kantelo/core`)
 
-Platform-neutral logic lives in `packages/core/src/` (repo root) and is
-imported by module: `@kantelo/core/dates`, `/duration`, `/idempotency`,
-`/confirm-copy`, `/cx`, `/metronome` (#334 moves the rest of `src/lib/` there
-over the next PRs). It ships TypeScript source (`transpilePackages` in
-`next.config.js`). Core must work on React Native too, so it can't use the DOM,
-`next/*`, `react-dom` or `@clerk/*`, and can't read `process.env`. Tooling
-enforces this: core's tsconfig has no DOM or Node types (`typecheck` fails on
-`window`, `document`, `localStorage` or `process`), and its ESLint config bans
-the Next, react-dom and Clerk imports (`lint`; type-checking alone won't catch
-them, because those packages are installed at the root for the frontend). Its
-tests live beside the code, run in plain Node, and run from the root `npm test`.
+Platform-neutral logic lives in `packages/core/src/` (repo root) and is imported
+by module: `@kantelo/core/types`, `/section-colors`, `/dates`, `/duration`,
+`/idempotency`, `/confirm-copy`, `/cx`, `/metronome` (#334 moves the rest of
+`src/lib/` there over the next PRs). It ships TypeScript source
+(`transpilePackages` in `next.config.js`). Core must work on React Native too,
+so it can't use the DOM, `next/*`, `react-dom` or `@clerk/*`, and can't read
+`process.env`. Tooling enforces this: core's tsconfig has no DOM or Node types
+(`typecheck` fails on `window`, `document`, `localStorage` or `process`), and
+its ESLint config bans the Next, react-dom and Clerk imports (`lint`;
+type-checking alone won't catch them, because those packages are installed at
+the root for the frontend). Its tests live beside the code, run in plain Node,
+and run from the root `npm test`.
 
 ### API Layer
 
@@ -111,7 +112,7 @@ No external state library. Components use React hooks (`useState`, `useEffect`, 
 
 ### Types
 
-All shared TypeScript interfaces live in `src/lib/types.ts`. Major shapes:
+All shared TypeScript interfaces live in `packages/core/src/types.ts`, imported as `@kantelo/core/types`. Major shapes:
 
 - **Identity**: `User`, `UserSettings`, `Instrument`
 - **Templates**: `Template`, `TemplateSession`, `Section`, `Block` (standard + repertoire variants)
@@ -153,7 +154,7 @@ Design tokens live in `src/lib/tokens.css` as CSS custom properties (light by de
 - Radii: `rounded-md`, `rounded-lg`, `rounded-xl`, `rounded-pill`, `rounded-round`
 - Fonts: `font-sans` (IBM Plex Sans), `font-wordmark` (Finlandica — wordmark only)
 
-Section type colors aren't exposed as Tailwind utilities — they're applied via `getSectionColor()` and inline `style={{}}` because they encode an assignment rule (pinned warm-up/cool-down + 8-color pool by display order). See `src/lib/section-colors.ts`.
+Section type colors aren't exposed as Tailwind utilities — they're applied via `getSectionColor()` and inline `style={{}}` because they encode an assignment rule (pinned warm-up/cool-down + 8-color pool by display order). See `packages/core/src/section-colors.ts`.
 
 All core screens (Today, Active session, Session summary, Plans list, Plans editor, Profile) have been retoned to the token/primitive system (PRs #203–#210); the previous indigo-theme Tailwind classes are gone. If you find a screen still using stock/legacy classes, treat it as a bug to retone, not intended jank.
 

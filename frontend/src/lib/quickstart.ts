@@ -11,7 +11,7 @@ import type {
   QuickStartSection,
   SectionType,
   TodayResponse,
-} from './types'
+} from '@kantelo/core/types'
 
 /** Step 1's instrument grid, in wireframe order. "Other…" is handled by the UI. */
 export const QUICK_START_INSTRUMENTS = [

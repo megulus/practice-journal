@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useApi } from '@/lib/useApi'
 import { Button, Pill, TextInput } from '@/components/ui'
-import type { PracticeFrequency } from '@/lib/types'
+import type { PracticeFrequency } from '@kantelo/core/types'
 import { PRACTICE_FREQUENCIES } from './frequencies'
 
 const DEFAULT_FREQUENCY: PracticeFrequency = 'few_times_a_week'

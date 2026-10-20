@@ -3,7 +3,7 @@ import { act } from '@testing-library/react'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { installSpeechMock, uninstallSpeechMock, dictate } from '@/test/speechMock'
 import SessionSummaryPage from './page'
-import type { FinishResponse } from '@/lib/types'
+import type { FinishResponse } from '@kantelo/core/types'
 
 // Hoist ONE stable api object — a per-render mock would give `api` a new
 // identity each pass and re-fire this page's load effect forever (#277).

@@ -1,4 +1,4 @@
-import type { RatingsWeek } from '@/lib/types'
+import type { RatingsWeek } from '@kantelo/core/types'
 
 /**
  * Plain-language read on the rating distribution (spec §5.7, Insights #3).

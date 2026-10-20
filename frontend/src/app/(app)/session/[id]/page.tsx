@@ -14,14 +14,14 @@ import {
   sectionCompletionLabel,
   useLastCompletedSection,
 } from '@/components/session'
-import { getSectionColor } from '@/lib/section-colors'
+import { getSectionColor } from '@kantelo/core/section-colors'
 import type {
   PracticeLog,
   FinishResponse,
   InSessionSuggestion,
   Instrument,
   SectionLog,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 /** Stable identity so the progress hook doesn't re-run while the log loads. */
 const NO_SECTIONS: SectionLog[] = []

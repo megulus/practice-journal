@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useApi } from '@/lib/useApi'
 import { useSerializedSave } from '@/components/ui'
 import { cx } from '@kantelo/core/cx'
-import type { BlockLog } from '@/lib/types'
+import type { BlockLog } from '@kantelo/core/types'
 
 const MIN_BPM = 1
 const MAX_BPM = 400

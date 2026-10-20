@@ -10,7 +10,7 @@ import {
   DEFAULT_TIME_BUDGET,
   buildQuickStartPlan,
 } from '@/lib/quickstart'
-import type { Instrument, QuickStartRequest, SectionType } from '@/lib/types'
+import type { Instrument, QuickStartRequest, SectionType } from '@kantelo/core/types'
 import { StepAreas } from './StepAreas'
 import { StepGoal } from './StepGoal'
 import { StepInstrument } from './StepInstrument'

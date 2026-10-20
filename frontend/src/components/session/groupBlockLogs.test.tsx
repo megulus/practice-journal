@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { groupBlockLogs, spotDisplayName } from './groupBlockLogs'
 import type { BlockGroup } from './groupBlockLogs'
-import type { BlockLog } from '@/lib/types'
+import type { BlockLog } from '@kantelo/core/types'
 
 function makeLog(overrides: Partial<BlockLog>): BlockLog {
   return {

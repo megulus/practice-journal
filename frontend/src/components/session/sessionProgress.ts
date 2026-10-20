@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { SectionLog } from '@/lib/types'
+import type { SectionLog } from '@kantelo/core/types'
 
 /**
  * Active-session progress: "2 of 5 sections done · Scales complete".

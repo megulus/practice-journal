@@ -5,7 +5,7 @@ import { Archive, History, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { ConfirmDialog, Menu } from '@/components/ui'
 import { count, deleteConfirmCopy } from '@kantelo/core/confirm-copy'
 import { formatRelativeDay } from '@kantelo/core/dates'
-import type { Spot } from '@/lib/types'
+import type { Spot } from '@kantelo/core/types'
 import { SpotEditForm, type SpotFormValues } from './SpotEditForm'
 
 /**

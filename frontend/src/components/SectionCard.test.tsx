@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
-import type { Block, Section } from '@/lib/types'
-import { getSectionColor } from '@/lib/section-colors'
+import type { Block, Section } from '@kantelo/core/types'
+import { getSectionColor } from '@kantelo/core/section-colors'
 import SectionCard from './SectionCard'
 
 const baseBlock: Omit<Block, 'id' | 'name' | 'piece_id' | 'piece_name'> = {

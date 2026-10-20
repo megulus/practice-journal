@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useApi } from '@/lib/useApi'
 import { Button, TextInput, VoiceInput, useDictation } from '@/components/ui'
-import type { SectionType } from '@/lib/types'
+import type { SectionType } from '@kantelo/core/types'
 
 // ---------------------------------------------------------------------------
 // Add freeform section

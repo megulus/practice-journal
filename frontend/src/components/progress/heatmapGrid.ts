@@ -1,4 +1,4 @@
-import type { HeatmapDay, WeekStart } from '@/lib/types'
+import type { HeatmapDay, WeekStart } from '@kantelo/core/types'
 
 // ---------------------------------------------------------------------------
 // Layout maths for the practice calendar (spec §5.7, "Practice calendar

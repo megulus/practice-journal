@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act } from '@testing-library/react'
 import { render, screen, userEvent, waitFor, within } from '@/test/utils'
 import ActiveSessionPage from './page'
-import type { BlockLog, PracticeLog, SectionLog } from '@/lib/types'
+import type { BlockLog, PracticeLog, SectionLog } from '@kantelo/core/types'
 
 // One hoisted object, not a fresh one per render: the page and its children
 // have `api`-dependent load effects that would otherwise loop (#277).

@@ -8,7 +8,7 @@ import type {
   RatingsResponse,
   UserSettings,
   WeekStart,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 const {
   mockGetHeatmap,

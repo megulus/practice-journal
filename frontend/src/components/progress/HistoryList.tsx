@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, PillRadioGroup } from '@/components/ui'
 import { SessionHistoryCard } from './SessionHistoryCard'
-import type { HistoryItem, HistoryPeriod } from '@/lib/types'
+import type { HistoryItem, HistoryPeriod } from '@kantelo/core/types'
 
 // Rolling windows, and the labels say so. "This week" used to sit here while
 // the query ran a rolling window, so on a Monday History showed all of *last*

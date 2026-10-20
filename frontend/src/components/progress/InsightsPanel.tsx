@@ -14,7 +14,7 @@ import type {
   HeatmapResponse,
   RatingsResponse,
   WeekStart,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 const RATING_WEEKS = 4
 

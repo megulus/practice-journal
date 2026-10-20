@@ -10,14 +10,14 @@ import type {
   Section,
   BlockCreate,
   SectionType,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 import SessionTabs from '@/components/SessionTabs'
 import SectionCard from '@/components/SectionCard'
 import AddBlockSheet from '@/components/AddBlockSheet'
 import { SpotManagementDrawer } from '@/components/repertoire'
 import { AutoSaveInput, Button, ConfirmDialog, Pill } from '@/components/ui'
 import { cx } from '@kantelo/core/cx'
-import { getSectionColor } from '@/lib/section-colors'
+import { getSectionColor } from '@kantelo/core/section-colors'
 import {
   alsoRemoves,
   archiveConfirmCopy,

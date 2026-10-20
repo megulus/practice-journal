@@ -10,7 +10,7 @@ import {
   ProgressSubTabs,
   type ProgressSubTab,
 } from '@/components/progress'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 
 /**
  * Progress tab (spec §5.7): instrument toggle over two sub-tabs — History

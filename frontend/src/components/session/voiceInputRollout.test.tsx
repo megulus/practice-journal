@@ -14,8 +14,8 @@ import { QuickAddBlock } from './QuickAddBlock'
 import { AddSectionButton } from './AddSectionButton'
 import { SectionCard } from './SectionCard'
 import RepertoireBlock from '../RepertoireBlock'
-import { getSectionColor } from '@/lib/section-colors'
-import type { BlockLog, SectionLog } from '@/lib/types'
+import { getSectionColor } from '@kantelo/core/section-colors'
+import type { BlockLog, SectionLog } from '@kantelo/core/types'
 
 // Hoist ONE stable api object: a fresh mock per render gives `api` a new
 // identity every pass, which re-fires api-dependent effects forever (#277).

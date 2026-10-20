@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button, Sheet } from '@/components/ui'
 import { useApi } from '@/lib/useApi'
 import { formatSessionDate } from '@kantelo/core/dates'
-import type { Rating, Spot, SpotHistory } from '@/lib/types'
+import type { Rating, Spot, SpotHistory } from '@kantelo/core/types'
 
 const RATING_LABELS: Record<string, { label: string; dot: string }> = {
   '1': { label: 'Step forward', dot: 'bg-rating-forward-border' },

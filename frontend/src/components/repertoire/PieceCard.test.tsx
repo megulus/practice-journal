@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor, within } from '@/test/utils'
 import { PieceCard } from './PieceCard'
-import type { Piece, PieceDetail, Spot } from '@/lib/types'
+import type { Piece, PieceDetail, Spot } from '@kantelo/core/types'
 
 const { api, mocks } = vi.hoisted(() => {
   const mocks = {

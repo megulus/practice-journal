@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/lib/useApi'
-import type { Piece } from '@/lib/types'
+import type { Piece } from '@kantelo/core/types'
 import { AddPiece } from './AddPiece'
 import { PieceCard } from './PieceCard'
 

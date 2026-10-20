@@ -77,7 +77,7 @@ import type {
   CuratedBlock,
   RecentBlock,
   LibraryRepertoireResponse,
-} from './types'
+} from '@kantelo/core/types'
 
 // `??` (not `||`) so an explicitly *empty* NEXT_PUBLIC_API_URL means
 // "relative / same-origin" (calls go to the frontend's own origin, e.g. behind

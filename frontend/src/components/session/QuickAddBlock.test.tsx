@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { QuickAddBlock } from './QuickAddBlock'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 import { installSpeechMock, uninstallSpeechMock } from '@/test/speechMock'
 
 // One stable object: AddBlockSheet loads the library in an `api`-dependent

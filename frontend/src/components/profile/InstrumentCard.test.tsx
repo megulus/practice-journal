@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, within } from '@/test/utils'
 import { InstrumentCard } from './InstrumentCard'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 
 const { mockUpdate, mockDelete } = vi.hoisted(() => ({
   mockUpdate: vi.fn().mockResolvedValue(undefined),

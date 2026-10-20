@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
 import TodayPage from './page'
-import type { Instrument, TodayResponse } from '@/lib/types'
+import type { Instrument, TodayResponse } from '@kantelo/core/types'
 
 // One stable client for the file — a per-render object would change `api`'s
 // identity and re-fire the load effect forever (see #277).

@@ -1,7 +1,7 @@
 'use client'
 
 import { Card } from '@/components/ui'
-import { getSectionColor } from '@/lib/section-colors'
+import { getSectionColor } from '@kantelo/core/section-colors'
 import type { QuickStartPlan } from '@/lib/quickstart'
 import { WIZARD_HINT, WIZARD_LABEL } from './WizardFrame'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { ratingTrendSummary, weekAgoLabel } from './ratingTrendSummary'
-import type { RatingsWeek } from '@/lib/types'
+import type { RatingsWeek } from '@kantelo/core/types'
 
 /**
  * Segment order matches the rating scale left-to-right as it reads best:

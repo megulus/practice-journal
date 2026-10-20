@@ -6,7 +6,7 @@ import type {
   Instrument,
   Template,
   TemplateUpdateResult,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 // One hoisted api object, returned by every `useApi()` call. A fresh object
 // per render re-triggers the `api`-dependent load effect forever (#277).

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { TempoField } from './TempoField'
-import type { BlockLog } from '@/lib/types'
+import type { BlockLog } from '@kantelo/core/types'
 
 const { mockApi } = vi.hoisted(() => ({
   mockApi: { updateBlockLog: vi.fn().mockResolvedValue(undefined) },
