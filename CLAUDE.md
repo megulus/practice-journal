@@ -335,6 +335,9 @@ Both backend and frontend hot-reload via mounted volumes. User-owned data
 (instruments, templates, pieces, logs) is created through the app after signing
 in via Clerk — there is no per-user seed step.
 
+In Niteshift sandboxes the stack runs as Niteshift services, not Compose: use the
+native commands in `.niteshift/instructions.md`, not `docker compose exec`.
+
 ## Tests
 
 CI (`.github/workflows/ci.yml`) runs backend (pytest) and frontend (Vitest) on
@@ -350,6 +353,9 @@ container so the DB host resolves:
 docker compose exec backend python -m pytest tests/ -v
 docker compose exec backend python -m pytest tests/test_practice_api.py -v   # one file
 ```
+
+In Niteshift sandboxes, run them natively per `.niteshift/instructions.md`
+(`cd backend && venv/bin/python -m pytest tests/ -v`), not via `docker compose exec`.
 
 **A container built before #299 fails these commands immediately** with:
 

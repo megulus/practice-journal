@@ -159,6 +159,10 @@ docker compose up
 
 The frontend and backend will automatically reload when you make changes to the code.
 
+> **Niteshift sandboxes don't use Docker Compose.** Setup and services live in
+> `.niteshift/` (see `.niteshift/instructions.md`); inspect them with
+> `ns services status` and `ns services logs <name>`.
+
 ### Stopping the Services
 
 ```bash
@@ -275,7 +279,8 @@ value so the browser calls the frontend's own origin, and route those calls to
 the backend. `api.ts` treats an empty `NEXT_PUBLIC_API_URL` as relative/
 same-origin (it uses `??`, so only an *unset* value falls back to localhost). The
 Niteshift cloud setup does this with `NEXT_PUBLIC_API_URL=/kantelo-api` (a path
-prefix) plus a small proxy that forwards `/kantelo-api/*` to the backend.
+prefix) plus a small proxy that forwards `/kantelo-api/*` to the backend (see
+`.niteshift/services.yaml` and `.niteshift/files/kantelo-proxy.js`).
 
 **Speculative cleanup (not applied).** `next.config.js`'s `/api/*` rewrite still
 derives its destination from `NEXT_PUBLIC_API_URL`, so a bare `""` makes it a
