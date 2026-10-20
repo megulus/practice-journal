@@ -17,6 +17,10 @@ services:
   - name: web
     command: node .niteshift/files/kantelo-proxy.js
     port: 3000
+    # Clerk has no dev bypass to automate, so the preview replays a login
+    # recorded by hand until it expires.
+    auth:
+      type: recorded
     environment:
       - name: NEXT_PORT
         value: "3001"
