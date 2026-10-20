@@ -125,13 +125,15 @@ Procedure:
    in `Ready`), or `keep` (still valid, stays in Backlog). Give a one-line reason
    and cite the evidence (commit/PR/doc).
 4. **Output a report, then stop.** Group by classification with the reasons. The
-   human reviews and says which to action; only then make the changes.
+   human reviews and says which to action; only then make the changes. (A batch
+   manager puts the actionable ones on its attention list as `Decide` items.)
 
 Board writes (adding an item, moving a column) do work with `GH_PROJECT_TOKEN` —
 verified 2026-08 by adding #254–#257 to `Backlog`. `gh project item-add` /
 `item-edit` are still unusable with it (missing `read:org`), so a write means a
 hand-written GraphQL mutation. **This stays propose-then-confirm: don't write to
-the board without explicit sign-off.**
+the board without explicit sign-off.** A human's "ok" to an attention-list item
+counts as sign-off for exactly the write that item names, nothing broader.
 
 New issues usually don't need adding: the board's *Auto-add to project* workflow
 puts new issues from this repo in `Backlog` within seconds (every issue since at
@@ -166,8 +168,9 @@ ADRs), **#156** (reconcile schema-api — addressed by that same work), **#33**
 A review that lives only in a chat session evaporates when the session ends, and
 the next person — or the next agent — has no idea it happened. When you review a
 PR, whether you did it yourself or dispatched a review agent, **post the findings
-to the PR**, then summarize in chat. One summary comment is usually right; use
-inline comments when the findings are line-specific.
+to the PR**, then summarize in chat (a batch manager summarizes as an entry on
+the attention list instead; see "Shepherding"). One summary comment is usually
+right; use inline comments when the findings are line-specific.
 
 Posting is outward-facing, so:
 
@@ -213,6 +216,41 @@ The review discipline and the triage rules below hold anywhere.
 
 Written from a run of twelve tickets across six PRs, then seven more across six.
 Everything here is something that actually bit.
+
+### Reporting to the human: the attention list
+
+The manager's job is to keep the human's context switching to a minimum: they
+make decisions from one list and never have to open a task to understand an
+item. Every status update is that list.
+
+| # | Pri | Action | Decision / what to do | Rec | Effort | Link |
+|---|---|---|---|---|---|---|
+| 1 | P1 | Merge | #354 Clerk Core 3. Reviewed, fix re-checked, CI green on the head. | Merge | 1 min | PR |
+
+- **#**: a stable number, so the human can answer "1 merged, 3 later, 4 yes"
+  without restating context.
+- **Pri**: P0 means agents are stuck on the human right now. P1 blocks the next
+  planned work or has a deadline. P2 is for this week. P3 is optional.
+- **Action**: `Merge`, `Decide`, `Review`, or `Do` (dashboard, secrets, settings:
+  the things only a human can reach). Typing them lets the human batch the work.
+- **Decision**: one or two sentences, enough to decide from the list alone. If
+  the human would have to open a task to understand it, rewrite the item. For a
+  product or copy call, put the concrete before/after strings in the item; that
+  is the one place length is worth it.
+- **Rec**: your recommendation. An "ok" from the human accepts it, and covers
+  exactly what the item says.
+- **Effort** for the human, and a **link** when there's something to open.
+
+Below the table, one line each: **Coming soon** (in progress, not theirs yet),
+**Parked** (ticketed, not urgent), and **Running** (agents and reviews in
+flight). Follow-ups lead with what's new or changed; resend the full list when
+asked or when it's short.
+
+Two rules keep the list trustworthy. **Nothing unverified goes on it:** a
+`Merge` item means you reviewed it, re-reviewed the fixes, and saw CI pass on
+that exact SHA. Anything short of that sits under "Coming soon". And **an item
+stays until it's answered**; never let one drop off because a reviewer judged it
+fine (see "Surface human calls" below).
 
 **Group tickets by file overlap, not by theme.** Two tickets that read as
 unrelated but edit the same component belong in one task; two that sound like a
@@ -296,10 +334,11 @@ re-run its own audit over the merged code, because the thing it checked has
 changed underneath it.
 
 **Surface human calls, then actually hold them open.** When an agent flags
-something as a product or copy decision, put the concrete before/after in front
-of the human and *wait*. A reviewer judging the change "justified" is not the
-same as the human deciding it, and it's easy to let a flagged item quietly ride
-on a reviewer's verdict. Track them until they're answered.
+something as a product or copy decision, put it on the attention list as a
+`Decide` item with the concrete before/after, and *wait*. A reviewer judging the
+change "justified" is not the same as the human deciding it, and it's easy to let
+a flagged item quietly ride on a reviewer's verdict. The item stays on the list
+until it's answered.
 
 **Verify what agents report.** They are usually right and occasionally confident
 about something stale — a branch that moved, a check that passed on an earlier
@@ -335,6 +374,9 @@ Both backend and frontend hot-reload via mounted volumes. User-owned data
 (instruments, templates, pieces, logs) is created through the app after signing
 in via Clerk — there is no per-user seed step.
 
+In Niteshift sandboxes the stack runs as Niteshift services, not Compose: use the
+native commands in `.niteshift/instructions.md`, not `docker compose exec`.
+
 ## Tests
 
 CI (`.github/workflows/ci.yml`) runs backend (pytest) and frontend (Vitest) on
@@ -350,6 +392,9 @@ container so the DB host resolves:
 docker compose exec backend python -m pytest tests/ -v
 docker compose exec backend python -m pytest tests/test_practice_api.py -v   # one file
 ```
+
+In Niteshift sandboxes, run them natively per `.niteshift/instructions.md`
+(`cd backend && venv/bin/python -m pytest tests/ -v`), not via `docker compose exec`.
 
 **A container built before #299 fails these commands immediately** with:
 
