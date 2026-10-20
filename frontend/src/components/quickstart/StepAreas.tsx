@@ -2,7 +2,7 @@
 
 import { Button, Checkbox } from '@/components/ui'
 import { cx } from '@kantelo/core/cx'
-import { QUICK_START_AREAS } from '@/lib/quickstart'
+import { QUICK_START_AREAS } from '@kantelo/core/quickstart'
 import type { SectionType } from '@kantelo/core/types'
 import { WizardFrame, WIZARD_HINT } from './WizardFrame'
 

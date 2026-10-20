@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, Pill, TextInput } from '@/components/ui'
-import { QUICK_START_INSTRUMENTS } from '@/lib/quickstart'
+import { QUICK_START_INSTRUMENTS } from '@kantelo/core/quickstart'
 import type { Instrument } from '@kantelo/core/types'
 import { WizardFrame } from './WizardFrame'
 import {

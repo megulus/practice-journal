@@ -2,7 +2,7 @@
 
 import { Button, useRovingFocus } from '@/components/ui'
 import { cx } from '@kantelo/core/cx'
-import { TIME_BUDGETS, type QuickStartPlan } from '@/lib/quickstart'
+import { TIME_BUDGETS, type QuickStartPlan } from '@kantelo/core/quickstart'
 import { PlanPreview } from './PlanPreview'
 import { WizardFrame, WIZARD_LINK } from './WizardFrame'
 

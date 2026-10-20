@@ -65,14 +65,14 @@ Uses **Clerk** (`@clerk/nextjs`) for all authentication:
 ### Shared core (`@kantelo/core`)
 
 Platform-neutral logic lives in `packages/core/src/` (repo root) and is imported
-by module: `@kantelo/core/types`, `/section-colors`, `/dates`, `/duration`,
-`/idempotency`, `/confirm-copy`, `/cx`, `/metronome` (#334 moves the rest of
-`src/lib/` there over the next PRs). It ships TypeScript source
-(`transpilePackages` in `next.config.js`). Core must work on React Native too,
-so it can't use the DOM, `next/*`, `react-dom` or `@clerk/*`, and can't read
-`process.env`. Tooling enforces this: core's tsconfig has no DOM or Node types
-(`typecheck` fails on `window`, `document`, `localStorage` or `process`), and
-its ESLint config bans the Next, react-dom and Clerk imports (`lint`;
+by module: `@kantelo/core/types`, `/quickstart`, `/section-colors`, `/dates`,
+`/duration`, `/idempotency`, `/confirm-copy`, `/cx`, `/metronome` (`src/lib/`
+keeps only the web-specific wiring, such as `useApi.ts`). It ships TypeScript
+source (`transpilePackages` in `next.config.js`). Core must work on React Native
+too, so it can't use the DOM, `next/*`, `react-dom` or `@clerk/*`, and can't
+read `process.env`. Tooling enforces this: core's tsconfig has no DOM or Node
+types (`typecheck` fails on `window`, `document`, `localStorage` or `process`),
+and its ESLint config bans the Next, react-dom and Clerk imports (`lint`;
 type-checking alone won't catch them, because those packages are installed at
 the root for the frontend). Its tests live beside the code, run in plain Node,
 and run from the root `npm test`.
@@ -128,7 +128,7 @@ All shared TypeScript interfaces live in `packages/core/src/types.ts`, imported 
 - `src/components/` — feature components (`AddBlockSheet`, `BlockRow`, `RepertoireBlockRow`, `SectionCard`, `SessionTabs`, `RepertoireBlock`, `RatingChevrons`, `TimeStepper`)
 - `src/components/profile/` — Profile tab sections (`AccountHeader`, `InstrumentManager`/`InstrumentCard`, `ProfileSettings`)
 - `src/components/repertoire/` — the repertoire library surface (`RepertoireLibrary`, `PieceCard`, `SpotRow`, `SpotEditForm`, `LocationInput`, `SpotHistorySheet`) plus the template editor's `SpotManagementDrawer` and the shared `SearchCreateInput` (the search-doubles-as-create field)
-- `src/components/quickstart/` — the quick-start wizard the Today tab shows when the user has no active plan (`QuickStartWizard` + one component per step); the plan-balancing rules and the `needsQuickStart` gate live in `src/lib/quickstart.ts`
+- `src/components/quickstart/` — the quick-start wizard the Today tab shows when the user has no active plan (`QuickStartWizard` + one component per step); the plan-balancing rules and the `needsQuickStart` gate live in `packages/core/src/quickstart.ts`
 - `src/components/ui/` — design-system primitives (Button, Card, Pill, etc.) — added incrementally during Phase 0 PR 3+
 
 **Destructive actions go through `ConfirmDialog`** (`src/components/ui/ConfirmDialog.tsx`),
