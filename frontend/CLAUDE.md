@@ -42,9 +42,10 @@ reason to run it by hand anyway; if you must, build a copy of the tree.
 the dev-mode Clerk middleware `EvalError` from #192 — Next's Edge Runtime runs
 middleware in a `vm` context with `codeGeneration.strings=false`, and stricter vm
 enforcement in some Node builds rejects the `eval()`-based HMR source maps, 404-ing
-every protected route under `docker compose up`. (Re-checked on Next 15.5 in #340:
-20.20.2 still runs it cleanly.) To move the pin, bump it deliberately and re-test
-`docker compose up` while signed in (a protected route must load, HMR intact).
+every protected route under `docker compose up`. (Re-checked on Next 15.5 in #340
+and on Clerk Core 3 in #331: 20.20.2 still runs it cleanly.) To move the pin, bump
+it deliberately and re-test `docker compose up` while signed in (a protected route
+must load, HMR intact).
 
 ## Architecture
 
