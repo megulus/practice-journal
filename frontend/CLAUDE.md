@@ -65,9 +65,9 @@ Uses **Clerk** (`@clerk/nextjs`) for all authentication:
 ### Shared core (`@kantelo/core`)
 
 Platform-neutral logic lives in `packages/core/src/` (repo root) and is imported
-by module: `@kantelo/core/types`, `/section-colors`, `/dates`, `/duration`,
-`/idempotency`, `/confirm-copy`, `/cx`, `/metronome` (#334 moves the rest of
-`src/lib/` there over the next PRs). It ships TypeScript source
+by module: `@kantelo/core/types`, `/api`, `/section-colors`, `/dates`,
+`/duration`, `/idempotency`, `/confirm-copy`, `/cx`, `/metronome` (#334 moves
+the rest of `src/lib/` there over the next PRs). It ships TypeScript source
 (`transpilePackages` in `next.config.js`). Core must work on React Native too,
 so it can't use the DOM, `next/*`, `react-dom` or `@clerk/*`, and can't read
 `process.env`. Tooling enforces this: core's tsconfig has no DOM or Node types
@@ -79,8 +79,9 @@ and run from the root `npm test`.
 
 ### API Layer
 
-- `src/lib/api.ts` — Factory function `createAuthenticatedAPI()` returns an object with methods for all backend endpoints. Each method injects a Bearer JWT token from Clerk.
-- `src/lib/useApi.ts` — Custom hook that memoizes the authenticated API client for use in components.
+- `@kantelo/core/api` (`packages/core/src/api.ts`) — `createAuthenticatedAPI({ baseUrl, getToken, onAuthFailure })` returns an object with methods for all backend endpoints. Each request carries a Bearer JWT from the injected `getToken`. It's platform-neutral: the host app supplies the base URL and the token getter. Its web-platform types (`fetch`, `Response`, …) come from `packages/core/src/web-platform.d.ts`, not the DOM lib; add a member there when core needs one.
+- `src/lib/apiBaseUrl.ts` — resolves `NEXT_PUBLIC_API_URL` (`??`: an empty value means same-origin; only an unset value falls back to `http://localhost:8000`).
+- `src/lib/useApi.ts` — Custom hook that wires Clerk's `getToken`, the base URL, and the redirect-to-sign-in on a dead session into the client, memoized for components.
 - `next.config.js` rewrites `/api/*` requests to the backend URL (`NEXT_PUBLIC_API_URL`).
 
 ### Routing
