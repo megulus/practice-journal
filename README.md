@@ -265,7 +265,8 @@ See `docs/kantelo-product-spec.md` §10 for the full future-scope list.
 
 ### API calls fail on preview URLs or behind a proxy ("Failed to fetch")
 
-The API client (`frontend/src/lib/api.ts`) calls the backend at
+The API client (`packages/core/src/api.ts`, given its base URL by
+`frontend/src/lib/apiBaseUrl.ts`) calls the backend at
 `NEXT_PUBLIC_API_URL`. An **absolute** value (e.g. `http://localhost:8000`, or a
 public backend URL) is a cross-origin request that relies on CORS — fine for
 local Docker and Railway, but it **breaks** where the browser can't reach that
@@ -276,7 +277,7 @@ requests reach the backend (check the network tab).
 
 **Fix — serve the API same-origin.** Give `NEXT_PUBLIC_API_URL` a **relative**
 value so the browser calls the frontend's own origin, and route those calls to
-the backend. `api.ts` treats an empty `NEXT_PUBLIC_API_URL` as relative/
+the backend. `apiBaseUrl.ts` treats an empty `NEXT_PUBLIC_API_URL` as relative/
 same-origin (it uses `??`, so only an *unset* value falls back to localhost). The
 Niteshift cloud setup does this with `NEXT_PUBLIC_API_URL=/kantelo-api` (a path
 prefix) plus a small proxy that forwards `/kantelo-api/*` to the backend (see

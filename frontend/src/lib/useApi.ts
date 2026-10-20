@@ -3,7 +3,8 @@
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useMemo, useRef } from 'react'
-import { createAuthenticatedAPI } from './api'
+import { createAuthenticatedAPI } from '@kantelo/core/api'
+import { API_BASE_URL } from './apiBaseUrl'
 
 /**
  * Authenticated API client. Injects Clerk JWTs into every request and, on a
@@ -18,10 +19,14 @@ export function useApi() {
 
   const api = useMemo(
     () =>
-      createAuthenticatedAPI(getToken, () => {
-        if (redirectedRef.current) return
-        redirectedRef.current = true
-        router.push('/sign-in')
+      createAuthenticatedAPI({
+        baseUrl: API_BASE_URL,
+        getToken,
+        onAuthFailure: () => {
+          if (redirectedRef.current) return
+          redirectedRef.current = true
+          router.push('/sign-in')
+        },
       }),
     [getToken, router]
   )

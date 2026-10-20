@@ -77,13 +77,7 @@ import type {
   CuratedBlock,
   RecentBlock,
   LibraryRepertoireResponse,
-} from '@kantelo/core/types'
-
-// `??` (not `||`) so an explicitly *empty* NEXT_PUBLIC_API_URL means
-// "relative / same-origin" (calls go to the frontend's own origin, e.g. behind
-// a reverse proxy or a cloud preview URL). Only an unset value falls back to
-// localhost. See README "API calls fail on preview URLs or behind a proxy".
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+} from './types'
 
 /**
  * Custom error thrown for non-2xx responses. Includes the HTTP status
@@ -109,7 +103,11 @@ export type GetToken = (options?: {
   skipCache?: boolean
 }) => Promise<string | null>
 
-function createFetchAPI(getToken?: GetToken, onAuthFailure?: () => void) {
+function createFetchAPI(
+  baseUrl: string,
+  getToken?: GetToken,
+  onAuthFailure?: () => void
+) {
   async function attempt(
     endpoint: string,
     options: RequestInit | undefined,
@@ -138,7 +136,7 @@ function createFetchAPI(getToken?: GetToken, onAuthFailure?: () => void) {
       }
     }
 
-    return fetch(`${API_URL}${endpoint}`, { ...options, headers })
+    return fetch(`${baseUrl}${endpoint}`, { ...options, headers })
   }
 
   async function fetchAPI(endpoint: string, options?: RequestInit): Promise<void>
@@ -196,11 +194,25 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 // Public API
 // ---------------------------------------------------------------------------
 
-export function createAuthenticatedAPI(
-  getToken: GetToken,
+export interface APIClientOptions {
+  /**
+   * Where the API lives, prepended to every `/api/...` path: an origin
+   * (`https://api.kantelo.app`), a same-origin prefix (`/kantelo-api`), or
+   * `''` for same-origin. No trailing slash. The host app supplies it from its
+   * own config (web: `NEXT_PUBLIC_API_URL`); core never reads the environment.
+   */
+  baseUrl: string
+  getToken: GetToken
+  /** Called when a request still 401s after a forced token refresh. */
   onAuthFailure?: () => void
-) {
-  const f = createFetchAPI(getToken, onAuthFailure)
+}
+
+export function createAuthenticatedAPI({
+  baseUrl,
+  getToken,
+  onAuthFailure,
+}: APIClientOptions) {
+  const f = createFetchAPI(baseUrl, getToken, onAuthFailure)
 
   return {
     // -----------------------------------------------------------------

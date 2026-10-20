@@ -452,7 +452,7 @@ These are easy to get wrong from code-reading alone:
 ## Frontend
 
 See `frontend/CLAUDE.md` for the full guide (Next.js App Router structure, the
-`createAuthenticatedAPI()` client in `src/lib/api.ts`, shared types in
+`createAuthenticatedAPI()` client in `@kantelo/core/api`, shared types in
 `packages/core/src/types.ts` (`@kantelo/core/types`), the Tailwind/token system, and the dev-only `/preview`
 route). Key context: the Phase-0 rebuild against the new Kantelo schema and
 design system is complete (all core screens retoned to tokens/primitives, PRs
