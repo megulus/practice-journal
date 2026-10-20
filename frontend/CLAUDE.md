@@ -142,9 +142,9 @@ call site names its target and states the cascade the same way.
 
 ### Styling
 
-Design tokens live in `src/lib/tokens.css` as CSS custom properties (light by default, dark mode under `[data-theme="dark"]`). The token names and values are the source of truth — see `docs/kantelo-design-tokens.md`.
+Design token values live in `packages/core/src/tokens.ts` (`@kantelo/core/tokens`), shared with the future mobile app; `docs/kantelo-design-tokens.md` is canonical for them. `tailwind.config.ts` derives the CSS custom properties from it (a plugin emits them; light by default, dark mode under `[data-theme="dark"]`), so there's no tokens CSS file to edit. **Restart `next dev` after changing `tokens.ts`:** the dev server doesn't reload the Tailwind config or what it imports.
 
-`tailwind.config.ts` exposes every token as a Tailwind utility by referencing the matching CSS variable. Utility names match the token names verbatim, which means some doubled prefixes (`bg-page-bg`, `text-text-primary`, `border-border-default`) — chosen so the design doc remains the unambiguous source of truth. Common utility shapes:
+`tailwind.config.ts` exposes every token as a Tailwind utility (`tailwindTheme` from `tokens.ts`) by referencing the matching CSS variable. Utility names match the token names verbatim, which means some doubled prefixes (`bg-page-bg`, `text-text-primary`, `border-border-default`) — chosen so the design doc remains the unambiguous source of truth. Common utility shapes:
 
 - Surfaces: `bg-page-bg`, `bg-card-bg`, `bg-card-bg-inset`, `bg-input-bg`, `bg-input-bg-recessed`
 - Text: `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `text-text-link`, `text-text-on-primary-action`
