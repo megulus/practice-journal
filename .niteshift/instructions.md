@@ -3,7 +3,7 @@ The stack runs as Niteshift services (`ns services status`), not `docker compose
 commands natively from `backend/` with `venv/bin/...` (e.g. `venv/bin/python -m pytest tests/ -v`,
 `venv/bin/alembic upgrade head`); the dev database is on `localhost:5432`.
 
-`CLERK_SECRET_KEY` is not in the shell environment; it's a Niteshift secret, so there is one copy to
-rotate. When a command needs it (e.g. creating a Clerk sign-in token to verify a signed-in flow), inject
-it without printing it: `ns secrets exec --env CLERK_SECRET_KEY=CLERK_SECRET_KEY -- <command>`.
-Never echo or log the value.
+When a command needs `CLERK_SECRET_KEY` (e.g. creating a Clerk sign-in token to verify a signed-in
+flow), read it with `ns secrets exec --env CLERK_SECRET_KEY=CLERK_SECRET_KEY -- <command>`. That
+returns the live value from the environment settings; any copy captured at sandbox setup goes stale
+when the key is rotated. Never echo or log the value.
