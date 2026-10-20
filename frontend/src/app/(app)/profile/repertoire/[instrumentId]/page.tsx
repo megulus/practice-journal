@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useApi } from '@/lib/useApi'
 import { RepertoireLibrary } from '@/components/repertoire'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 
 export default function RepertoirePage() {
   const api = useApi()

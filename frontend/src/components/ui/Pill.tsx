@@ -1,6 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { cx } from '@kantelo/core/cx'
-import type { SectionColor } from '@/lib/section-colors'
+import type { SectionColor } from '@kantelo/core/section-colors'
 
 /**
  * Pill — two variants with distinct shape and semantics.

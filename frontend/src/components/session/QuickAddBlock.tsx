@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react'
 import { useApi } from '@/lib/useApi'
 import AddBlockSheet, { type BlockLibraryTab } from '@/components/AddBlockSheet'
 import { VoiceInput, useDictation } from '@/components/ui'
-import type { BlockCreate, Instrument } from '@/lib/types'
+import type { BlockCreate, Instrument } from '@kantelo/core/types'
 
 // ---------------------------------------------------------------------------
 // Quick-add block

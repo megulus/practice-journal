@@ -10,7 +10,7 @@ import type {
   CuratedBlock,
   LibraryPiece,
   RecentBlock,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 export type BlockLibraryTab = 'curated' | 'recent' | 'repertoire'
 

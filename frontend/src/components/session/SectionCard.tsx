@@ -7,8 +7,8 @@ import RepertoireBlock from '@/components/RepertoireBlock'
 import { BlockRow } from './BlockRow'
 import { QuickAddBlock } from './QuickAddBlock'
 import { groupBlockLogs } from './groupBlockLogs'
-import type { SectionColor } from '@/lib/section-colors'
-import type { Instrument, InSessionSuggestion, SectionLog } from '@/lib/types'
+import type { SectionColor } from '@kantelo/core/section-colors'
+import type { Instrument, InSessionSuggestion, SectionLog } from '@kantelo/core/types'
 
 // ---------------------------------------------------------------------------
 // Section card

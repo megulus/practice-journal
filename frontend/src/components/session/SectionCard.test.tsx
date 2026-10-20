@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, within } from '@/test/utils'
 import { SectionCard } from './SectionCard'
-import { getSectionColor } from '@/lib/section-colors'
-import type { SectionLog, BlockLog } from '@/lib/types'
+import { getSectionColor } from '@kantelo/core/section-colors'
+import type { SectionLog, BlockLog } from '@kantelo/core/types'
 
 // A single hoisted object — a fresh one per render would re-run the
 // `api`-dependent load effects of nested components forever (#277).

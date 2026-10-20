@@ -7,7 +7,7 @@ import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill, RotationDots } from '@/components/ui'
 import { QuickStartWizard } from '@/components/quickstart'
 import { cx } from '@kantelo/core/cx'
-import { getSectionColor } from '@/lib/section-colors'
+import { getSectionColor } from '@kantelo/core/section-colors'
 import { formatStartedAt } from '@kantelo/core/dates'
 import { needsQuickStart } from '@/lib/quickstart'
 import type {
@@ -19,7 +19,7 @@ import type {
   Instrument,
   InstrumentBrief,
   SectionType,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 // Shared CTA styles (token-driven). A `ButtonLink` primitive could be extracted
 // if this recurs across the other screen retones (#207–210).

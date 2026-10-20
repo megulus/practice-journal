@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ratingDisplay } from './ratingDisplay'
-import type { BlockLog } from '@/lib/types'
+import type { BlockLog } from '@kantelo/core/types'
 
 function block(o: Partial<BlockLog> = {}): BlockLog {
   return {

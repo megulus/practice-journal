@@ -1,8 +1,8 @@
 'use client'
 
 import { ArrowUp, ArrowDown, Trash2 } from 'lucide-react'
-import type { Section } from '@/lib/types'
-import type { SectionColor } from '@/lib/section-colors'
+import type { Section } from '@kantelo/core/types'
+import type { SectionColor } from '@kantelo/core/section-colors'
 import { AutoSaveInput, Menu, SectionPip, useAutoSaveField, type MenuItem } from './ui'
 import BlockRow from './BlockRow'
 import RepertoireBlockRow from './RepertoireBlockRow'

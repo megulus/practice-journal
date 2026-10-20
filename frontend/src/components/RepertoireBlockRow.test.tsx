@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
-import type { Block } from '@/lib/types'
+import type { Block } from '@kantelo/core/types'
 import RepertoireBlockRow from './RepertoireBlockRow'
 
 const block: Block = {

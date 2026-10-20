@@ -7,7 +7,7 @@ import { groupBlockLogs, spotDisplayName } from '@/components/session'
 import { formatHistoryDate } from '@kantelo/core/dates'
 import { cx } from '@kantelo/core/cx'
 import { ratingDisplay } from './ratingDisplay'
-import type { BlockLog, HistoryItem, PracticeLog } from '@/lib/types'
+import type { BlockLog, HistoryItem, PracticeLog } from '@kantelo/core/types'
 
 /**
  * One row of the History list (spec §5.7). Collapsed it shows date, session

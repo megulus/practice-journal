@@ -1,6 +1,6 @@
 'use client'
 
-import type { Rating } from '@/lib/types'
+import type { Rating } from '@kantelo/core/types'
 
 /**
  * Directional rating chevrons: step back (-1), steady (0), step forward (1).

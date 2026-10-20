@@ -7,7 +7,7 @@ import { useApi } from '@/lib/useApi'
 import { AutoSaveInput, Card, ConfirmDialog, Menu, Pill } from '@/components/ui'
 import { alsoRemoves, deleteConfirmCopy } from '@kantelo/core/confirm-copy'
 import { formatRelativeDay } from '@kantelo/core/dates'
-import type { Instrument, PracticeFrequency } from '@/lib/types'
+import type { Instrument, PracticeFrequency } from '@kantelo/core/types'
 import { PRACTICE_FREQUENCIES } from './frequencies'
 
 /**

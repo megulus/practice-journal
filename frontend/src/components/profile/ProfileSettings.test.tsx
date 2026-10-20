@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act } from 'react'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { ProfileSettings } from './ProfileSettings'
-import type { UserSettings } from '@/lib/types'
+import type { UserSettings } from '@kantelo/core/types'
 
 const { mockGet, mockUpdate, mockApi } = vi.hoisted(() => {
   const mockGet = vi.fn()

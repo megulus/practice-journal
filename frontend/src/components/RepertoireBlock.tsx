@@ -16,7 +16,7 @@ import {
 // Imported from the module, not the barrel: the barrel pulls in SectionCard,
 // which imports this file.
 import { spotDisplayName } from '@/components/session/groupBlockLogs'
-import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
+import type { BlockLog, InSessionSuggestion, Rating } from '@kantelo/core/types'
 
 /**
  * A repertoire block in the active session: piece header with a

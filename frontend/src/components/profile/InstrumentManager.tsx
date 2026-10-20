@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/lib/useApi'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 import { InstrumentCard } from './InstrumentCard'
 import { AddInstrument } from './AddInstrument'
 

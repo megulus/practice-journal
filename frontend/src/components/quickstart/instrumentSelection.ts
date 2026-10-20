@@ -1,4 +1,4 @@
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 
 /**
  * What step 1 is holding: one of the user's existing instruments, one of the

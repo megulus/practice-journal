@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus } from 'lucide-react'
-import type { TemplateSession } from '@/lib/types'
+import type { TemplateSession } from '@kantelo/core/types'
 import { Pill } from './ui'
 
 export default function SessionTabs({

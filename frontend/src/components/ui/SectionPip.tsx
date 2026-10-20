@@ -1,6 +1,6 @@
 import { forwardRef, type HTMLAttributes } from 'react'
 import { cx } from '@kantelo/core/cx'
-import type { SectionColor } from '@/lib/section-colors'
+import type { SectionColor } from '@kantelo/core/section-colors'
 
 export interface SectionPipProps
   extends Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {

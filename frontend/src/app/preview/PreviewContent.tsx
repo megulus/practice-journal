@@ -21,11 +21,11 @@ import {
   TimeStepper,
   Menu,
 } from '@/components/ui'
-import type { Rating } from '@/lib/types'
+import type { Rating } from '@kantelo/core/types'
 import {
   SECTION_COLORS_BY_NAME,
   type SectionColorName,
-} from '@/lib/section-colors'
+} from '@kantelo/core/section-colors'
 
 function Section({
   title,

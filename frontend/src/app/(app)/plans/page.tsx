@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApi } from '@/lib/useApi'
 import { Button, Card, Pill } from '@/components/ui'
-import type { Instrument, TemplateListItem } from '@/lib/types'
+import type { Instrument, TemplateListItem } from '@kantelo/core/types'
 
 export default function PlansPage() {
   const api = useApi()

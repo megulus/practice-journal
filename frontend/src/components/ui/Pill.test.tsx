@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
 import { Pill } from './Pill'
-import { SECTION_COLORS_BY_NAME } from '@/lib/section-colors'
+import { SECTION_COLORS_BY_NAME } from '@kantelo/core/section-colors'
 
 describe('Pill', () => {
   describe('instrument variant (default)', () => {

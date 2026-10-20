@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@/test/utils'
 import { RatingTrend } from './RatingTrend'
-import type { RatingsWeek } from '@/lib/types'
+import type { RatingsWeek } from '@kantelo/core/types'
 
 function week(
   week_start: string,

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@/test/utils'
 import { SectionPip } from './SectionPip'
-import { SECTION_COLORS_BY_NAME } from '@/lib/section-colors'
+import { SECTION_COLORS_BY_NAME } from '@kantelo/core/section-colors'
 
 describe('SectionPip', () => {
   it('renders as a span', () => {

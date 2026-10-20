@@ -1,4 +1,4 @@
-import type { BlockLog } from '@/lib/types'
+import type { BlockLog } from '@kantelo/core/types'
 
 // ---------------------------------------------------------------------------
 // Rating presentation for a logged exercise.

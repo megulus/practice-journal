@@ -2,7 +2,7 @@
 
 import { StatCard } from '@/components/ui'
 import { formatDuration } from '@kantelo/core/duration'
-import type { ComparisonResponse, WeekStats } from '@/lib/types'
+import type { ComparisonResponse, WeekStats } from '@kantelo/core/types'
 
 const DAY_ORDER = [
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',

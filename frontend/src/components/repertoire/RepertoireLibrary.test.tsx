@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { RepertoireLibrary } from './RepertoireLibrary'
-import type { Piece } from '@/lib/types'
+import type { Piece } from '@kantelo/core/types'
 
 const { api, mocks } = vi.hoisted(() => {
   const mocks = {

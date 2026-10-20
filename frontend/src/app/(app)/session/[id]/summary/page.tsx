@@ -13,7 +13,7 @@ import {
   useDictation,
 } from '@/components/ui'
 import { formatSessionDate } from '@kantelo/core/dates'
-import type { FinishResponse } from '@/lib/types'
+import type { FinishResponse } from '@kantelo/core/types'
 
 // Token-driven CTA styles for navigation links (mirrors the Today retone).
 const PRIMARY_LINK =

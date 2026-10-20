@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act } from 'react'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import { HistoryList } from './HistoryList'
-import type { HistoryItem, HistoryResponse } from '@/lib/types'
+import type { HistoryItem, HistoryResponse } from '@kantelo/core/types'
 
 const { mockGetHistory, mockGetHistoryDetail, mockApi } = vi.hoisted(() => {
   const mockGetHistory = vi.fn()

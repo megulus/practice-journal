@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import AppShell from '@/components/layout/AppShell'
 import { QuickStartWizard } from './QuickStartWizard'
-import type { Instrument, QuickStartRequest } from '@/lib/types'
+import type { Instrument, QuickStartRequest } from '@kantelo/core/types'
 
 // One stable client for the whole file — a fresh object per render would
 // change `api`'s identity and spin any api-dependent effect (see #277).

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@/test/utils'
 import { InstrumentManager } from './InstrumentManager'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 
 const { mockList } = vi.hoisted(() => ({ mockList: vi.fn() }))
 

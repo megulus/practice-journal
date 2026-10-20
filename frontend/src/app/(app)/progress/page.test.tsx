@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
 import ProgressPage from './page'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 import { localYear } from '@/components/progress/heatmapGrid'
 
 const {

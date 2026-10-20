@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, waitFor } from '@/test/utils'
-import type { DefaultSpot, Spot } from '@/lib/types'
+import type { DefaultSpot, Spot } from '@kantelo/core/types'
 import { SpotManagementDrawer } from './SpotManagementDrawer'
 
 const DAY = 86_400_000

@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowUp, ArrowDown, Trash2 } from 'lucide-react'
-import type { Block } from '@/lib/types'
+import type { Block } from '@kantelo/core/types'
 import { AutoSaveInput, Menu, type MenuItem } from './ui'
 import TimeStepper from './ui/TimeStepper'
 

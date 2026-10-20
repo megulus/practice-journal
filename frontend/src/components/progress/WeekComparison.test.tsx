@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@/test/utils'
 import { WeekComparison } from './WeekComparison'
-import type { ComparisonResponse, DailyMinutes, WeekStats } from '@/lib/types'
+import type { ComparisonResponse, DailyMinutes, WeekStats } from '@kantelo/core/types'
 
 const DAYS = [
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',

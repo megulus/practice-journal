@@ -6,7 +6,7 @@ import type {
   HistoryItem,
   PracticeLog,
   SectionLog,
-} from '@/lib/types'
+} from '@kantelo/core/types'
 
 const { mockGetHistoryDetail, mockApi } = vi.hoisted(() => {
   const mockGetHistoryDetail = vi.fn()

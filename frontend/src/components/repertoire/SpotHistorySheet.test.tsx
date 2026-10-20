@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, userEvent, within } from '@/test/utils'
 import { SpotHistorySheet } from './SpotHistorySheet'
-import type { Spot, SpotHistory } from '@/lib/types'
+import type { Spot, SpotHistory } from '@kantelo/core/types'
 
 const { api, mockGetSpotHistory } = vi.hoisted(() => {
   const mockGetSpotHistory = vi.fn()

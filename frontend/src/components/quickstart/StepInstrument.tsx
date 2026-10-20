@@ -2,7 +2,7 @@
 
 import { Button, Pill, TextInput } from '@/components/ui'
 import { QUICK_START_INSTRUMENTS } from '@/lib/quickstart'
-import type { Instrument } from '@/lib/types'
+import type { Instrument } from '@kantelo/core/types'
 import { WizardFrame } from './WizardFrame'
 import {
   selectionKey,

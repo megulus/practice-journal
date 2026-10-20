@@ -12,7 +12,7 @@ import {
   useSerializedSave,
 } from '@/components/ui'
 import { TempoField } from './TempoField'
-import type { BlockLog, InSessionSuggestion, Rating } from '@/lib/types'
+import type { BlockLog, InSessionSuggestion, Rating } from '@kantelo/core/types'
 
 // ---------------------------------------------------------------------------
 // Block row (exercise)
