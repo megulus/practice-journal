@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** Reconstructed 2026-07-28 (original decision predates this record)
+- **Amended:** 2026-10-20 ([#335](https://github.com/megulus/practice-journal/issues/335)) — the code representation moved from `tokens.css` to `packages/core/src/tokens.ts`, from which the CSS custom properties and Tailwind theme are derived (so React Native can read the same values; ADR-0016). The decision is unchanged and the doc stays canonical for values.
 
 ## Context
 

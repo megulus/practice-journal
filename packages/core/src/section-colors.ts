@@ -11,7 +11,7 @@ import type { SectionType } from './types'
  *     non-pinned section gets blue, the second purple, etc., wrapping
  *     after 8.
  *
- * Each color references CSS custom properties defined in tokens.css so
+ * Each color references CSS custom properties derived from tokens.ts so
  * light/dark mode swaps automatically. Components apply via inline
  * `style={{ backgroundColor: color.pillBg, color: color.pillText }}`.
  */

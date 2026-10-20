@@ -2,7 +2,7 @@
 
 > The complete design system reference for implementing Kantelo's frontend. Every value here is a decision — don't improvise.
 
-**Last updated:** July 2026 — verified in sync with `frontend/src/lib/tokens.css` and `frontend/tailwind.config.ts`
+**Last updated:** October 2026 — color, spacing and radius values verified in sync with `packages/core/src/tokens.ts` (#335)
 **Direction:** Clean Edge + Warm Stone (IBM Plex Sans, tight radii, warm neutral palette)
 **Modes:** Light and Dark, both first-class
 
@@ -417,6 +417,10 @@ A compact inline input for adding ad hoc blocks mid-session, without opening the
 - Never hardcode hex values in component CSS. Always use `var(--token-name)`.
 - Section type pill colors are defined as a lookup (pinned colors + ordered pool), not as generic tokens. Both light and dark values are specified per color in the pool table.
 - The `primary` token shifts from dark teal (#0D6B52) in light mode to brighter teal (#2DB88A) in dark mode. This is intentional — dark backgrounds need brighter accents to carry the same visual weight.
+
+**In code:** the values above are written once, in `packages/core/src/tokens.ts` (`@kantelo/core/tokens`). The web derives everything from it in `frontend/tailwind.config.ts`: a plugin emits the custom properties above (plus `[data-theme="light"]`, which forces a subtree back to light) from `cssVariables()`, and the color, spacing and radius utilities come from `tailwindTheme`, which references those properties. Change a value there, not in CSS; the typography tokens (§3) aren't in it yet.
+
+**React Native (planned, #54):** NativeWind compiles Tailwind classes to RN styles, so the mobile app's `tailwind.config.js` extends the same `tailwindTheme` (identical class names), and the root view sets the variables with NativeWind's `vars()`, e.g. `vars({ ...cssVariables('light'), ...(dark ? cssVariables('dark') : {}) })` (dark doesn't redeclare spacing and radii). Code that styles without classes can read `colors[mode]`, `spacing` and `radii` directly. One known gap: RN has no percentage radii, so `radius-round` (50%) needs a numeric equivalent there.
 
 ---
 
