@@ -325,8 +325,9 @@ green run:
   contribution.
 
 **You do the mechanical merges; hand back the semantic ones.** Merging `main`
-into five branches and pushing is yours. A conflict in a file another PR
-substantially rewrote goes back to the task that owns it — and tell it to
+into five branches and pushing is yours (that is `main` *into* a feature
+branch; merging a PR into `main` stays with the human, see Conventions). A
+conflict in a file another PR substantially rewrote goes back to the task that owns it — and tell it to
 re-run its own audit over the merged code, because the thing it checked has
 changed underneath it.
 
@@ -477,6 +478,15 @@ quick-start wizard (Today tab, for users with no active plan) with #151.
   verified — bullets, not paragraphs. Don't walk the diff file by file or repeat
   rationale that lives in the ticket or an ADR; link it instead.
 - Don't commit or push unless asked. Branch off `main` before committing.
+- **Never push to `main`, and never merge a PR unless explicitly told to.**
+  Every change reaches `main` through a PR that a human merges. The only
+  authorization is the human saying, in this session, to merge a named PR; it
+  covers that PR only. Green CI, a clean review, or an "ok" to something else is
+  not authorization. That rules out `gh pr merge` (including `--auto`), any push
+  whose target is `main` (`git push origin main`, `HEAD:main`, a force-push), and
+  committing on a local `main` at all. The repo is private, where GitHub may not
+  enforce the `main` ruleset, so treat this rule as the guard rather than relying
+  on the server to reject the push.
 - When the work traces to a GitHub issue (e.g. a Niteshift run dispatched from a
   ticket), **include the issue number in the branch name** —
   `issue-<N>-<slug>`, e.g. `issue-150-insights-tab`. It ties the branch, its PR,

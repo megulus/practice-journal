@@ -86,6 +86,8 @@ htmlcov/
 # Local plans
 .plans/
 
-# Claude — local settings stay ignored; shared slash commands are tracked
+# Claude — local settings stay ignored; shared settings, hooks and slash commands are tracked
 .claude/*
 !.claude/commands/
+!.claude/hooks/
+!.claude/settings.json
